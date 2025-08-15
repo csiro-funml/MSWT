@@ -123,7 +123,7 @@ def resume_training_from_checkpoint(model, saved_path, device, optimizer=None, s
     start_epoch = checkpoint['epoch'] + 1
     model.to(device)
     model.train()
-    if 'error_fft' in checkpoint:
+    if os.path.exists(os.path.join(os.path.dirname(saved_path), 'error_fft.pth')):
         error_fft = torch.load(os.path.join(os.path.dirname(saved_path), 'error_fft.pth'))
         error_fft = error_fft.detach().cpu().numpy()[:-1, :-1] 
         # the data is in [n_frequency, n_epoch]
