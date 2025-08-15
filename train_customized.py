@@ -15,7 +15,7 @@ from torch.optim.lr_scheduler import OneCycleLR, StepLR, LambdaLR, CosineAnneali
 from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
-from utils.criterion import SimpleLpLoss, compute_error_fft 
+from utils.criterion import RelL2Norm, compute_error_fft 
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
@@ -110,7 +110,7 @@ else:
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0 if not torch.cuda.is_available() else 8)
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8)
-# val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
+val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8)
 
 ntrain, ntest = len(train_dataset), len(test_dataset)
 if not args.pad:
@@ -199,7 +199,7 @@ if args.resume_path:
 ################################################################
 # Main function for pretraining
 ################################################################
-myloss = SimpleLpLoss(size_average=False)
+myloss = RelL2Norm(size_average=False)
 # myloss = nn.MSELoss()
 loss_magnitude = []
 
@@ -280,7 +280,7 @@ for ep in pbar:
             model.eval()
             # compute spectrum once per epoch (first test batch)
             wrote_spec_this_epoch = False
-            for xx, yy in test_loader:
+            for xx, yy in val_loader:
                 loss = 0
                 xx = xx.to(device)
                 yy = yy.to(device)
@@ -315,7 +315,7 @@ for ep in pbar:
                 writer.add_scalar("test_loss_full", test_l2_full_avg, ep)
                 
                 # each epoch, compute the frequency spectrum of the error on the validation set
-                error_fft = compute_error_fft(model, test_loader, num_bins, device, args)
+                error_fft = compute_error_fft(model, val_loader, num_bins, device, args)
                 for freq_bin in range(0, error_fft.shape[0], 5):
                     writer.add_scalars('error_fft', {'freq-%s'%(freq_bin+1): error_fft[freq_bin]}, ep)
                 # write grayscale heatmap row for this epoch
