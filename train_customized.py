@@ -240,7 +240,7 @@ for ep in pbar:
             pred = model(xx)  # give the normalized output to the autoregressive predicting
             loss += myloss(pred, y)
 
-        train_l2_step += loss.item()
+        train_l2_step += loss.item() * y.shape[0]
 
         # loss_magnitude.append(compute_output_magnitude(yy_norm)) # (B, C)
 
@@ -248,7 +248,7 @@ for ep in pbar:
         # print("train input shape", xx.shape, "output shape", yy.shape, "pred shape", pred.shape, "mask shape", msk.shape)
         pred_denorm = train_dataset.denormalize_x(pred)
         l2_full = myloss(pred_denorm, yy)
-        train_l2_full += l2_full.item()
+        train_l2_full += l2_full.item() * y.shape[0]
 
         optimizer.zero_grad()
         total_loss = loss
@@ -257,7 +257,7 @@ for ep in pbar:
         optimizer.step()
         scheduler.step()
         # break # todo : to remove
-    train_l2_step_avg, train_l2_full_avg = train_l2_step / ntrain / (yy.shape[-2] / args.T_bundle), train_l2_full / ntrain
+    train_l2_step_avg, train_l2_full_avg = train_l2_step/ntrain, train_l2_full/ntrain
 
 
     # loss_magnitude = torch.cat(loss_magnitude, dim=0).detach().cpu().numpy() # (N, C)
@@ -300,14 +300,14 @@ for ep in pbar:
                     xx = torch.cat((xx[..., args.T_bundle:,:], pred_step), dim=-2)
 
                 # print("pred shape", pred.shape, "yy shape", yy.shape, 'mask shape', msk.shape, "arg t_bundle", args.T_bundle)
-                test_l2_step += loss_step.item()
+                test_l2_step += loss_step.item() * y.shape[0]
                 # print("loss",loss.item())
                 pred_denorm = train_dataset.denormalize_x(pred)
-                test_l2_full += myloss(pred_denorm, yy).item()
+                test_l2_full += myloss(pred_denorm, yy).item() * y.shape[0]
 
                 
                 # print("my loss", test_l2_full.item())
-            test_l2_step_avg, test_l2_full_avg = test_l2_step / ntest / (yy.shape[-2] / args.T_bundle), test_l2_full / ntest
+            test_l2_step_avg, test_l2_full_avg = test_l2_step/ntest, test_l2_full/ntest
             # print("test_l2_step_avg", test_l2_step_avg.item())
             # print("test_l2_full_avg", test_l2_full_avg.item())
             if args.use_writer:
