@@ -96,8 +96,8 @@ def compute_error_fft(model, test_loader, num_bins, device, args):
         for xx, yy in test_loader:
             xx = xx.to(device)  ## B, n, n, T_in, C
             yy = yy.to(device)  ## B, n, n, T_ar, C
-            xx = test_loader.train_dataset.normalize_x(xx)
-            yy_norm = test_loader.train_dataset.normalize_x(yy)
+            xx = test_loader.dataset.normalize_x(xx)
+            yy_norm = test_loader.dataset.normalize_x(yy)
             for t in range(0, yy_norm.shape[-2], args.T_bundle):
                 # print("t", t)
                 y = yy_norm[..., t:t + args.T_bundle, :]
