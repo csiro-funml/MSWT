@@ -53,6 +53,48 @@ class RelL2Norm(_WeightedLoss):
         return loss
 
 
+class RMSE(_WeightedLoss):
+    def __init__(self):
+        super(RMSE, self).__init__()
+        self.mse = nn.MSELoss()
+
+    def forward(self, pred, y):
+        # x: shape (B, H, W, T, C), y: shape (B, H, W, T, C)
+        B, H, W, T, C = y.shape
+        # reshape the x and y to (B*T, HW, C)
+        pred = rearrange(pred, 'b h w t c -> (b t) (h w) c')
+        y = rearrange(y, 'b h w t c -> (b t) (h w) c')
+
+        rmse = torch.sqrt(self.mse(pred, y))
+        return rmse
+
+
+
+class BoundaryRMSE(_WeightedLoss):
+    def __init__(self):
+        super(BoundaryRMSE, self).__init__()
+        self.mse = nn.MSELoss()
+
+    def extract_boundary(self, x):
+        # x (N, H, W, C),
+        # return (N, 2*H+2*W, C)
+        x_bound = torch.cat([x[..., 0, :, :], x[..., -1, :, :], x[..., :, 0, :], x[..., :, -1, :]], dim=-2)
+        return x_bound
+
+    def forward(self, pred, y):
+        B, H, W, T, C = y.shape
+        # reshape the x and y to (B*T, HW, C)
+        pred = rearrange(pred, 'b h w t c -> (b t) h w c')
+        y = rearrange(y, 'b h w t c -> (b t) h w c')
+        
+        # extrat
+        pred_bound = self.extract_boundary(pred)
+        y_bound = self.extract_boundary(y)
+        rmse = torch.sqrt(self.mse(pred_bound, y_bound))
+        return rmse
+
+
+
 def compute_frequency_spectrum(y_pred, y):
     # y_pred: (B, H, W, T, C), y: (B, H, W, T, C)
     B, H, W, T, C = y.shape
@@ -547,16 +589,16 @@ def spectral_band_edges_from_truth(
 
 
 if __name__ == "__main__":
-    x = torch.randn([8, 11, 12, 4, 6])
-    y = torch.randn([8, 11, 12, 4, 3])
+    x = torch.randn([2, 128, 128, 1, 3])
+    y = torch.randn([2, 128, 128, 1, 3])
 
     # evaluator = Evaluator(temporal=True, griddata=True, component='all', normalizer=None)
     # metrics = evaluator(x, y)
     # print(metrics)
     # myloss = FourierLoss(beta=1)
-    myloss = NLLLoss() 
+    myloss = BoundaryRMSE() 
 
-    loss = myloss(pred=x, target=y)
+    loss = myloss(pred=x, y=y)
     print(loss)
     # for key, value in metrics.items():
     #     print(key, value.shape)

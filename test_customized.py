@@ -15,24 +15,20 @@ from einops import rearrange
 
 
 from timeit import default_timer
-from torch.optim.lr_scheduler import OneCycleLR, StepLR, LambdaLR, CosineAnnealingWarmRestarts, CyclicLR,  CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
-from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
 
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, TemporalDataset2D_multiscale, LocalTemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.uno import UNO
-
 from models.wavelet_transform import CrossWaveletTransformer
 import pickle
 from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
-from matplotlib.colors import LinearSegmentedColormap, ListedColormap
-from utils.criterion import SimpleLpLoss
+from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE
 
 
 ################################################################
@@ -103,7 +99,7 @@ device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 print(f"Current working directory: {os.getcwd()}")
 
 
-def load_data_model():
+def load_data_model(just_load_path=False):
     ################################################################
     # load some toy data to run locally
     if not torch.cuda.is_available():
@@ -112,7 +108,6 @@ def load_data_model():
     else:
         # load data and dataloader
         train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
-        val_dataset =  TemporalDataset2D(args.dataset, n_train=260, t_in = args.T_in, t_ar =-1, train='val', normalize=args.normalize)
         test_dataset = TemporalDataset2D(args.dataset, n_train=260, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
 
 
@@ -136,6 +131,11 @@ def load_data_model():
         log_path = './logs/' + comment
     model_path = log_path + '/model.pth'
     print(model_path)
+    
+    # if just_load_path, return the log_path
+    if just_load_path:
+        return None, test_loader,log_path
+    
     if args.use_writer:
         writer = SummaryWriter(log_dir=log_path)
         # write params (usually you only do this once)
@@ -184,37 +184,30 @@ def load_data_model():
         print("resume training from epoch:", start_epoch)
         best_loss_epoch = start_epoch
 
-    myloss = SimpleLpLoss() # L2 loss
-    return model, test_loader, myloss, log_path
+    return model, test_loader, log_path
 
 ################################################################
 # Function 1 Report Average step, step-wise, and full prediction relative l2 norm
 ################################################################
-def test_error(model, test_loader, myloss, save=False, log_path=None):
+def predict_and_save(model, test_loader, save=False, log_path=None):
     """
-    test_error(model, test_loader, myloss, save=False)
+    test_error(model, test_loader, save=False)
     Args:
         model: the model to test
         test_loader: the test loader
-        myloss: the loss function
-        save: whether to save the results to a csv file
+        save: whether to save the results to a pthfile
     Returns:
-        pd_data: a pandas dataframe containing the test error
-        np_data = {'input': np.ndarray, 'output': np.ndarray, 'pred': np.ndarray} for later visualization 
+        save_data = {'input': torch.Tensor, 'output': torch.Tensor, 'pred': torch.Tensor} for computing the error
     """
     with torch.no_grad():
         model.eval()
         test_dataset = test_loader.dataset
         max_steps = test_dataset[0][1].shape[-2]
 
-        test_l2_per_step = {t: [] for t in range(0, max_steps)}
-        test_l2_per_step['full'] = []    
-        test_l2_per_step['step'] = []
-
-        np_data = {'input': [], 'output': [], 'pred': []}
+        save_data = {'input': [], 'output': [], 'pred': []}
         # autoregressive computing  
         for xx, yy in test_loader:
-            np_data['input'].append(xx.cpu().numpy())
+            save_data['input'].append(xx)
             xx = xx.to(device)
             yy = yy.to(device)
             xx = test_dataset.normalize_x(xx) # normalize the input before the autoregressive predicting
@@ -230,73 +223,55 @@ def test_error(model, test_loader, myloss, save=False, log_path=None):
         
             # # save the data to np_data
             # # print("save input and output shape", xx.shape, yy.shape)
-            np_data['output'].append(yy.cpu().numpy())
-            np_data['pred'].append(pred.cpu().numpy())
-
-            # compute the step and total loss here
-            #1. compute the average step loss
-            # reshape the pred and yy to (B*T, H*W, C)
-            avg_step_loss = myloss(pred[..., [0], :], yy[..., [0], :])
-            test_l2_per_step['step'].append(avg_step_loss.item())
-            
-            pred_full = rearrange(pred, 'b h w t c -> (b t) h w 1 c')
-            yy_full = rearrange(yy, 'b h w t c -> (b t) h w 1 c') # (B*T_out, H*W, C)
-            
-            #2. compute the total loss for the entire prediction
-            full_loss = myloss(pred_full, yy_full)
-            test_l2_per_step['full'].append(full_loss.item())
-
-            #3. compute the step-wise loss (no averaging)
-            for t in range(0, max_steps):
-                pred_step = rearrange(pred[..., t:t+1, :], 'b h w t c -> (b t) h w 1 c')
-                yy_step = rearrange(yy[..., t:t+1, :], 'b h w t c -> (b t) h w 1 c')
-                step_loss = myloss(pred_step, yy_step)
-                test_l2_per_step[t].append(step_loss.item())
-           
-        
-
-        # Initialize a pandas dataframe to store everything
-        pd_data = {}
-        # print average loss per step
-        for t in range(0, yy.shape[-2]):
-            print("average loss per step", t, np.mean(test_l2_per_step[t]))            
-            pd_data[f'step_{t}'] = np.mean(test_l2_per_step[t])
-
-        # compute the average loss acrss all steps
-        test_l2_per_step_avg = np.mean(test_l2_per_step['step'])
-        print("average loss across all steps", test_l2_per_step_avg)
-        pd_data['step_avg'] = test_l2_per_step_avg
-
-        # compute the average loss for the entire prediction
-        test_l2_full_pred_avg = np.mean(test_l2_per_step['full'])
-        print("average loss for the entire prediction", test_l2_full_pred_avg)
-        pd_data['full_avg'] = test_l2_full_pred_avg
-
-        # save to csv
-        if save:
-            pd.Series(pd_data).to_csv(f'{log_path}/test_l2_norm_step_full.csv')
-        
+            save_data['output'].append(yy)
+            save_data['pred'].append(pred)
 
         # organzie np_data
-        np_data['input'] = np.concatenate(np_data['input'], axis=0)
-        np_data['output'] = np.concatenate(np_data['output'], axis=0)
-        np_data['pred'] = np.concatenate(np_data['pred'], axis=0)
+        save_data['input'] = torch.cat(save_data['input'], axis=0)
+        save_data['output'] = torch.cat(save_data['output'], axis=0)
+        save_data['pred'] = torch.cat(save_data['pred'], axis=0)
 
         # print the shape of the np_data
-        print("np_data shape", np_data['input'].shape, np_data['output'].shape, np_data['pred'].shape)
+        print("save_data shape", save_data['input'].shape, save_data['output'].shape, save_data['pred'].shape)
 
         # save to npz
         if save:
-            # save the first 50 samples for visualization
-            np.savez(f'{log_path}/test_data.npz', input=np_data['input'][:50], output=np_data['output'][:50], pred=np_data['pred'][:50])
-    return pd_data, np_data
+            torch.save(save_data, f'{log_path}/test_data.pth')
+
+        return save_data
 
 
 
+def compute_error(save_data):
+    pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
+    
+    loss_dict = {}
+    loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
+    loss_dict['rmse'] = RMSE()
+    loss_dict['boundary_rmse'] = BoundaryRMSE()
+    
+    for key, loss_func in loss_dict.items():
+        metric_dict = {}
+        metric_dict[f'{key}_first_step'] = loss_func(pred[..., [0], :], target[..., [0], :])
+        metric_dict[f'{key}_last_step'] = loss_func(pred[..., [-1], :], target[..., [-1], :])
+        metric_dict[f'{key}_mean'] = loss_func(pred, target)
+        print(f"{key}: {metric_dict[f'{key}_first_step'].item()}, {metric_dict[f'{key}_last_step'].item()}, {metric_dict[f'{key}_mean'].item()}")
+        loss_dict[key] = metric_dict
+
+    return loss_dict
+    
 
 
 if __name__ == '__main__':
-    model, test_loader, myloss, log_path = load_data_model()
-    pd_data, np_data = test_error(model, test_loader, myloss, save=True, log_path=log_path)
+    
+    #### 1. predict and save the data
+    model, test_loader, log_path = load_data_model(just_load_path=True)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    
+    #### 2. load the save_data
+    save_data = torch.load(f'{log_path}/test_data.pth')
+    
+    #### 3. compute different types of error
+    compute_error(save_data)
 
     
