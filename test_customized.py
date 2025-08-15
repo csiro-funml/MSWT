@@ -28,7 +28,7 @@ from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
-from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE
+from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxErrorSampleAverage, GlobalMaxError
 
 
 ################################################################
@@ -249,14 +249,17 @@ def compute_error(save_data):
     loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
     loss_dict['rmse'] = RMSE()
     loss_dict['boundary_rmse'] = BoundaryRMSE()
+    loss_dict['max_avg'] = MaxErrorSampleAverage()
+    loss_dict['max_global'] = GlobalMaxError()
+
     
     for key, loss_func in loss_dict.items():
         metric_dict = {}
         metric_dict[f'{key}_first_step'] = loss_func(pred[..., [0], :], target[..., [0], :])
         metric_dict[f'{key}_last_step'] = loss_func(pred[..., [-1], :], target[..., [-1], :])
         metric_dict[f'{key}_mean'] = loss_func(pred, target)
-        print(f"{key}: {metric_dict[f'{key}_first_step'].item()}, {metric_dict[f'{key}_last_step'].item()}, {metric_dict[f'{key}_mean'].item()}")
-        loss_dict[key] = metric_dict
+        print(f"{key}: {'first ',metric_dict[f'{key}_first_step'].item()},'last', {metric_dict[f'{key}_last_step'].item()}, 'mean',{metric_dict[f'{key}_mean'].item()}")
+        # loss_dict[key] = metric_dict
 
     return loss_dict
     

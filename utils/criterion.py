@@ -94,6 +94,36 @@ class BoundaryRMSE(_WeightedLoss):
         return rmse
 
 
+class MaxErrorSampleAverage(_WeightedLoss):
+    def __init__(self):
+        super(MaxErrorSampleAverage, self).__init__()
+        self.mse = nn.MSELoss()
+        
+    def forward(self, pred, y):
+        B, H, W, T, C = y.shape
+        # reshape the x and y to (B*T, HW, C)
+        pred = rearrange(pred, 'b h w t c -> (b t) (h w) c')
+        y = rearrange(y, 'b h w t c -> (b t) (h w) c')
+        
+        # compute the max error sample average
+        max_error = torch.max(torch.abs(pred - y), dim=1) # (B, C)
+        max_error = torch.mean(max_error) # average over the batch size and channels
+        return max_error
+
+class GlobalMaxError(_WeightedLoss):
+    def __init__(self):
+        super(GlobalMaxError, self).__init__()
+        self.mse = nn.MSELoss()
+        
+    def forward(self, pred, y):
+        B, H, W, T, C = y.shape
+        # reshape the x and y to (B*T, HW, C)
+        pred = rearrange(pred, 'b h w t c -> (b t) (h w) c')
+        y = rearrange(y, 'b h w t c -> (b t) (h w) c')
+        
+        # compute the global max error
+        max_error = torch.max(torch.abs(pred - y)) # just global max error
+        return max_error
 
 def compute_frequency_spectrum(y_pred, y):
     # y_pred: (B, H, W, T, C), y: (B, H, W, T, C)
