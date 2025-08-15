@@ -8,7 +8,7 @@ import math as mt
 import numpy as np
 import scipy.stats as stats
 import torch.nn as nn
-
+from typing import Tuple
 
 def get_loss_func(name, component, normalizer):
     if name == 'rel2':
@@ -22,9 +22,12 @@ def get_loss_func(name, component, normalizer):
     else:
         raise NotImplementedError
 
-class SimpleLpLoss(_WeightedLoss):
+
+
+
+class RelL2Norm(_WeightedLoss):
     def __init__(self, d=2, p=2, size_average=True, reduction=True,return_comps = False):
-        super(SimpleLpLoss, self).__init__()
+        super(RelL2Norm, self).__init__()
 
         #Dimension and Lp-norm type are postive
         assert d > 0 and p > 0
@@ -37,56 +40,18 @@ class SimpleLpLoss(_WeightedLoss):
 
 
 
-    def forward(self, x, y, mask=None):
+    def forward(self, pred, y):
         # x: shape (B, H, W, T, C), y: shape (B, H, W, T, C)
-        T = x.shape[-2]
-        num_examples = x.size()[0]
-        x = rearrange(x, 'b h w t c -> (b t) h w 1 c')
-        # # Lp loss 1
-        # if mask is not None:##TODO: will be meaned by n_channels for single channel data
-        #     x = x * mask
-        #     y = y * mask
+        B, H, W, T, C = y.shape
+        # reshape the x and y to (B*T, HW, C)
+        pred = rearrange(pred, 'b h w t c -> (b t) (h w) c')
+        y = rearrange(y, 'b h w t c -> (b t) (h w) c')
 
-        #     ## compute effective channels
-        #     # msk_channels = mask.sum(dim=(1,2,3),keepdim=False).count_nonzero(dim=-1) # B, 1
-        #     msk_channels = mask.sum(dim=list(range(1, mask.ndim-1)),keepdim=False).count_nonzero(dim=-1) # B, 1
-        # else:
-        msk_channels = x.shape[-1]
+        diff_norms = torch.sqrt(torch.sum((pred - y)**2, dim=1)) # (B*T, C)
+        y_norms = torch.sqrt(torch.sum(y**2, dim=1)) # (B*T, C)
+        loss = torch.mean(diff_norms/(y_norms + 1e-8)) # average over the batch size, time steps, and channels
+        return loss
 
-        # compute normalization across the time steps
-        diff_norms = torch.norm(x.reshape(num_examples,-1, x.shape[-1]) - y.reshape(num_examples,-1,x.shape[-1]), self.p, dim=1)  # sum and norm over n=H*W*T, output: B, C  (so it is not normalized by the time steps)
-        y_norms = torch.norm(y.reshape(num_examples,-1, y.shape[-1]), self.p, dim=1) + 1e-8
-        loss = torch.sum(torch.sum(diff_norms/y_norms, dim=-1) / msk_channels)/T/num_examples # average over channels and time steps
-        return loss # sum over the batch size
-        # print("diff norm shape", torch.sum(diff_norms/y_norms, dim=-1).shape)
-        # print("loss", loss.item())
-        # # I want to manually compute the loss without using totch.norm and compare it with  torch.sum(torch.sum(diff_norms/y_norms, dim=-1) / msk_channels)
-        # # manually compute the los
-        # diff_norms_manual =  torch.sqrt(torch.sum((x.reshape(num_examples,-1, x.shape[-1]) - y.reshape(num_examples,-1,x.shape[-1]))**2, dim=1))
-        # y_norms_manual = torch.sqrt(torch.sum(y.reshape(num_examples,-1,x.shape[-1])**2, dim=1)) + 1e-8
-        # loss_manual = torch.sum(torch.sum(diff_norms_manual/y_norms_manual, dim=-1) / msk_channels)
-        # print("loss_manual", loss_manual.item())
-
-        # if self.reduction:
-        #     if self.size_average:
-        #             return torch.mean(diff_norms/y_norms)          ## deprecated
-        #     else:
-        #         return torch.sum(torch.sum(diff_norms/y_norms, dim=-1) / msk_channels)    #### go this branch
-        # else:
-        #     return torch.sum(diff_norms/y_norms, dim=-1) / msk_channels
-        ## Lp loss 2, channel average
-        # diff_norms = torch.norm(x.reshape(num_examples, -1, x.shape[-1]) - y.reshape(num_examples, -1, x.shape[-1]),self.p, 1)
-        # y_norms = torch.norm(y.reshape(num_examples, -1, x.shape[-1]), self.p, 1)
-        # if self.reduction:
-        #     if self.size_average:
-        #         return torch.mean(diff_norms / y_norms)
-        #     else:
-        #         return torch.sum(torch.mean(diff_norms / y_norms,dim=1))  #### go this branch
-        if self.return_comps:
-            if self.size_average:
-                return torch.mean(diff_norms/y_norms,dim=0)
-            else:
-                return torch.sum(diff_norms/y_norms)
 
 def compute_frequency_spectrum(y_pred, y):
     # y_pred: (B, H, W, T, C), y: (B, H, W, T, C)
@@ -504,6 +469,79 @@ def compute_fourier_error(pred, target, iLow=4, iHigh=12, if_mean=False):
 
 
 
+def spectral_band_edges_from_truth(
+    y: torch.Tensor,
+    dx: float = 1.0,
+    dy: float = 1.0,
+    nbins: int = None,
+    eps: float = 1e-12,
+) -> Tuple[float, float, torch.Tensor, torch.Tensor]:
+    """
+    Compute data-driven spectral band edges k_l (50%) and k_h (90%) from the cumulative
+    energy of the truth field y (N, H, W, C).
+
+    Args:
+        y: Tensor of shape (N, H, W, C).
+        dx, dy: Physical grid spacings in x,y (default 1.0).
+        nbins: Number of radial wavenumber bins (default = min(H, W)//2).
+        eps: Small number to avoid divide-by-zero.
+
+    Returns:
+        k_l: scalar, wavenumber at which cumulative energy >= 0.5 (bin center).
+        k_h: scalar, wavenumber at which cumulative energy >= 0.9 (bin center).
+        k_centers: (nbins,) tensor of bin-center wavenumbers.
+        C: (nbins,) tensor, cumulative energy fraction vs k.
+    """
+    assert y.ndim == 4, "y must have shape (N,H,W,C)"
+    N, H, W, C = y.shape
+    if nbins is None:
+        nbins = max(8, min(H, W)//2)  # reasonable default
+
+    device = y.device
+    dtype = y.dtype
+
+    # Move to (N, C, H, W) and remove spatial mean per (N,C)
+    y_nc_hw = y.permute(0, 3, 1, 2).contiguous()
+    y_mean = y_nc_hw.mean(dim=(-2, -1), keepdim=True)
+    y_demean = y_nc_hw - y_mean
+
+    # 2D FFT over spatial dims
+    y_hat = torch.fft.fftn(y_demean, dim=(-2, -1))
+    power = (y_hat.real**2 + y_hat.imag**2).sum(dim=(0, 1))  # sum over N and C -> (H, W)
+
+    # Build isotropic |k| grid
+    kx = torch.fft.fftfreq(H, d=dx).to(device=device, dtype=dtype)  # cycles per unit
+    ky = torch.fft.fftfreq(W, d=dy).to(device=device, dtype=dtype)
+    Kx, Ky = torch.meshgrid(kx, ky, indexing="ij")
+    Kmag = torch.sqrt(Kx**2 + Ky**2)  # cycles per unit
+
+    # Radial bins (0 .. Kmax) and centers
+    Kmax = Kmag.max()
+    edges = torch.linspace(0.0, Kmax + 1e-12, steps=nbins + 1, device=device, dtype=dtype)
+    k_centers = 0.5 * (edges[:-1] + edges[1:])
+
+    # Bin all pixels by |k| using bucketize (exclude last edge)
+    flat_bins = torch.bucketize(Kmag.reshape(-1), edges[1:-1])  # -> [0 .. nbins-1]
+    flat_power = power.reshape(-1)
+
+    # Shell-summed spectrum E_y(k) via scatter_add
+    E_bins = torch.zeros(nbins, device=device, dtype=dtype)
+    E_bins.scatter_add_(0, flat_bins, flat_power)
+
+    # Cumulative energy fraction
+    total_E = E_bins.sum() + eps
+    C = torch.cumsum(E_bins, dim=0) / total_E
+
+    # Find k_l at 50% and k_h at 90% (first bin where C >= threshold)
+    def k_at_fraction(frac: float) -> float:
+        idx = torch.searchsorted(C, torch.tensor(frac, device=device, dtype=dtype)).item()
+        idx = min(idx, nbins - 1)
+        return float(k_centers[idx])
+
+    k_l = k_at_fraction(0.5)
+    k_h = k_at_fraction(0.9)
+
+    return k_l, k_h, k_centers.detach(), C.detach()
 
 
 
