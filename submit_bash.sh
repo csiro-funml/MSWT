@@ -21,7 +21,7 @@ source /scratch3/wan410/venvs/testing/bin/activate
 
 ## Train the model
 # (CUDA_VISIBLE_DEVICES=0 python3 train_customized.py --dataset='ns2d_pda' --use_writer --model='FNO' --lr_method='cossin' --T_in=7)
-# (CUDA_VISIBLE_DEVICES=0 python3 train_customized.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7)
+(CUDA_VISIBLE_DEVICES=0 python3 train_customized.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7)
 
 ## resume training
 # CUDA_VISIBLE_DEVICES=0 python3 train_customized.py  --use_writer --dataset='ns2d_pda' --model='wavelet_transformer' --lr_method='cossin' --resume_path=True
@@ -29,4 +29,4 @@ source /scratch3/wan410/venvs/testing/bin/activate
 
 ## Test the model
 # CUDA_VISIBLE_DEVICES=0 python3 test_customized.py --dataset='sw2d_pda' --model='FNO'
-CUDA_VISIBLE_DEVICES=0 python3 test_customized.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7
+# CUDA_VISIBLE_DEVICES=0 python3 test_customized.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7

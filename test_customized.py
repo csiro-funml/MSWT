@@ -310,7 +310,8 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
                 # (B, H, W, T, C)
                 loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
                 print(f"Channel {c} {step_dict[step]} {key}: {loss_metric.item():.6f}")   
-                save_df = save_df.append({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}, ignore_index=True)
+                new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}).to_frame().T
+                save_df = pd.concat([save_df, new_row], ignore_index=True)
     print(save_df.head())
     save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}.csv", index=False)
     return loss_dict
@@ -320,8 +321,8 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
     save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
