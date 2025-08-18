@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task=4        # cpu-cores per task (>1 if multi-threaded tasks)
 
 
-
+module load numpy/2.0.0-py312
 module load pytorch/2.5.1-py312-cu122-mpi
 # module load pytorch/2.5.1-py312-cu124-mpi-sota
 # module load pytorch/2.1.0-py312-cu122-mpi
