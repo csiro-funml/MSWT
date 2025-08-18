@@ -62,9 +62,6 @@ class RMSE(_WeightedLoss):
         # x: shape (B, H, W, T, C), y: shape (B, H, W, T, C)
         B, H, W, T, C = y.shape
         # reshape the x and y to (B*T, HW, C)
-        pred = rearrange(pred, 'b h w t c -> (b t) (h w) c')
-        y = rearrange(y, 'b h w t c -> (b t) (h w) c')
-
         rmse = torch.sqrt(self.mse(pred, y))
         return rmse
 
@@ -94,9 +91,12 @@ class BoundaryRMSE(_WeightedLoss):
         return rmse
 
 
-class MaxErrorSampleAverage(_WeightedLoss):
+class MaxAbsError(_WeightedLoss):
+    """
+    Compute the max absolute error sample average
+    """
     def __init__(self):
-        super(MaxErrorSampleAverage, self).__init__()
+        super(MaxAbsError, self).__init__()
         self.mse = nn.MSELoss()
         
     def forward(self, pred, y):
@@ -105,14 +105,17 @@ class MaxErrorSampleAverage(_WeightedLoss):
         pred = rearrange(pred, 'b h w t c -> (b t) (h w) c')
         y = rearrange(y, 'b h w t c -> (b t) (h w) c')
         
-        # compute the max error sample average
-        max_error = torch.max(torch.abs(pred - y), dim=1) # (B, C)
+        # compute the max error across the (H, W) then compute the sample average
+        max_error = torch.max(torch.abs(pred - y), dim=1).values # (B, C)
         max_error = torch.mean(max_error) # average over the batch size and channels
         return max_error
 
-class GlobalMaxError(_WeightedLoss):
+class GlobalMaxAbsError(_WeightedLoss):
+    """
+    Compute the max absolute error global average
+    """
     def __init__(self):
-        super(GlobalMaxError, self).__init__()
+        super(GlobalMaxAbsError, self).__init__()
         self.mse = nn.MSELoss()
         
     def forward(self, pred, y):
@@ -540,82 +543,161 @@ def compute_fourier_error(pred, target, iLow=4, iHigh=12, if_mean=False):
     return err_BD, fmse_low, fmse_mid, fmse_high    ## T, C, ### T, C
 
 
-
-def spectral_band_edges_from_truth(
+# USED FOR testing evaluation
+def get_frequency_bands_from_cumulative_energy(
     y: torch.Tensor,
-    dx: float = 1.0,
-    dy: float = 1.0,
-    nbins: int = None,
+    low_percentile: float = 0.33,
+    high_percentile: float = 0.67,
+    max_freq: int = None,
     eps: float = 1e-12,
-) -> Tuple[float, float, torch.Tensor, torch.Tensor]:
+) -> Tuple[int, int, torch.Tensor, torch.Tensor]:
     """
-    Compute data-driven spectral band edges k_l (50%) and k_h (90%) from the cumulative
-    energy of the truth field y (N, H, W, C).
+    Determine frequency band boundaries using cumulative energy distribution.
+    Returns discrete frequency bin indices for low/mid/high frequency aggregation.
 
     Args:
-        y: Tensor of shape (N, H, W, C).
-        dx, dy: Physical grid spacings in x,y (default 1.0).
-        nbins: Number of radial wavenumber bins (default = min(H, W)//2).
+        y: Tensor of shape (N, H, W, C) - input field data.
+        low_percentile: Cumulative energy fraction for low/mid boundary (default 0.33).
+        high_percentile: Cumulative energy fraction for mid/high boundary (default 0.67).
+        max_freq: Maximum frequency to consider (default = min(H, W)//2).
         eps: Small number to avoid divide-by-zero.
 
     Returns:
-        k_l: scalar, wavenumber at which cumulative energy >= 0.5 (bin center).
-        k_h: scalar, wavenumber at which cumulative energy >= 0.9 (bin center).
-        k_centers: (nbins,) tensor of bin-center wavenumbers.
-        C: (nbins,) tensor, cumulative energy fraction vs k.
+        k_low: int, frequency bin where cumulative energy >= low_percentile.
+        k_high: int, frequency bin where cumulative energy >= high_percentile.
+        freq_bins: tensor of frequency bin centers [0, 1, 2, ..., max_freq].
+        cumulative_energy: tensor of cumulative energy fractions.
     """
     assert y.ndim == 4, "y must have shape (N,H,W,C)"
     N, H, W, C = y.shape
-    if nbins is None:
-        nbins = max(8, min(H, W)//2)  # reasonable default
+    if max_freq is None:
+        max_freq = min(H, W) // 2
 
     device = y.device
     dtype = y.dtype
 
-    # Move to (N, C, H, W) and remove spatial mean per (N,C)
+    # Reorder to (N, C, H, W) and remove spatial mean
     y_nc_hw = y.permute(0, 3, 1, 2).contiguous()
-    y_mean = y_nc_hw.mean(dim=(-2, -1), keepdim=True)
-    y_demean = y_nc_hw - y_mean
+    y_demean = y_nc_hw - y_nc_hw.mean(dim=(-2, -1), keepdim=True)
 
     # 2D FFT over spatial dims
     y_hat = torch.fft.fftn(y_demean, dim=(-2, -1))
-    power = (y_hat.real**2 + y_hat.imag**2).sum(dim=(0, 1))  # sum over N and C -> (H, W)
+    # Sum power over batch and channels -> (H, W)
+    power = (y_hat.real**2 + y_hat.imag**2).sum(dim=(0, 1))
 
-    # Build isotropic |k| grid
-    kx = torch.fft.fftfreq(H, d=dx).to(device=device, dtype=dtype)  # cycles per unit
-    ky = torch.fft.fftfreq(W, d=dy).to(device=device, dtype=dtype)
-    Kx, Ky = torch.meshgrid(kx, ky, indexing="ij")
-    Kmag = torch.sqrt(Kx**2 + Ky**2)  # cycles per unit
+    # Build discrete frequency grid using integer bins
+    # FFT frequencies are organized as [0, 1, 2, ..., N//2, -N//2+1, ..., -1]
+    # We want the magnitude |k| = sqrt(kx^2 + ky^2)
+    
+    freq_x = torch.arange(H, device=device, dtype=dtype)
+    freq_y = torch.arange(W, device=device, dtype=dtype)
+    
+    # Convert to centered frequencies: [0, 1, ..., N//2, -(N//2-1), ..., -1]
+    freq_x = torch.where(freq_x <= H//2, freq_x, freq_x - H)
+    freq_y = torch.where(freq_y <= W//2, freq_y, freq_y - W)
+    
+    Fx, Fy = torch.meshgrid(freq_x, freq_y, indexing="ij")
+    Fmag = torch.sqrt(Fx**2 + Fy**2)  # Radial frequency magnitude
 
-    # Radial bins (0 .. Kmax) and centers
-    Kmax = Kmag.max()
-    edges = torch.linspace(0.0, Kmax + 1e-12, steps=nbins + 1, device=device, dtype=dtype)
-    k_centers = 0.5 * (edges[:-1] + edges[1:])
+    # Create energy bins for each integer frequency from 0 to max_freq
+    freq_bins = torch.arange(0, max_freq + 1, device=device, dtype=dtype)
+    E_bins = torch.zeros(max_freq + 1, device=device, dtype=dtype)
+    
+    # Aggregate power into radial frequency bins
+    for k in range(max_freq + 1):
+        if k == max_freq:
+            # Last bin: include all frequencies >= max_freq
+            mask = Fmag >= k
+        else:
+            # Regular bin: [k, k+1)
+            mask = (Fmag >= k) & (Fmag < k + 1)
+        E_bins[k] = power[mask].sum()
 
-    # Bin all pixels by |k| using bucketize (exclude last edge)
-    flat_bins = torch.bucketize(Kmag.reshape(-1), edges[1:-1])  # -> [0 .. nbins-1]
-    flat_power = power.reshape(-1)
+    # Compute cumulative energy fraction
+    total_energy = E_bins.sum() + eps
+    cumulative_energy = torch.cumsum(E_bins, dim=0) / total_energy
 
-    # Shell-summed spectrum E_y(k) via scatter_add
-    E_bins = torch.zeros(nbins, device=device, dtype=dtype)
-    E_bins.scatter_add_(0, flat_bins, flat_power)
+    # Find frequency bins at specified percentiles
+    def find_freq_at_percentile(percentile: float) -> int:
+        # Find first bin where cumulative energy >= percentile
+        mask = cumulative_energy >= percentile
+        if mask.any():
+            return int(torch.argmax(mask.float()))
+        else:
+            return max_freq  # fallback
 
-    # Cumulative energy fraction
-    total_E = E_bins.sum() + eps
-    C = torch.cumsum(E_bins, dim=0) / total_E
+    k_low = find_freq_at_percentile(low_percentile)
+    k_high = find_freq_at_percentile(high_percentile)
 
-    # Find k_l at 50% and k_h at 90% (first bin where C >= threshold)
-    def k_at_fraction(frac: float) -> float:
-        idx = torch.searchsorted(C, torch.tensor(frac, device=device, dtype=dtype)).item()
-        idx = min(idx, nbins - 1)
-        return float(k_centers[idx])
-
-    k_l = k_at_fraction(0.5)
-    k_h = k_at_fraction(0.9)
-
-    return k_l, k_h, k_centers.detach(), C.detach()
+    return k_low, k_high, freq_bins.detach(), cumulative_energy.detach()
 
 
+def aggregate_spectral_energy_by_bands(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    k_low: int,
+    k_high: int,
+    max_freq: int = None,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Aggregate spectral energy into low/mid/high frequency bands.
+    
+    Args:
+        pred: Predicted field (N, H, W, C).
+        target: Target field (N, H, W, C).
+        k_low: Frequency bin boundary between low and mid bands.
+        k_high: Frequency bin boundary between mid and high bands.
+        max_freq: Maximum frequency to consider (default = min(H, W)//2).
+    
+    Returns:
+        low_band_error: MSE in low frequency band [0, k_low).
+        mid_band_error: MSE in mid frequency band [k_low, k_high).
+        high_band_error: MSE in high frequency band [k_high, max_freq].
+    """
+    assert pred.shape == target.shape, "pred and target must have same shape"
+    assert pred.ndim == 4, "Input must have shape (N,H,W,C)"
+    
+    N, H, W, C = pred.shape
+    if max_freq is None:
+        max_freq = min(H, W) // 2
+        
+    device = pred.device
+    
+    # Reorder to (N, C, H, W)
+    pred_nc_hw = pred.permute(0, 3, 1, 2).contiguous()
+    target_nc_hw = target.permute(0, 3, 1, 2).contiguous()
+    
+    # Remove spatial mean
+    pred_demean = pred_nc_hw - pred_nc_hw.mean(dim=(-2, -1), keepdim=True)
+    target_demean = target_nc_hw - target_nc_hw.mean(dim=(-2, -1), keepdim=True)
+    
+    # 2D FFT
+    pred_fft = torch.fft.fftn(pred_demean, dim=(-2, -1))
+    target_fft = torch.fft.fftn(target_demean, dim=(-2, -1))
+    
+    # Compute error in frequency domain
+    error_fft = pred_fft - target_fft
+    error_power = error_fft.real**2 + error_fft.imag**2  # (N, C, H, W)
+    
+    # Build frequency magnitude grid
+    freq_x = torch.arange(H, device=device, dtype=torch.float32)
+    freq_y = torch.arange(W, device=device, dtype=torch.float32)
+    freq_x = torch.where(freq_x <= H//2, freq_x, freq_x - H)
+    freq_y = torch.where(freq_y <= W//2, freq_y, freq_y - W)
+    Fx, Fy = torch.meshgrid(freq_x, freq_y, indexing="ij")
+    Fmag = torch.sqrt(Fx**2 + Fy**2)
+    
+    # Create masks for frequency bands
+    low_mask = Fmag < k_low
+    mid_mask = (Fmag >= k_low) & (Fmag < k_high) 
+    high_mask = Fmag >= k_high
+    
+    # Aggregate errors by frequency bands
+    low_band_error = error_power[:, :, low_mask].mean() if low_mask.any() else torch.tensor(0.0, device=device)
+    mid_band_error = error_power[:, :, mid_mask].mean() if mid_mask.any() else torch.tensor(0.0, device=device)
+    high_band_error = error_power[:, :, high_mask].mean() if high_mask.any() else torch.tensor(0.0, device=device)
+    
+    return low_band_error, mid_band_error, high_band_error
 
 
 if __name__ == "__main__":
@@ -626,9 +708,43 @@ if __name__ == "__main__":
     # metrics = evaluator(x, y)
     # print(metrics)
     # myloss = FourierLoss(beta=1)
-    myloss = BoundaryRMSE() 
-
-    loss = myloss(pred=x, y=y)
-    print(loss)
+    # Test the new cumulative energy-based frequency band selection
+    print("Testing cumulative energy-based frequency aggregation...")
+    
+    # Create test data (N, H, W, C)
+    torch.manual_seed(42)
+    N, H, W, C = 2, 128, 128, 3
+    target = torch.randn([N, H, W, C])
+    pred = target + 0.1 * torch.randn_like(target)  # Add some noise
+    
+    print(f"Data shape: {target.shape}")
+    print(f"Max frequency: {min(H, W) // 2}")
+    
+    # Get frequency bands using cumulative energy
+    k_low, k_high, freq_bins, cumulative_energy = get_frequency_bands_from_cumulative_energy(
+        target, low_percentile=0.33, high_percentile=0.67
+    )
+    
+    print(f"\nFrequency band boundaries:")
+    print(f"k_low (33rd percentile): {k_low}")
+    print(f"k_high (67th percentile): {k_high}")
+    print(f"Frequency bins range: [0, {len(freq_bins)-1}]")
+    
+    # Show cumulative energy distribution
+    print(f"\nCumulative energy at key points:")
+    print(f"At k={k_low}: {cumulative_energy[k_low]:.3f}")
+    print(f"At k={k_high}: {cumulative_energy[k_high]:.3f}")
+    
+    # Aggregate spectral errors by frequency bands
+    low_err, mid_err, high_err = aggregate_spectral_energy_by_bands(
+        pred, target, k_low, k_high
+    )
+    
+    print(f"\nSpectral error by frequency bands:")
+    print(f"Low frequency error (0 to {k_low}): {low_err:.6f}")
+    print(f"Mid frequency error ({k_low} to {k_high}): {mid_err:.6f}")
+    print(f"High frequency error ({k_high}+): {high_err:.6f}")
+    
+    print("Test completed successfully!")
     # for key, value in metrics.items():
     #     print(key, value.shape)

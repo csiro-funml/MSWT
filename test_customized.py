@@ -4,7 +4,7 @@ import sys
 import os
 # sys.path.append(['.','./../'])
 # os.environ['OMP_NUM_THREADS'] = '16'
-
+import warnings
 import json
 import time
 import argparse
@@ -28,8 +28,9 @@ from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
-from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxErrorSampleAverage, GlobalMaxError
+from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, get_frequency_bands_from_cumulative_energy, aggregate_spectral_energy_by_bands
 
+warnings.filterwarnings("ignore")
 
 ################################################################
 # configs
@@ -40,7 +41,7 @@ parser = argparse.ArgumentParser(description='Training or pretraining on multipl
 
 parser.add_argument('--model', type=str, default='FNO') # FNO, ViT, UNO, CNO, Oformer, Transolver, DPOT, Crossformer, wavelet_transformer
 parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
-parser.add_argument('--resume_path',type=int, default=1)
+parser.add_argument('--resume_path',type=int, default=0 if not torch.cuda.is_available() else 1) # use random weights if not cuda available
 parser.add_argument('--use_writer', action='store_true',default=False)
 
 
@@ -241,26 +242,77 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
         return save_data
 
 
+def tobe_tested_metrics(pred, target):
+     # find the spectral band edges from the truth using OLD method
+    target_reshape = rearrange(target, 'b h w t c -> (b t) h w c')
+    k_low, k_high, freq_bins, cumulative_energy = get_frequency_bands_from_cumulative_energy(
+        target_reshape, low_percentile=0.33, high_percentile=0.67
+    )
+    print(f"New method - k_low: {k_low}, k_high: {k_high} (discrete frequency bins)")
+        # Show cumulative energy distribution
+    print(f"\nCumulative energy at key points:")
+    print(f"At k={k_low}: {cumulative_energy[k_low]:.3f}")
+    print(f"At k={k_high}: {cumulative_energy[k_high]:.3f}")
+    
+    
+    # Compute spectral errors by frequency bands for each time step
+    print("\n=== Spectral Error Analysis by Frequency Bands ===")
+    
+    
+    # First step spectral errors
+    pred_first = rearrange(pred[..., [0], :], 'b h w t c -> (b t) h w c') 
+    target_first = rearrange(target[..., [0], :], 'b h w t c -> (b t) h w c')
+    low_err_first, mid_err_first, high_err_first = aggregate_spectral_energy_by_bands(
+        pred_first, target_first, k_low, k_high
+    )
+    
+    # Last step spectral errors
+    pred_last = rearrange(pred[..., [-1], :], 'b h w t c -> (b t) h w c')
+    target_last = rearrange(target[..., [-1], :], 'b h w t c -> (b t) h w c')
+    low_err_last, mid_err_last, high_err_last = aggregate_spectral_energy_by_bands(
+        pred_last, target_last, k_low, k_high
+    )
+    
+    # Mean spectral errors across all time steps
+    pred_mean = rearrange(pred, 'b h w t c -> (b t) h w c')
+    target_mean = rearrange(target, 'b h w t c -> (b t) h w c')
+    low_err_mean, mid_err_mean, high_err_mean = aggregate_spectral_energy_by_bands(
+        pred_mean, target_mean, k_low, k_high
+    )
+    
+    print(f"First Step - Low: {low_err_first:.6f}, Mid: {mid_err_first:.6f}, High: {high_err_first:.6f}")
+    print(f"Last Step  - Low: {low_err_last:.6f}, Mid: {mid_err_last:.6f}, High: {high_err_last:.6f}")
+    print(f"Mean Steps - Low: {low_err_mean:.6f}, Mid: {mid_err_mean:.6f}, High: {high_err_mean:.6f}")
 
-def compute_error(save_data):
+
+
+
+def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
+    
     
     loss_dict = {}
     loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
     loss_dict['rmse'] = RMSE()
     loss_dict['boundary_rmse'] = BoundaryRMSE()
-    loss_dict['max_avg'] = MaxErrorSampleAverage()
-    loss_dict['max_global'] = GlobalMaxError()
-
+    loss_dict['max_avg'] = MaxAbsError()
+    loss_dict['max_global'] = GlobalMaxAbsError()
     
-    for key, loss_func in loss_dict.items():
-        metric_dict = {}
-        metric_dict[f'{key}_first_step'] = loss_func(pred[..., [0], :], target[..., [0], :])
-        metric_dict[f'{key}_last_step'] = loss_func(pred[..., [-1], :], target[..., [-1], :])
-        metric_dict[f'{key}_mean'] = loss_func(pred, target)
-        print(f"{key}: {'first ',metric_dict[f'{key}_first_step'].item()},'last', {metric_dict[f'{key}_last_step'].item()}, 'mean',{metric_dict[f'{key}_mean'].item()}")
-        # loss_dict[key] = metric_dict
+    step_dict = {0: "t=1", -1: "t=T"}
 
+    # Standard error metrics
+    print("\n=== Channel-wise Error Metrics ===")
+    save_df = pd.DataFrame(columns=["step", "channel", "metric", f"{model_name}"])
+    for step in [0, -1]: # first step and last step
+        for c in range(pred.shape[-1]):
+            # evaluate different metrics per channel
+            for key, loss_func in loss_dict.items():
+                # (B, H, W, T, C)
+                loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
+                print(f"Channel {c} {step_dict[step]} {key}: {loss_metric.item():.6f}")   
+                save_df = save_df.append({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}, ignore_index=True)
+    print(save_df.head())
+    save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}.csv", index=False)
     return loss_dict
     
 
@@ -272,9 +324,9 @@ if __name__ == '__main__':
     save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
-    save_data = torch.load(f'{log_path}/test_data.pth')
+    save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
     
-    #### 3. compute different types of error
-    compute_error(save_data)
+    #### 3. compute different types of metrics
+    compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
     
