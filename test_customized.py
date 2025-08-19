@@ -258,7 +258,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     loss_dict['boundary_rmse'] = BoundaryRMSE()
     loss_dict['max_avg'] = MaxAbsError()
     loss_dict['max_global'] = GlobalMaxAbsError()
-    loss_dict['spectral_error'] = SpectralError(model_name=model_name, save_path=log_path)
+    loss_dict['spectral_error'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97)
     
     step_dict = {0: "t=1", -1: "t=T"}
 

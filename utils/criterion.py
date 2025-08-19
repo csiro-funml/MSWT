@@ -133,23 +133,25 @@ class GlobalMaxAbsError(_WeightedLoss):
 
 
 class SpectralError(_WeightedLoss):
-    def __init__(self, model_name, save_path):
+    def __init__(self, model_name, save_path, low_percentile=0.80, high_percentile=0.99):
         super(SpectralError, self).__init__()
         self.mse = nn.MSELoss()
         self.k_low=None
         self.k_high=None
         self.model_name = model_name
         self.save_path = save_path
+        self.low_percentile=low_percentile
+        self.high_percentile=high_percentile
 
-    def forward(self, pred, y, low_percentile=0.80, high_percentile=0.99, channel=None, time_step=None):
+    def forward(self, pred, y, channel=None, time_step=None):
         B, H, W, T, C = y.shape
         # find the spectral band edges from the truth using OLD method
 
         k_low_new, k_high_new, k_freq, E_bins_target = get_frequency_bands_from_cumulative_energy(
-            y, low_percentile=low_percentile, high_percentile=high_percentile
+            y, low_percentile=self.low_percentile, high_percentile=self.high_percentile
         )
         _, _, _, E_bins_pred = get_frequency_bands_from_cumulative_energy( # new method
-            pred, low_percentile=low_percentile, high_percentile=high_percentile
+            pred, low_percentile=self.low_percentile, high_percentile=self.high_percentile
         )
         if self.k_low is None:
             self.k_low = k_low_new
@@ -701,7 +703,7 @@ def get_frequency_bands_from_cumulative_energy(
 
     # Define the bins for the wavenumber - use the minimum dimension for binning
     min_dim = min(H, W)
-    kbins = np.arange(0.5, min_dim // 2 + 1, 1.0)
+    kbins = np.arange(1, min_dim // 2 + 1, 1.0)
 
     # Bin the data (radial mean), turn the 2D array into 1D array
     E_freq, _, _ = stats.binned_statistic(
