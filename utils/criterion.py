@@ -133,13 +133,15 @@ class GlobalMaxAbsError(_WeightedLoss):
 
 
 class SpectralError(_WeightedLoss):
-    def __init__(self):
+    def __init__(self, model_name, save_path):
         super(SpectralError, self).__init__()
         self.mse = nn.MSELoss()
         self.k_low=None
         self.k_high=None
+        self.model_name = model_name
+        self.save_path = save_path
 
-    def forward(self, pred, y, low_percentile=0.80, high_percentile=0.99):
+    def forward(self, pred, y, low_percentile=0.80, high_percentile=0.99, channel=None):
         B, H, W, T, C = y.shape
         # find the spectral band edges from the truth using OLD method
 
@@ -163,10 +165,11 @@ class SpectralError(_WeightedLoss):
         # print(f"Mid frequency error ({self.k_low} to {self.k_high}): {mid_err:.6f}")
         # print(f"High frequency error ({self.k_high}+): {high_err:.6f}")
 
-        # plt.loglog(k_freq, E_bins_target, 'X-',markersize=4, label='target')
-        # plt.loglog(k_freq, E_bins_pred, 'o-',markersize=4, label=f'{model_name} pred')
-        # plt.legend()
-        # plt.show()
+        plt.loglog(k_freq, E_bins_target, 'X-',markersize=2, label='target')
+        plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred')
+        plt.legend()
+        plt.savefig(f'{self.save_path}/spectral_error_{channel}.png')
+        plt.show()
 
         return {'spec_low': low_err, 'spec_mid': mid_err, 'spec_high': high_err, 'k_low': self.k_low, 'k_high': self.k_high}
 
