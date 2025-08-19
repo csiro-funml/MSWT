@@ -28,7 +28,7 @@ from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
-from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, get_frequency_bands_from_cumulative_energy, aggregate_spectral_energy_by_bands
+from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
 
 warnings.filterwarnings("ignore")
 
@@ -242,61 +242,23 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
         return save_data
 
 
-def tobe_tested_metrics(pred, target):
-     # find the spectral band edges from the truth using OLD method
-    target_reshape = rearrange(target, 'b h w t c -> (b t) h w c')
-    k_low, k_high, freq_bins, cumulative_energy = get_frequency_bands_from_cumulative_energy(
-        target_reshape, low_percentile=0.33, high_percentile=0.67
-    )
-    print(f"New method - k_low: {k_low}, k_high: {k_high} (discrete frequency bins)")
-        # Show cumulative energy distribution
-    print(f"\nCumulative energy at key points:")
-    print(f"At k={k_low}: {cumulative_energy[k_low]:.3f}")
-    print(f"At k={k_high}: {cumulative_energy[k_high]:.3f}")
-    
-    
-    # Compute spectral errors by frequency bands for each time step
-    print("\n=== Spectral Error Analysis by Frequency Bands ===")
-    
-    
-    # First step spectral errors
-    pred_first = rearrange(pred[..., [0], :], 'b h w t c -> (b t) h w c') 
-    target_first = rearrange(target[..., [0], :], 'b h w t c -> (b t) h w c')
-    low_err_first, mid_err_first, high_err_first = aggregate_spectral_energy_by_bands(
-        pred_first, target_first, k_low, k_high
-    )
-    
-    # Last step spectral errors
-    pred_last = rearrange(pred[..., [-1], :], 'b h w t c -> (b t) h w c')
-    target_last = rearrange(target[..., [-1], :], 'b h w t c -> (b t) h w c')
-    low_err_last, mid_err_last, high_err_last = aggregate_spectral_energy_by_bands(
-        pred_last, target_last, k_low, k_high
-    )
-    
-    # Mean spectral errors across all time steps
-    pred_mean = rearrange(pred, 'b h w t c -> (b t) h w c')
-    target_mean = rearrange(target, 'b h w t c -> (b t) h w c')
-    low_err_mean, mid_err_mean, high_err_mean = aggregate_spectral_energy_by_bands(
-        pred_mean, target_mean, k_low, k_high
-    )
-    
-    print(f"First Step - Low: {low_err_first:.6f}, Mid: {mid_err_first:.6f}, High: {high_err_first:.6f}")
-    print(f"Last Step  - Low: {low_err_last:.6f}, Mid: {mid_err_last:.6f}, High: {high_err_last:.6f}")
-    print(f"Mean Steps - Low: {low_err_mean:.6f}, Mid: {mid_err_mean:.6f}, High: {high_err_mean:.6f}")
-
-
 
 
 def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
     
-    
+    # for step in [0, -1]: # first step and last step
+        # for c in range(pred.shape[-1]):
+            # low_err, mid_err, high_err = SpectralError()(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
+            
+
     loss_dict = {}
     loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
     loss_dict['rmse'] = RMSE()
     loss_dict['boundary_rmse'] = BoundaryRMSE()
     loss_dict['max_avg'] = MaxAbsError()
     loss_dict['max_global'] = GlobalMaxAbsError()
+    loss_dict['spectral_error'] = SpectralError()
     
     step_dict = {0: "t=1", -1: "t=T"}
 
@@ -309,10 +271,20 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
             for key, loss_func in loss_dict.items():
                 # (B, H, W, T, C)
                 loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
-                print(f"Channel {c} {step_dict[step]} {key}: {loss_metric.item():.6f}")   
-                new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}).to_frame().T
-                save_df = pd.concat([save_df, new_row], ignore_index=True)
-    print(save_df.head())
+                if key == 'spectral_error':
+                    # loss metric is a dict with keys: 'low_err', 'mid_err', 'high_err', 'k_low', 'k_high'
+                    print("frequency bands", loss_metric['k_low'], loss_metric['k_high'])
+                    for band_key, val in loss_metric.items():
+                        if band_key == 'k_low' or band_key == 'k_high':
+                            continue
+                        print(f"Channel {c} {step_dict[step]} {band_key}: {val:.6f}")
+                        new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": band_key, f"{model_name}": val}).to_frame().T
+                        save_df = pd.concat([save_df, new_row], ignore_index=True)
+                else:
+                    print(f"Channel {c} {step_dict[step]} {key}: {loss_metric.item():.6f}")   
+                    new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}).to_frame().T
+                    save_df = pd.concat([save_df, new_row], ignore_index=True)
+    print(save_df.head(n=16))
     save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}.csv", index=False)
     return loss_dict
     

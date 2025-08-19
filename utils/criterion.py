@@ -9,6 +9,8 @@ import numpy as np
 import scipy.stats as stats
 import torch.nn as nn
 from typing import Tuple
+import matplotlib.pyplot as plt
+from scipy.optimize import minimize_scalar, fsolve
 
 def get_loss_func(name, component, normalizer):
     if name == 'rel2':
@@ -128,18 +130,62 @@ class GlobalMaxAbsError(_WeightedLoss):
         max_error = torch.max(torch.abs(pred - y)) # just global max error
         return max_error
 
+
+
+class SpectralError(_WeightedLoss):
+    def __init__(self):
+        super(SpectralError, self).__init__()
+        self.mse = nn.MSELoss()
+        self.k_low=None
+        self.k_high=None
+
+    def forward(self, pred, y, low_percentile=0.80, high_percentile=0.99):
+        B, H, W, T, C = y.shape
+        # find the spectral band edges from the truth using OLD method
+
+        k_low_new, k_high_new, k_freq, E_bins_target = get_frequency_bands_from_cumulative_energy(
+            y, low_percentile=low_percentile, high_percentile=high_percentile
+        )
+        _, _, _, E_bins_pred = get_frequency_bands_from_cumulative_energy( # new method
+            pred, low_percentile=low_percentile, high_percentile=high_percentile
+        )
+        if self.k_low is None:
+            self.k_low = k_low_new
+        if self.k_high is None:
+            self.k_high = k_high_new
+        # Aggregate spectral errors by frequency bands
+        low_err, mid_err, high_err = aggregate_spectral_energy_by_bands(
+            self.k_low, self.k_high, np.abs(np.log(E_bins_pred) - np.log(E_bins_target))
+        )
+        
+        # print(f"\nSpectral error by frequency bands:")
+        # print(f"Low frequency error (0 to {self.k_low}): {low_err:.6f}")
+        # print(f"Mid frequency error ({self.k_low} to {self.k_high}): {mid_err:.6f}")
+        # print(f"High frequency error ({self.k_high}+): {high_err:.6f}")
+
+        # plt.loglog(k_freq, E_bins_target, 'X-',markersize=4, label='target')
+        # plt.loglog(k_freq, E_bins_pred, 'o-',markersize=4, label=f'{model_name} pred')
+        # plt.legend()
+        # plt.show()
+
+        return {'spec_low': low_err, 'spec_mid': mid_err, 'spec_high': high_err, 'k_low': self.k_low, 'k_high': self.k_high}
+
+
 def compute_frequency_spectrum(y_pred, y):
     # y_pred: (B, H, W, T, C), y: (B, H, W, T, C)
     B, H, W, T, C = y.shape
 
     # Absolute error averaged over batch, time, channels -> (H, W)
     abs_error = torch.abs(y - y_pred)  # (B, H, W, T, C)
-    abs_error = torch.mean(abs_error, dim=(0, -1, -2))  # (H, W) # average over batch, time, channels
+    abs_error = rearrange(abs_error, 'b h w t c -> b t c h w')
 
-    # Use full 2D FFT so the spectrum shape matches (H, W)
-    abs_error_fft = torch.fft.fft2(abs_error)
+    # Use full 2D FFT so the spectrum shape matches (B T C H, W)
+    abs_error_fft = torch.abs(torch.fft.fft2(abs_error))
+
+    # average over batch, time, channels
+    abs_error_fft = abs_error_fft.mean(dim=(0, 1, 2)) # (H, W)
     # Take magnitude and move to numpy for binning
-    fourier_amplitudes = torch.abs(abs_error_fft).detach().cpu().numpy()
+    fourier_amplitudes = abs_error_fft.detach().cpu().numpy()
 
     # Create the k-frequency grid for rectangular image
     kfreq_x = np.fft.fftfreq(W) * W
@@ -542,12 +588,65 @@ def compute_fourier_error(pred, target, iLow=4, iHigh=12, if_mean=False):
     #     return err_RMSE, err_nRMSE, err_CSV, err_Max, err_BD, err_F
     return err_BD, fmse_low, fmse_mid, fmse_high    ## T, C, ### T, C
 
+def find_freq_from_linear_fit(freq, energy, slope=-5.0/3):
+    # find the intercept that best fit the data (freq, energy), slope is given
+    # f(freq)) = slope * freq + intersept 
+    # error = (energy - f(freq)) ** 2
+    # minimize the error by finding the intercept using convex optimization
+    def objective(intercept):
+        return np.sum((energy - slope * freq - intercept) ** 2)
+    # use scipy.optimize.minimize to find the intercept
+    result = minimize_scalar(objective)
+    intercept = result.x
+
+    # also need to get the x values of the intercept between two lines: 
+    # f(freq) = slope * freq + intercept and energy, use energy - f(freq) and find the roots
+    
+    # Define function to find roots: energy - (slope * freq + intercept) = 0
+    def difference_func(f):
+        # Interpolate energy at frequency f
+        energy_interp = np.interp(f, freq, energy)
+        fitted_value = slope * f + intercept
+        return energy_interp - fitted_value
+    
+    # Find multiple intersection points by trying different initial guesses
+    freq_min, freq_max = np.min(freq), np.max(freq)
+    initial_guesses = np.linspace(freq_min, freq_max, 10)
+    
+    roots = []
+    for guess in initial_guesses:
+        try:
+            root = fsolve(difference_func, guess)[0]
+            # Check if root is valid and within bounds
+            if freq_min <= root <= freq_max and abs(difference_func(root)) < 1e-6:
+                # Avoid duplicate roots
+                if not any(abs(root - existing_root) < 1e-3 for existing_root in roots):
+                    roots.append(int(np.floor(np.exp(root))))
+        except:
+            continue
+    
+    roots = sorted(roots)
+    print(f"Intersection frequencies: {roots}")
+    
+    return roots[0], roots[1], intercept
+
+
+def find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile):
+    ## return the first index that is greater than the percentile
+    low_res = E_freq_cumsum > low_percentile
+    # find the first index where low_res is True
+    low_idx = np.argmax(low_res)
+    high_res = E_freq_cumsum > high_percentile
+    # find the first index where high_res is True
+    high_idx = np.argmax(high_res)
+    return low_idx, high_idx
+
 
 # USED FOR testing evaluation
 def get_frequency_bands_from_cumulative_energy(
     y: torch.Tensor,
-    low_percentile: float = 0.33,
-    high_percentile: float = 0.67,
+    low_percentile: float = 0.67,
+    high_percentile: float = 0.99,
     max_freq: int = None,
     eps: float = 1e-12,
 ) -> Tuple[int, int, torch.Tensor, torch.Tensor]:
@@ -568,134 +667,79 @@ def get_frequency_bands_from_cumulative_energy(
         freq_bins: tensor of frequency bin centers [0, 1, 2, ..., max_freq].
         cumulative_energy: tensor of cumulative energy fractions.
     """
-    assert y.ndim == 4, "y must have shape (N,H,W,C)"
-    N, H, W, C = y.shape
+    assert y.ndim == 5, "y must have shape (N,H,W,T,C)"
+    N, H, W, T, C = y.shape
     if max_freq is None:
         max_freq = min(H, W) // 2
 
     device = y.device
     dtype = y.dtype
 
-    # Reorder to (N, C, H, W) and remove spatial mean
-    y_nc_hw = y.permute(0, 3, 1, 2).contiguous()
-    y_demean = y_nc_hw - y_nc_hw.mean(dim=(-2, -1), keepdim=True)
+    y = rearrange(y, 'b h w t c -> b t c h w')
 
-    # 2D FFT over spatial dims
-    y_hat = torch.fft.fftn(y_demean, dim=(-2, -1))
-    # Sum power over batch and channels -> (H, W)
-    power = (y_hat.real**2 + y_hat.imag**2).sum(dim=(0, 1))
+    # Use full 2D FFT so the spectrum shape matches (B T C H, W)
+    y_fft = torch.abs(torch.fft.fft2(y))
 
-    # Build discrete frequency grid using integer bins
-    # FFT frequencies are organized as [0, 1, 2, ..., N//2, -N//2+1, ..., -1]
-    # We want the magnitude |k| = sqrt(kx^2 + ky^2)
-    
-    freq_x = torch.arange(H, device=device, dtype=dtype)
-    freq_y = torch.arange(W, device=device, dtype=dtype)
-    
-    # Convert to centered frequencies: [0, 1, ..., N//2, -(N//2-1), ..., -1]
-    freq_x = torch.where(freq_x <= H//2, freq_x, freq_x - H)
-    freq_y = torch.where(freq_y <= W//2, freq_y, freq_y - W)
-    
-    Fx, Fy = torch.meshgrid(freq_x, freq_y, indexing="ij")
-    Fmag = torch.sqrt(Fx**2 + Fy**2)  # Radial frequency magnitude
+    # average over batch, time, channels
+    y_fft = y_fft.mean(dim=(0, 1, 2)) # (H, W)
+    # Take magnitude and move to numpy for binning
+    fourier_amplitudes = y_fft.detach().cpu().numpy()
 
-    # Create energy bins for each integer frequency from 0 to max_freq
-    freq_bins = torch.arange(0, max_freq + 1, device=device, dtype=dtype)
-    E_bins = torch.zeros(max_freq + 1, device=device, dtype=dtype)
-    
-    # Aggregate power into radial frequency bins
-    for k in range(max_freq + 1):
-        if k == max_freq:
-            # Last bin: include all frequencies >= max_freq
-            mask = Fmag >= k
-        else:
-            # Regular bin: [k, k+1)
-            mask = (Fmag >= k) & (Fmag < k + 1)
-        E_bins[k] = power[mask].sum()
+    # Create the k-frequency grid for rectangular image
+    kfreq_x = np.fft.fftfreq(W) * W
+    kfreq_y = np.fft.fftfreq(H) * H
+    kfreq2D = np.meshgrid(kfreq_x, kfreq_y)
+    knrm = np.sqrt(kfreq2D[0] ** 2 + kfreq2D[1] ** 2)
 
-    # Compute cumulative energy fraction
-    total_energy = E_bins.sum() + eps
-    cumulative_energy = torch.cumsum(E_bins, dim=0) / total_energy
+    # Flatten the arrays to use in binning (1D arrays of equal length,  (H*W,) ) 
+    knrm = knrm.ravel() # ALL the frequences in the image
+    fourier_amplitudes = fourier_amplitudes.ravel() # ALL the fourier amplitudes in the image
 
-    # Find frequency bins at specified percentiles
-    def find_freq_at_percentile(percentile: float) -> int:
-        # Find first bin where cumulative energy >= percentile
-        mask = cumulative_energy >= percentile
-        if mask.any():
-            return int(torch.argmax(mask.float()))
-        else:
-            return max_freq  # fallback
+    # Define the bins for the wavenumber - use the minimum dimension for binning
+    min_dim = min(H, W)
+    kbins = np.arange(0.5, min_dim // 2 + 1, 1.0)
 
-    k_low = find_freq_at_percentile(low_percentile)
-    k_high = find_freq_at_percentile(high_percentile)
+    # Bin the data (radial mean), turn the 2D array into 1D array
+    E_freq, _, _ = stats.binned_statistic(
+        knrm, fourier_amplitudes, statistic="mean", bins=kbins
+    )
 
-    return k_low, k_high, freq_bins.detach(), cumulative_energy.detach()
+
+    log_E_freq = np.log(E_freq)
+    log_freq = np.log(kbins[:len(log_E_freq)])
+    k_freq = kbins[:len(E_freq)]
+        
+    # k_low, k_high, intercept = find_freq_from_linear_fit(log_freq, log_E_freq)
+    # plot it temporarily
+    # plt.loglog(k_freq, E_freq, 'X-',markersize=1, label='data')
+    # plt.loglog(k_freq, np.exp(-5.0/3*log_freq + intercept), 'r--', label='linear fit') # linear fit
+    #     # Mark intersection points
+    # plt.legend()
+    # plt.show()
+    # k_low = 12
+    # k_high = 40
+
+    # compute the cumulative sum of the energy
+    E_freq_cumsum = np.cumsum(E_freq)
+    E_freq_cumsum = E_freq_cumsum / E_freq_cumsum[-1]
+    k_low, k_high = find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile)
+
+    return k_low, k_high, k_freq, E_freq
 
 
 def aggregate_spectral_energy_by_bands(
-    pred: torch.Tensor,
-    target: torch.Tensor,
     k_low: int,
     k_high: int,
-    max_freq: int = None,
+    E_diff: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Aggregate spectral energy into low/mid/high frequency bands.
-    
-    Args:
-        pred: Predicted field (N, H, W, C).
-        target: Target field (N, H, W, C).
-        k_low: Frequency bin boundary between low and mid bands.
-        k_high: Frequency bin boundary between mid and high bands.
-        max_freq: Maximum frequency to consider (default = min(H, W)//2).
-    
-    Returns:
-        low_band_error: MSE in low frequency band [0, k_low).
-        mid_band_error: MSE in mid frequency band [k_low, k_high).
-        high_band_error: MSE in high frequency band [k_high, max_freq].
-    """
-    assert pred.shape == target.shape, "pred and target must have same shape"
-    assert pred.ndim == 4, "Input must have shape (N,H,W,C)"
-    
-    N, H, W, C = pred.shape
-    if max_freq is None:
-        max_freq = min(H, W) // 2
+    # E_diff: (H, W)
+    # k_low: int
+    # k_high: int
         
-    device = pred.device
-    
-    # Reorder to (N, C, H, W)
-    pred_nc_hw = pred.permute(0, 3, 1, 2).contiguous()
-    target_nc_hw = target.permute(0, 3, 1, 2).contiguous()
-    
-    # Remove spatial mean
-    pred_demean = pred_nc_hw - pred_nc_hw.mean(dim=(-2, -1), keepdim=True)
-    target_demean = target_nc_hw - target_nc_hw.mean(dim=(-2, -1), keepdim=True)
-    
-    # 2D FFT
-    pred_fft = torch.fft.fftn(pred_demean, dim=(-2, -1))
-    target_fft = torch.fft.fftn(target_demean, dim=(-2, -1))
-    
-    # Compute error in frequency domain
-    error_fft = pred_fft - target_fft
-    error_power = error_fft.real**2 + error_fft.imag**2  # (N, C, H, W)
-    
-    # Build frequency magnitude grid
-    freq_x = torch.arange(H, device=device, dtype=torch.float32)
-    freq_y = torch.arange(W, device=device, dtype=torch.float32)
-    freq_x = torch.where(freq_x <= H//2, freq_x, freq_x - H)
-    freq_y = torch.where(freq_y <= W//2, freq_y, freq_y - W)
-    Fx, Fy = torch.meshgrid(freq_x, freq_y, indexing="ij")
-    Fmag = torch.sqrt(Fx**2 + Fy**2)
-    
-    # Create masks for frequency bands
-    low_mask = Fmag < k_low
-    mid_mask = (Fmag >= k_low) & (Fmag < k_high) 
-    high_mask = Fmag >= k_high
-    
     # Aggregate errors by frequency bands
-    low_band_error = error_power[:, :, low_mask].mean() if low_mask.any() else torch.tensor(0.0, device=device)
-    mid_band_error = error_power[:, :, mid_mask].mean() if mid_mask.any() else torch.tensor(0.0, device=device)
-    high_band_error = error_power[:, :, high_mask].mean() if high_mask.any() else torch.tensor(0.0, device=device)
+    low_band_error = E_diff[:k_low].mean()
+    mid_band_error = E_diff[k_low:k_high].mean()
+    high_band_error = E_diff[k_high:].mean()
     
     return low_band_error, mid_band_error, high_band_error
 
@@ -721,23 +765,16 @@ if __name__ == "__main__":
     print(f"Max frequency: {min(H, W) // 2}")
     
     # Get frequency bands using cumulative energy
-    k_low, k_high, freq_bins, cumulative_energy = get_frequency_bands_from_cumulative_energy(
-        target, low_percentile=0.33, high_percentile=0.67
+    k_low, k_high,  E_bins_target = get_frequency_bands_from_cumulative_energy(
+        target, low_percentile=0.70, high_percentile=0.99
     )
-    
-    print(f"\nFrequency band boundaries:")
-    print(f"k_low (33rd percentile): {k_low}")
-    print(f"k_high (67th percentile): {k_high}")
-    print(f"Frequency bins range: [0, {len(freq_bins)-1}]")
-    
-    # Show cumulative energy distribution
-    print(f"\nCumulative energy at key points:")
-    print(f"At k={k_low}: {cumulative_energy[k_low]:.3f}")
-    print(f"At k={k_high}: {cumulative_energy[k_high]:.3f}")
-    
+    _, _, E_bins_pred = get_frequency_bands_from_cumulative_energy(
+        pred, low_percentile=0.80, high_percentile=0.99
+    )
+
     # Aggregate spectral errors by frequency bands
     low_err, mid_err, high_err = aggregate_spectral_energy_by_bands(
-        pred, target, k_low, k_high
+         k_low, k_high, np.abs(E_bins_pred - E_bins_target)
     )
     
     print(f"\nSpectral error by frequency bands:")
