@@ -141,7 +141,7 @@ class SpectralError(_WeightedLoss):
         self.model_name = model_name
         self.save_path = save_path
 
-    def forward(self, pred, y, low_percentile=0.80, high_percentile=0.99, channel=None):
+    def forward(self, pred, y, low_percentile=0.80, high_percentile=0.99, channel=None, time_step=None):
         B, H, W, T, C = y.shape
         # find the spectral band edges from the truth using OLD method
 
@@ -168,7 +168,7 @@ class SpectralError(_WeightedLoss):
         plt.loglog(k_freq, E_bins_target, 'X-',markersize=2, label='target')
         plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred')
         plt.legend()
-        plt.savefig(f'{self.save_path}/spectral_error_{channel}.png')
+        plt.savefig(f'{self.save_path}/spectral_error_{channel}_{time_step}.png')
         plt.clf()
         # plt.show()
 

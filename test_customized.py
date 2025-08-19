@@ -271,7 +271,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
             for key, loss_func in loss_dict.items():
                 if key == 'spectral_error':
                     # (B, H, W, T, C)
-                    loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None], channel=c)
+                    loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None], channel=c, time_step=step)
                     # loss metric is a dict with keys: 'low_err', 'mid_err', 'high_err', 'k_low', 'k_high'
                     print("frequency bands", loss_metric['k_low'], loss_metric['k_high'])
                     for band_key, val in loss_metric.items():
