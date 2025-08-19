@@ -169,7 +169,8 @@ class SpectralError(_WeightedLoss):
         plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred')
         plt.legend()
         plt.savefig(f'{self.save_path}/spectral_error_{channel}.png')
-        plt.show()
+        plt.clf()
+        # plt.show()
 
         return {'spec_low': low_err, 'spec_mid': mid_err, 'spec_high': high_err, 'k_low': self.k_low, 'k_high': self.k_high}
 
