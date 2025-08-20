@@ -243,7 +243,7 @@ Par = {
 }
 
 # Compute sigma_data for diffusion model, it produces a scalar? should be a sigma for each channel
-Par["sigma_data"] = torch.std(trues_stack, dim=(0, 1, 2))
+Par["sigma_data"] = torch.std(trues_stack, dim=(0, 1, 2)).to(device)
 print(f"Sigma data: {Par['sigma_data']}")
 
 # Update parameters
