@@ -391,7 +391,7 @@ with torch.no_grad():
         with autocast():
             pred = model.sample(l_fidel.to(device))
             loss = error_metric(pred, h_fidel.to(device), Par)
-        test_loss += loss.item()
+        test_loss += loss.item() * l_fidel.shape[0]
 
 test_loss /= len(test_loader)
 print(f'Test Loss: {test_loss:.4e}')
