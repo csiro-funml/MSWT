@@ -1,3 +1,8 @@
+"""
+Train a neural operator to predict the next step of the PDE
+This code is developed with reference to the following GitHub repo: DPOT: https://github.com/HaoZhongkai/DPOT/
+"""
+
 import sys
 import os
 # sys.path.append(['.','./../'])
