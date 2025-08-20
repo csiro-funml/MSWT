@@ -97,7 +97,6 @@ class ElucidatedDiffusion(nn.Module):
     # derived preconditioning params - Table 1
 
     def c_skip(self, sigma):
-        # sigma is (b, 1, 1, 1),  sigma_data is (C,), should be broadcasted to (1, C, 1, 1)
         return (self.sigma_data ** 2) / (sigma ** 2 + self.sigma_data ** 2)
 
     def c_out(self, sigma):
@@ -212,15 +211,12 @@ class ElucidatedDiffusion(nn.Module):
                 images_ls.append(images.unsqueeze(0))
             # x_start = model_output_next if sigma_next != 0 else model_output
 
-        
-        # images = images.clamp(-1., 1.)
+        images = images.clamp(-1., 1.)
         if get_sampling:
             images_ls = torch.cat(images_ls, dim=0)
-            # return unnormalize_to_zero_to_one(images), images_ls
-            return images, images_ls
+            return unnormalize_to_zero_to_one(images), images_ls
         else: 
-            # return unnormalize_to_zero_to_one(images) (my data might not be normalized to -1 to 1)
-            return images
+            return unnormalize_to_zero_to_one(images)
 
     @torch.no_grad()
     def sample_using_dpmpp(self, self_cond, batch_size = None, num_sample_steps = None):
@@ -268,11 +264,6 @@ class ElucidatedDiffusion(nn.Module):
         return (self.P_mean + self.P_std * torch.randn((batch_size,), device = self.device)).exp()
 
     def forward(self, images, self_cond=None):
-        """
-        ground truth images shape (N, C, H, W)
-        self_cond the neural operator output (conditional) shape (N, C, H, W)
-        """
-
         batch_size, c, h, w, device, image_size, channels = *images.shape, images.device, self.image_size, self.channels
 
         assert h == image_size and w == image_size, f'height and width of image must be {image_size}'
