@@ -44,45 +44,65 @@ def error_metric(pred, true, Par):
 
 
 class DiffusionDataset(Dataset):
-    """Dataset that generates predictions using a pretrained neural operator"""
-    def __init__(self, base_dataset, neural_operator, device):
+    """Simple wrapper around base dataset that just returns raw data"""
+    def __init__(self, base_dataset):
         self.base_dataset = base_dataset
-        self.neural_operator = neural_operator
-        self.device = device
-        self.neural_operator.eval()  # Set to evaluation mode
 
     def __len__(self):
         return len(self.base_dataset)
 
     def __getitem__(self, idx):
-        ## OPTIMIZE LATER BECAUSE THE MODEL PREDICT ONE SAMPLE AT A TIME AND one step a time
-        # Get input and ground truth from base dataset
-        x, y = self.base_dataset[idx]  # x: input, y: ground truth
-        
-        # Generate prediction using neural operator
-        with torch.no_grad():
-            x_input = x.unsqueeze(0).to(self.device)  # Add batch dimension
-            if hasattr(self.base_dataset, 'normalize_x'):
-                x_input = self.base_dataset.normalize_x(x_input)
-            
-            pred = self.neural_operator(x_input)
-            
-            if hasattr(self.base_dataset, 'denormalize_x'):
-                pred = self.base_dataset.denormalize_x(pred)
-            
-            pred = pred.squeeze(0).cpu()  # Remove batch dimension and move to CPU
+        # Just return the raw data - neural operator processing will be done in collate_fn
+        return self.base_dataset[idx]
 
-        # squeeze the time dimension as one step ahead prediction
-        pred = pred.squeeze(-2)
-        if len(y.shape) == 4: # multipe steps of ground truth were given
-            y = y[:, :, -1, :]
-        else:
-            y = y.squeeze(-2)
-        # permute the dimensions to (N, C, H, W)
-        pred = pred.permute(2, 0, 1)
-        y = y.permute(2, 0, 1)
-        # Return prediction as input to diffusion model, ground truth as target
-        return pred.float(), y.float()
+
+def create_diffusion_collate_fn(neural_operator, device, base_dataset):
+    """
+    Create a collate function that batches base dataset samples and runs neural operator
+    """
+    def diffusion_collate_fn(batch):
+        # batch is a list of (x, y) tuples from base dataset
+        # x: (H, W, T, C), y: (H, W, T, C) or (H, W, C)
+        
+        # Stack into batch tensors
+        x_batch = torch.stack([item[0] for item in batch])  # (B, H, W, T, C)
+        y_batch = torch.stack([item[1] for item in batch])  # (B, H, W, T, C) or (B, H, W, C)
+        
+        # Generate predictions using neural operator in batch mode
+        with torch.no_grad():
+            # Move to device and normalize if needed
+            x_input = x_batch.to(device)
+            if hasattr(base_dataset, 'normalize_x'):
+                x_input = base_dataset.normalize_x(x_input)
+            
+            # Generate predictions for the entire batch
+            pred_batch = neural_operator(x_input)  # (B, H, W, T_out, C)
+            
+            # Denormalize if needed
+            if hasattr(base_dataset, 'denormalize_x'):
+                pred_batch = base_dataset.denormalize_x(pred_batch)
+            
+            # Process predictions - move to CPU for memory efficiency
+            pred_batch = pred_batch.cpu()
+            
+            # Squeeze time dimension (assuming single step prediction)
+            pred_batch = pred_batch.squeeze(-2)  # (B, H, W, C)
+            
+            # Handle ground truth
+            if len(y_batch.shape) == 5 and y_batch.shape[-2] > 1:  # (B, H, W, T, C) - multiple steps
+                y_batch = y_batch[:, :, :, -1, :]  # Take last timestep (B, H, W, C)
+            elif len(y_batch.shape) == 4 and y_batch.shape[-2] > 1:  # (B, H, W, T, C) with T > 1
+                y_batch = y_batch[:, :, :, -1, :]  # Take last timestep (B, H, W, C)
+            else:
+                y_batch = y_batch.squeeze(-2)  # (B, H, W, C)
+            
+            # Permute to (B, C, H, W) format for diffusion model
+            pred_batch = pred_batch.permute(0, 3, 1, 2)  # (B, C, H, W)
+            y_batch = y_batch.permute(0, 3, 1, 2)  # (B, C, H, W)
+            
+            return pred_batch.float(), y_batch.float()
+    
+    return diffusion_collate_fn
 
 
 def load_pretrained_neural_operator(model_type, dataset_name, ntrain, log_path='./logs'):
@@ -201,18 +221,27 @@ args.log_path = log_path
 print(f"Loaded {args.model_name} neural operator")
 
 
-# Create diffusion datasets, note that it will denormalize the predictions
-train_dataset = DiffusionDataset(train_base_dataset, neural_operator, device)
-val_dataset = DiffusionDataset(val_base_dataset, neural_operator, device)
-test_dataset = DiffusionDataset(test_base_dataset, neural_operator, device)
+# Create diffusion datasets (simple wrappers)
+train_dataset = DiffusionDataset(train_base_dataset)
+val_dataset = DiffusionDataset(val_base_dataset)
+test_dataset = DiffusionDataset(test_base_dataset)
 
 print(f"Data Loading Time: {time.time() - begin_time:.1f}s")
 print(f"Train samples: {len(train_dataset)}")
 print(f"Val samples: {len(val_dataset)}")
 print(f"Test samples: {len(test_dataset)}")
 
+# Create collate functions for batched neural operator processing
+train_collate_fn = create_diffusion_collate_fn(neural_operator, device, train_base_dataset)
+val_collate_fn = create_diffusion_collate_fn(neural_operator, device, val_base_dataset)
+test_collate_fn = create_diffusion_collate_fn(neural_operator, device, test_base_dataset)
+
 # Get sample data to determine dimensions and compute normalization statistics
-sample_pred, sample_true = train_dataset[0]
+print("Computing sample data shapes and normalization statistics...")
+temp_loader = DataLoader(train_dataset, batch_size=min(32, len(train_dataset)), 
+                        shuffle=False, collate_fn=train_collate_fn)
+sample_batch = next(iter(temp_loader))
+sample_pred, sample_true = sample_batch
 print(f"Sample prediction shape: {sample_pred.shape}")
 print(f"Sample true shape: {sample_true.shape}")
 
@@ -220,16 +249,20 @@ print(f"Sample true shape: {sample_true.shape}")
 print("Computing normalization statistics...")
 preds_for_norm = []
 trues_for_norm = []
-for i in range(min(100, len(train_dataset))):
-    pred, true = train_dataset[i]
-    preds_for_norm.append(pred)
-    trues_for_norm.append(true)
 
-preds_stack = torch.stack(preds_for_norm) # (N, C, H, W)
-trues_stack = torch.stack(trues_for_norm) # (N, C, H, W)
+# Use a few batches to compute normalization statistics
+norm_batches = min(5, len(temp_loader))
+for i, (pred_batch, true_batch) in enumerate(temp_loader):
+    preds_for_norm.append(pred_batch)
+    trues_for_norm.append(true_batch)
+    if i >= norm_batches - 1:
+        break
+
+preds_stack = torch.cat(preds_for_norm, dim=0)  # (N, C, H, W)
+trues_stack = torch.cat(trues_for_norm, dim=0)  # (N, C, H, W)
 
 # Compute min/max for normalization
-inp_min = torch.amin(preds_stack, dim=(0, 2, 3), keepdim=True) # (1, C, 1, 1)
+inp_min = torch.amin(preds_stack, dim=(0, 2, 3), keepdim=True)  # (1, C, 1, 1)
 inp_max = torch.amax(preds_stack, dim=(0, 2, 3), keepdim=True)  # (1, C, 1, 1)
 out_min = torch.amin(trues_stack, dim=(0, 2, 3), keepdim=True)  # (1, C, 1, 1)
 out_max = torch.amax(trues_stack, dim=(0, 2, 3), keepdim=True)  # (1, C, 1, 1)
@@ -240,8 +273,8 @@ Par = {
     "inp_scale": (inp_max - inp_min).to(device, dtype=DTYPE),
     "out_shift": out_min.to(device, dtype=DTYPE),
     "out_scale": (out_max - out_min).to(device, dtype=DTYPE),
-    "nx": sample_pred.shape[1],
-    "ny": sample_pred.shape[2],
+    "nx": sample_pred.shape[2],
+    "ny": sample_pred.shape[3],
     "nf": 1,
     "lb": 1,
     "lf": 1,
@@ -254,7 +287,7 @@ print(f"Sigma data: {Par['sigma_data']}")
 
 # Update parameters
 Par.update({
-    "channels": sample_pred.shape[0],
+    "channels": sample_pred.shape[1],
     "self_condition": True
 })
 
@@ -269,10 +302,13 @@ for key, value in Par.items():
 with open(args.log_path + 'Par.pkl', 'wb') as f:
     pickle.dump(Par, f)
 
-# Define data loaders
-train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=args.batch_size)
-test_loader = DataLoader(test_dataset, batch_size=args.batch_size)
+# Define data loaders with custom collate functions
+train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, 
+                         collate_fn=train_collate_fn)
+val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,
+                       collate_fn=val_collate_fn)
+test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
+                        collate_fn=test_collate_fn)
 
 # Define Network Architecture
 net = Unet(
