@@ -44,10 +44,12 @@ class RelL2Norm(_WeightedLoss):
 
     def forward(self, pred, y):
         # x: shape (B, H, W, T, C), y: shape (B, H, W, T, C)
-        B, H, W, T, C = y.shape
+        B, C = y.shape[0], y.shape[-1]
         # reshape the x and y to (B*T, HW, C)
-        pred = rearrange(pred, 'b h w t c -> (b t) (h w) c')
-        y = rearrange(y, 'b h w t c -> (b t) (h w) c')
+        # pred = rearrange(pred, 'b h w t c -> (b t) (h w) c')
+        # y = rearrange(y, 'b h w t c -> (b t) (h w) c')
+        pred = pred.reshape(B, -1, C)
+        y = y.reshape(B, -1, C)
 
         diff_norms = torch.sqrt(torch.sum((pred - y)**2, dim=1)) # (B*T, C)
         y_norms = torch.sqrt(torch.sum(y**2, dim=1)) # (B*T, C)

@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 from torch.amp import autocast, GradScaler
-
+from utils.criterion import RelL2Norm
 # Import existing utilities and models
 
 from utils.griddataset import TemporalDataset2D, LocalTemporalDataset2D
@@ -184,7 +184,7 @@ parser.add_argument('--T_in', type=int, default=7,
                    help='Input time steps')
 parser.add_argument('--batch_size', type=int, default=128,
                    help='Batch size for training')
-parser.add_argument('--num_epochs', type=int, default=10000,
+parser.add_argument('--num_epochs', type=int, default=500,
                    help='Number of training epochs')
 parser.add_argument('--lr', type=float, default=1e-4,
                    help='Learning rate')
@@ -336,6 +336,9 @@ optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=0)
 # Learning rate scheduler (Cosine Annealing)
 scheduler = CosineAnnealingLR(optimizer, T_max=Par['num_epochs'] * len(train_loader))
 
+# evaluation criterion
+loss_func = RelL2Norm()
+
 # Training loop
 num_epochs = Par['num_epochs']
 best_val_loss = float('inf')
@@ -345,7 +348,8 @@ os.makedirs('models', exist_ok=True)
 t0 = time.time()
 
 print(f"Starting training for {num_epochs} epochs...")
-for epoch in range(num_epochs):
+range_epoch = range(num_epochs)
+for epoch in tqdm(range_epoch):
     begin_time = time.time()
     model.train()
     train_loss = 0.0
@@ -386,7 +390,7 @@ for epoch in range(num_epochs):
                 with autocast(device_type=device.type):
                     # Sample from diffusion model using the low-fidelity input as conditioning
                     pred = model.sample(l_fidel.to(device))
-                    loss = error_metric(pred, h_fidel.to(device), Par)
+                    loss = loss_func(pred.permute(0, 2, 3, 1), h_fidel.permute(0, 2, 3, 1).to(device))
                 val_loss += loss.item() * l_fidel.shape[0]
 
         val_loss /= len(val_loader)
@@ -425,7 +429,7 @@ with torch.no_grad():
         
         with autocast():
             pred = model.sample(l_fidel.to(device))
-            loss = error_metric(pred, h_fidel.to(device), Par)
+            loss = loss_func(pred.permute(0, 2, 3, 1), h_fidel.permute(0, 2, 3, 1).to(device))
         test_loss += loss.item() * l_fidel.shape[0]
 
 test_loss /= len(test_loader)
