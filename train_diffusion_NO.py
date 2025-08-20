@@ -74,7 +74,13 @@ class DiffusionDataset(Dataset):
 
         # squeeze the time dimension as one step ahead prediction
         pred = pred.squeeze(-2)
-        y = y.squeeze(-2)
+        if len(y.shape) == 4: # multipe steps of ground truth were given
+            y = y[:, :, -1, :]
+        else:
+            y = y.squeeze(-2)
+        # permute the dimensions to (N, C, H, W)
+        pred = pred.permute(2, 0, 1)
+        y = y.permute(2, 0, 1)
         # Return prediction as input to diffusion model, ground truth as target
         return pred.float(), y.float()
 
@@ -219,14 +225,14 @@ for i in range(min(100, len(train_dataset))):
     preds_for_norm.append(pred)
     trues_for_norm.append(true)
 
-preds_stack = torch.stack(preds_for_norm) # (N, H, W, T, C)
-trues_stack = torch.stack(trues_for_norm) # (N, H, W, T, C)
+preds_stack = torch.stack(preds_for_norm) # (N, C, H, W)
+trues_stack = torch.stack(trues_for_norm) # (N, C, H, W)
 
 # Compute min/max for normalization
-inp_min = torch.amin(preds_stack, dim=(0, 1, 2, 3), keepdim=True) # (1, 1, 1, 1, C)
-inp_max = torch.amax(preds_stack, dim=(0, 1, 2, 3), keepdim=True)
-out_min = torch.amin(trues_stack, dim=(0, 1, 2, 3), keepdim=True)
-out_max = torch.amax(trues_stack, dim=(0, 1,2, 3), keepdim=True)
+inp_min = torch.amin(preds_stack, dim=(0, 2, 3), keepdim=True) # (1, C, 1, 1)
+inp_max = torch.amax(preds_stack, dim=(0, 2, 3), keepdim=True)  # (1, C, 1, 1)
+out_min = torch.amin(trues_stack, dim=(0, 2, 3), keepdim=True)  # (1, C, 1, 1)
+out_max = torch.amax(trues_stack, dim=(0, 2, 3), keepdim=True)  # (1, C, 1, 1)
 
 # MIN MAX NORMALIZATION
 Par = {
@@ -234,8 +240,8 @@ Par = {
     "inp_scale": (inp_max - inp_min).to(device, dtype=DTYPE),
     "out_shift": out_min.to(device, dtype=DTYPE),
     "out_scale": (out_max - out_min).to(device, dtype=DTYPE),
-    "nx": sample_pred.shape[0],
-    "ny": sample_pred.shape[1],
+    "nx": sample_pred.shape[1],
+    "ny": sample_pred.shape[2],
     "nf": 1,
     "lb": 1,
     "lf": 1,
@@ -243,12 +249,12 @@ Par = {
 }
 
 # Compute sigma_data for diffusion model, it produces a scalar? should be a sigma for each channel
-Par["sigma_data"] = torch.std(trues_stack, dim=(0, 1, 2)).to(device)
+Par["sigma_data"] = torch.std(trues_stack, dim=(0, 2, 3)).to(device)
 print(f"Sigma data: {Par['sigma_data']}")
 
 # Update parameters
 Par.update({
-    "channels": sample_pred.shape[-1],
+    "channels": sample_pred.shape[0],
     "self_condition": True
 })
 

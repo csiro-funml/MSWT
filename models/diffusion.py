@@ -266,11 +266,9 @@ class ElucidatedDiffusion(nn.Module):
 
     def forward(self, images, self_cond=None):
         """
-        ground truth images shape (N, H, W, C)
-        self_cond the neural operator output (conditional) shape (N, H, W, C)
+        ground truth images shape (N, C, H, W)
+        self_cond the neural operator output (conditional) shape (N, C, H, W)
         """
-        images = images.permute(0, 3, 1, 2)
-        self_cond = self_cond.permute(0, 3, 1, 2)
 
         batch_size, c, h, w, device, image_size, channels = *images.shape, images.device, self.image_size, self.channels
 
