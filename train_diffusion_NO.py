@@ -316,6 +316,7 @@ for epoch in range(num_epochs):
 
     train_time = time.time()
     for l_fidel, h_fidel in tqdm(train_loader, desc=f'Epoch {epoch + 1}/{num_epochs}'):
+        break # temporarily for testing
         optimizer.zero_grad()
         # l_fidel is the NO output, h_fidel is the ground truth
         # Normalize data

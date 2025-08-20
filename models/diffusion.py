@@ -212,12 +212,15 @@ class ElucidatedDiffusion(nn.Module):
                 images_ls.append(images.unsqueeze(0))
             # x_start = model_output_next if sigma_next != 0 else model_output
 
-        images_ls = torch.cat(images_ls, dim=0)
-        images = images.clamp(-1., 1.)
+        
+        # images = images.clamp(-1., 1.)
         if get_sampling:
-            return unnormalize_to_zero_to_one(images), images_ls
+            images_ls = torch.cat(images_ls, dim=0)
+            # return unnormalize_to_zero_to_one(images), images_ls
+            return images, images_ls
         else: 
-            return unnormalize_to_zero_to_one(images)
+            # return unnormalize_to_zero_to_one(images) (my data might not be normalized to -1 to 1)
+            return images
 
     @torch.no_grad()
     def sample_using_dpmpp(self, self_cond, batch_size = None, num_sample_steps = None):
