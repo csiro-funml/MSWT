@@ -156,7 +156,7 @@ parser.add_argument('--dataset', type=str, default='ns2d_pda',
                    help='Dataset name')
 parser.add_argument('--T_in', type=int, default=7,
                    help='Input time steps')
-parser.add_argument('--batch_size', type=int, default=100,
+parser.add_argument('--batch_size', type=int, default=128,
                    help='Batch size for training')
 parser.add_argument('--num_epochs', type=int, default=10000,
                    help='Number of training epochs')

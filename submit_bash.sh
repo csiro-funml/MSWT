@@ -34,4 +34,4 @@ source $HOME/.venvs/pytorch/bin/activate
 
 
 # Train the diffusion model
-CUDA_VISIBLE_DEVICES=0 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7
+CUDA_VISIBLE_DEVICES=0 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model_name='FNO' --T_in=7
