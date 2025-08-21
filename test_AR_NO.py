@@ -296,7 +296,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
 ################################################################
 # Function 3  save the data for diffusion training
 ################################################################
-def no_preprocessing_pred_save_data(args):
+def no_postprocessing_pred_save_data(args):
 
     ################################################################
     # load some toy data to run locally
@@ -380,8 +380,8 @@ def no_preprocessing_pred_save_data(args):
             save_data['pred'] = torch.cat(save_data['pred'], axis=0).cpu().numpy()
             
             print("save_data shape", save_data['output'].shape, save_data['pred'].shape)
-            np.savez(f'{args.log_path}/{key}_pred.npz', **save_data)
-            print(f"Saved {key} predictions to {args.log_path}/{key}_pred.npz")
+            np.savez(f'{log_path}/{key}_pred.npz', **save_data)
+            print(f"Saved {key} predictions to {log_path}/{key}_pred.npz")
 
     print("Successfully saved the predictions for diffusion training")
 
@@ -393,14 +393,14 @@ def no_preprocessing_pred_save_data(args):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    # model, test_loader, log_path = load_data_model(just_load_path=False)
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=False)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
-    # #### 2. load the save_data
-    # save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
+    #### 2. load the save_data
+    save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
     
-    # #### 3. compute different types of metrics
-    # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
+    #### 3. compute different types of metrics
+    compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
-    #### 4. save the data for diffusion training
-    no_preprocessing_pred_save_data(args)
+    #### 4. postprocessing save the data for diffusion training
+    # no_postprocessing_pred_save_data(args)
