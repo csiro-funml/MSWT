@@ -30,7 +30,7 @@ def main():
         print("Warning: Less than 2 GPUs detected. Running single GPU training...")
         # Run single GPU training
         cmd = [
-            sys.executable, 'train_diffusion_NO.py',
+            sys.executable, 'train_diffusion_multiple_gpus.py',
             '--model', args.model,
             '--dataset', args.dataset,
             '--comment', args.comment,

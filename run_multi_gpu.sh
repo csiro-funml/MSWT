@@ -3,7 +3,7 @@
 # Multi-GPU training script for diffusion neural operator
 # Usage: ./run_multi_gpu.sh [options]
 
-#SBATCH --time=24:00:00
+#SBATCH --time=00:20:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
