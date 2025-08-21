@@ -142,7 +142,7 @@ echo "  Validation check interval: $VAL_CHECK_INTERVAL"
 echo ""
 
 # Build the command
-CMD="python train_diffusion_multiple_gpus.py"
+CMD="CUDA_VISIBLE_DEVICES=0,1,2,3 python train_diffusion_multiple_gpus.py"
 CMD="$CMD --gpus $GPUS"
 CMD="$CMD --batch_size $BATCH_SIZE"
 CMD="$CMD --learning_rate $LEARNING_RATE"
