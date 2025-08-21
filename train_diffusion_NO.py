@@ -454,11 +454,27 @@ print("prediction shape: ", pred_list.shape, "output shape: ", h_fidel.shape)
 
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
+print(pred_list.shape)
+print(l_fidel.shape)
+print(h_fidel.shape)
+# only plot the first channel
+# plot_tensor = torch.cat((pred_list.cpu(), 
+#                          torch.zeros_like(l_fidel.unsqueeze(0)), # space out two figures
+#                          torch.zeros_like(l_fidel.unsqueeze(0)),
+#                          l_fidel.unsqueeze(0), 
+#                          torch.zeros_like(l_fidel.unsqueeze(0)),
+#                          torch.zeros_like(l_fidel.unsqueeze(0)),
+#                          h_fidel.unsqueeze(0)), dim=0)[:, 0, :, :, :].detach().cpu()
 
-plot_tensor = torch.cat((pred_list.cpu(), l_fidel.unsqueeze(0),  h_fidel.unsqueeze(0)), dim=0)[:, 0, :, :].detach().cpu()
+plot_tensor = torch.cat([ l_fidel.unsqueeze(0), h_fidel.unsqueeze(0)], dim=0)[:, 0, :, :, :].detach().cpu()
+# repeat the channel dimension three times
 # plot_tensor = torch.cat((plot_tensor[:10], plot_tensor[-10:]), dim=0)
-grid_tensor = make_grid(plot_tensor, nrow=10)
+plot_tensor = make_grid(plot_tensor, nrow=10)[0]
+# use single channel for colorful visualization
+
 # plot the first 100 samples
-plt.imshow(grid_tensor.permute(1, 2, 0).numpy())
+print(plot_tensor.min(), plot_tensor.max(), plot_tensor.mean(), plot_tensor.std())
+plt.imshow(plot_tensor.numpy(), cmap='RdBu_r')
+plt.colorbar()
 plt.savefig(f'{args.log_path}/sampling_process.png')
 plt.show()
