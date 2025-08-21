@@ -73,10 +73,7 @@ class ElucidatedDiffusion(nn.Module):
 
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
-        if len(sigma_data.shape) == 1:
-            self.sigma_data = sigma_data[None, :, None, None] # (1, C, 1, 1)
-        else:
-            self.sigma_data = sigma_data
+        self.sigma_data = sigma_data
 
         self.rho = rho
 
@@ -150,7 +147,7 @@ class ElucidatedDiffusion(nn.Module):
         return sigmas
 
     @torch.no_grad()
-    def sample(self, self_cond, batch_size = None, num_sample_steps = None, clamp = True, get_sampling=False):
+    def sample(self, self_cond, batch_size = None, num_sample_steps = None, clamp = True):
         batch_size = self_cond.shape[0]
         num_sample_steps = default(num_sample_steps, self.num_sample_steps)
 
@@ -173,8 +170,6 @@ class ElucidatedDiffusion(nn.Module):
         init_sigma = sigmas[0]
 
         images = init_sigma * torch.randn(shape, device = self.device)
-        if get_sampling:
-            images_ls = [images.unsqueeze(0)]
 
         # for self conditioning
 
@@ -207,16 +202,10 @@ class ElucidatedDiffusion(nn.Module):
                 images_next = images_hat + 0.5 * (sigma_next - sigma_hat) * (denoised_over_sigma + denoised_prime_over_sigma)
 
             images = images_next
-            if get_sampling:
-                images_ls.append(images.unsqueeze(0))
             # x_start = model_output_next if sigma_next != 0 else model_output
 
         images = images.clamp(-1., 1.)
-        if get_sampling:
-            images_ls = torch.cat(images_ls, dim=0)
-            return unnormalize_to_zero_to_one(images), images_ls
-        else: 
-            return unnormalize_to_zero_to_one(images)
+        return unnormalize_to_zero_to_one(images)
 
     @torch.no_grad()
     def sample_using_dpmpp(self, self_cond, batch_size = None, num_sample_steps = None):
@@ -272,7 +261,7 @@ class ElucidatedDiffusion(nn.Module):
         images = normalize_to_neg_one_to_one(images)
 
         sigmas = self.noise_distribution(batch_size)
-        padded_sigmas = rearrange(sigmas, 'b -> b 1 1 1') # the variance of the noise
+        padded_sigmas = rearrange(sigmas, 'b -> b 1 1 1')
 
         noise = torch.randn_like(images)
 
@@ -286,7 +275,7 @@ class ElucidatedDiffusion(nn.Module):
         #         self_cond = self.preconditioned_network_forward(noised_images, sigmas)
         #         self_cond.detach_()
 
-        denoised = self.preconditioned_network_forward(noised_images, sigmas, self_cond) # we need to reduce sigma gradually to 0
+        denoised = self.preconditioned_network_forward(noised_images, sigmas, self_cond)
 
         losses = F.mse_loss(denoised, images, reduction = 'none')
         losses = reduce(losses, 'b ... -> b', 'mean')

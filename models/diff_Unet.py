@@ -1,3 +1,4 @@
+
 # ---------------------------------------------------------------------------------------------
 # Author: Vivek Oommen
 # Date: 08/01/2024
@@ -31,6 +32,13 @@ from PIL import Image
 from tqdm.auto import tqdm
 
 
+# from denoising_diffusion_pytorch.version import __version__
+
+__version__ = '2.0.12'
+
+# constants
+
+ModelPrediction =  namedtuple('ModelPrediction', ['pred_noise', 'pred_x_start'])
 
 # ---------------------------------------------------------------------------------------------
 # Author: Vivek Oommen
@@ -166,14 +174,6 @@ class Attend(nn.Module):
         return out
 
 
-
-# from denoising_diffusion_pytorch.version import __version__
-
-__version__ = '2.0.12'
-
-# constants
-
-ModelPrediction =  namedtuple('ModelPrediction', ['pred_noise', 'pred_x_start'])
 
 # helpers functions
 
@@ -529,7 +529,6 @@ class Unet(Module):
         return 2 ** (len(self.downs) - 1)
 
     def forward(self, x, time, x_self_cond = None):
-        # X shape (N, C, H, W)
         assert all([divisible_by(d, self.downsample_factor) for d in x.shape[-2:]]), f'your input dimensions {x.shape[-2:]} need to be divisible by {self.downsample_factor}, given the unet'
 
         if self.self_condition:
