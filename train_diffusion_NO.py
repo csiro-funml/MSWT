@@ -90,14 +90,14 @@ log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_
 # inp = np.load(f"/oscar/data/gk/voommen/no_diffusion/kolmogrov/res_{res}/matcho/Y_PRED.npy") #low-fidelity
 # out = np.load(f"/oscar/data/gk/voommen/no_diffusion/kolmogrov/res_{res}/matcho/Y_TRUE.npy") #high-fidelity
 
-x_train = np.load(f"{log_path}/train_pred.npy")['pred']
-y_train = np.load(f"{log_path}/train_true.npy")['output']
+x_train = np.load(f"{log_path}/train_pred.npz")['pred']
+y_train = np.load(f"{log_path}/train_pred.npz")['output']
 
-x_val = np.load(f"{log_path}/val_pred.npy")['pred']
-y_val = np.load(f"{log_path}/val_true.npy")['output']
+x_val = np.load(f"{log_path}/val_pred.npz")['pred']
+y_val = np.load(f"{log_path}/val_pred.npz")['output']
 
-x_test = np.load(f"{log_path}/test_pred.npy")['pred']
-y_test = np.load(f"{log_path}/test_true.npy")['output']
+x_test = np.load(f"{log_path}/test_pred.npz")['pred']
+y_test = np.load(f"{log_path}/test_pred.npz")['output']
 
 print("x_train shape", x_train.shape, "y_train shape", y_train.shape)
 print("x_val shape", x_val.shape, "y_val shape", y_val.shape)
