@@ -304,11 +304,11 @@ def no_preprocessing_pred_save_data(args):
         train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, n_channels=3, normalize=args.normalize, train='train')
         test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels=3, normalize=args.normalize, train='test')
         val_dataset = test_dataset
-    else:
+    else: 
         # load data and dataloader
         train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
+        val_dataset =  TemporalDataset2D(args.dataset, n_train=260, t_in = args.T_in, t_ar =-1, train='val', normalize=args.normalize)
         test_dataset = TemporalDataset2D(args.dataset, n_train=260, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
-        val_dataset = TemporalDataset2D(args.dataset, n_train=260, t_in=args.T_in, t_ar=1, n_channels = train_dataset.n_channels, train='val', normalize=args.normalize)
 
 
     
@@ -379,7 +379,7 @@ def no_preprocessing_pred_save_data(args):
             save_data['output'] = torch.cat(save_data['output'], axis=0).cpu().numpy()
             save_data['pred'] = torch.cat(save_data['pred'], axis=0).cpu().numpy()
             
-
+            print("save_data shape", save_data['output'].shape, save_data['pred'].shape)
             np.savez(f'{args.log_path}/{key}_pred.npz', **save_data)
             print(f"Saved {key} predictions to {args.log_path}/{key}_pred.npz")
 
