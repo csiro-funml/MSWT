@@ -426,21 +426,21 @@ else:
 
 # Testing loop
 model.eval()
-if torch.cuda.is_available():
-    test_loss = 0.0
-    with torch.no_grad():
-        for l_fidel, h_fidel in test_loader:
-            # Normalize data
-            l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
-            h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
+# if torch.cuda.is_available():
+#     test_loss = 0.0
+#     with torch.no_grad():
+#         for l_fidel, h_fidel in test_loader:
+#             # Normalize data
+#             l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
+#             h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
             
-            with autocast(device_type=device.type):
-                pred = model.sample(l_fidel.to(device))
-                loss = loss_func(pred.permute(0, 2, 3, 1), h_fidel.permute(0, 2, 3, 1).to(device))
-            test_loss += loss.item() * l_fidel.shape[0]
+#             with autocast(device_type=device.type):
+#                 pred = model.sample(l_fidel.to(device))
+#                 loss = loss_func(pred.permute(0, 2, 3, 1), h_fidel.permute(0, 2, 3, 1).to(device))
+#             test_loss += loss.item() * l_fidel.shape[0]
 
-    test_loss /= len(test_loader)
-    print(f'Test Loss: {test_loss:.4e}')
+#     test_loss /= len(test_loader)
+#     print(f'Test Loss: {test_loss:.4e}')
 
 
 # get one sample from the test set and save the sampling process
@@ -455,7 +455,7 @@ print("prediction shape: ", pred_list.shape, "output shape: ", h_fidel.shape)
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
 
-plot_tensor = torch.cat((pred_list, h_fidel.unsqueeze(0)), dim=0)[:, 0, :, :]
+plot_tensor = torch.cat((pred_list.cpu(), h_fidel.unsqueeze(0)), dim=0)[:, 0, :, :].detach().cpu()
 # plot_tensor = torch.cat((plot_tensor[:10], plot_tensor[-10:]), dim=0)
 grid_tensor = make_grid(plot_tensor, nrow=10)
 # plot the first 100 samples
