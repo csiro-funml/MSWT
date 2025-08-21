@@ -225,7 +225,7 @@ for epoch in tqdm(range(num_epochs)):
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        train_loss += loss.item() * l_fidel.shape[0]
+        train_loss += loss.item()
 
         # Update learning rate
         # scheduler.step()
@@ -243,7 +243,7 @@ for epoch in tqdm(range(num_epochs)):
                 with autocast(device_type=device.type):
                     pred = model.sample(l_fidel.to(device))
                     loss   = error_metric(pred, h_fidel.to(device), Par)
-                val_loss += loss.item() * l_fidel.shape[0]
+                val_loss += loss.item()
 
         val_loss /= len(val_loader)
 
@@ -275,7 +275,7 @@ with torch.no_grad():
         with autocast(device_type=device.type):
             pred = model.sample(l_fidel.to(device))
             loss   = error_metric(pred, h_fidel.to(device), Par)
-        test_loss += loss.item() * l_fidel.shape[0]
+        test_loss += loss.item()
 
 test_loss /= len(test_loader)
 print(f'Test Loss: {test_loss:.4e}')
