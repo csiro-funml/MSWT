@@ -147,7 +147,7 @@ class ElucidatedDiffusion(nn.Module):
         return sigmas
 
     @torch.no_grad()
-    def sample(self, self_cond, batch_size = None, num_sample_steps = None, clamp = True):
+    def sample(self, self_cond, batch_size = None, num_sample_steps = None, clamp = True, save_sampling_images = False):
         batch_size = self_cond.shape[0]
         num_sample_steps = default(num_sample_steps, self.num_sample_steps)
 
@@ -176,7 +176,8 @@ class ElucidatedDiffusion(nn.Module):
         # x_start = self_cond
 
         # gradually denoise
-
+        if save_sampling_images:
+            sampling_images = []
         for sigma, sigma_next, gamma in tqdm(sigmas_and_gammas, desc = 'sampling time step'):
             sigma, sigma_next, gamma = map(lambda t: t.item(), (sigma, sigma_next, gamma))
 
@@ -204,8 +205,17 @@ class ElucidatedDiffusion(nn.Module):
             images = images_next
             # x_start = model_output_next if sigma_next != 0 else model_output
 
+            if save_sampling_images:
+                sampling_images.append(images_next)
+
         images = images.clamp(-1., 1.)
-        return unnormalize_to_zero_to_one(images)
+        if save_sampling_images:
+            sampling_images = torch.stack(sampling_images, dim=0)
+            # I need to clamp the sampling images to -1 and 1
+            sampling_images = sampling_images.clamp(-1., 1.)
+            return unnormalize_to_zero_to_one(images), unnormalize_to_zero_to_one(sampling_images)
+        else:
+            return unnormalize_to_zero_to_one(images)
 
     @torch.no_grad()
     def sample_using_dpmpp(self, self_cond, batch_size = None, num_sample_steps = None):

@@ -240,7 +240,7 @@ for epoch in tqdm(range(num_epochs)):
         writer.add_scalar("train_loss", train_loss, epoch)
 
     # Validation
-    if epoch !=0 and epoch % 10 == 0:
+    if epoch % 10 == 0:
         val_time = time.time()
         model.eval()
         val_loss = 0.0
