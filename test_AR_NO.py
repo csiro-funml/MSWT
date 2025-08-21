@@ -243,7 +243,9 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
 
 
 
-
+################################################################
+# Function 2 Compute evaluation metrics
+################################################################
 def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
     
@@ -291,17 +293,114 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     return loss_dict
     
 
+################################################################
+# Function 3  save the data for diffusion training
+################################################################
+def no_preprocessing_pred_save_data(args):
+
+    ################################################################
+    # load some toy data to run locally
+    if not torch.cuda.is_available():
+        train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, n_channels=3, normalize=args.normalize, train='train')
+        test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels=3, normalize=args.normalize, train='test')
+        val_dataset = test_dataset
+    else:
+        # load data and dataloader
+        train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
+        test_dataset = TemporalDataset2D(args.dataset, n_train=260, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
+        val_dataset = TemporalDataset2D(args.dataset, n_train=260, t_in=args.T_in, t_ar=1, n_channels = train_dataset.n_channels, train='val', normalize=args.normalize)
+
+
+    
+    ntrain, ntest = len(train_dataset), len(test_dataset)
+    ntrain = 5200 if args.dataset == 'ns2d_pda' else ntrain # for testing
+
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
+    val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
+    test_loader =  torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
+
+    loaderdict = {'train': train_loader, 'val': val_loader, 'test': test_loader}
+
+    if not args.pad:
+        args.res = train_dataset.res  # use original dataset  resolution to train the model
+
+    comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
+    log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
+    if not os.path.exists(log_path):# running tests locallt
+        log_path = './logs/' + comment
+    model_path = log_path + '/model.pth'
+    print(model_path)
+    
+    # Load pretrained neural operator
+    if args.model == "FNO":
+        model = FNO2d(args.modes, args.modes, width=args.width,
+                    n_channels=train_dataset.n_channels,
+                    in_timesteps = args.T_in, out_timesteps=1, 
+                    n_layers = args.n_layers).to(device)
+    elif args.model == 'UNO':
+        model = UNO( width=args.width, n_channels=train_dataset.n_channels, in_timesteps = args.T_in,  out_timesteps=1).to(device)
+    elif args.model == 'wavelet_transformer':
+        model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+    else:
+        raise NotImplementedError
+
+    # load weights
+    model, optimizer, scheduler, start_epoch = resume_training_from_checkpoint(model, model_path, device, optimizer=None, scheduler=None)
+    print(f"Loaded {args.model} neural operator")
+
+
+    # iterate throught train/val/test loader and save the predictions
+    loaderdict = {'train': train_loader, 'val': val_loader, 'test': test_loader}
+    for key, loader in loaderdict.items():
+        model.eval()
+        with torch.no_grad():
+            save_data = {'output': [], 'pred': []}
+            # autoregressive computing  
+            for xx, yy in tqdm(loader):
+                xx = xx.to(device)
+                yy = yy.to(device)
+                xx = loader.dataset.normalize_x(xx) # normalize the input before the autoregressive predicting
+                for t in range(0, yy.shape[-2], args.T_bundle):
+                    im = model(xx)
+                    if t == 0:
+                        pred = im
+                    else:
+                        pred = torch.cat((pred, im), -2)
+                    xx = torch.cat((xx[..., args.T_bundle:,:], im), dim=-2)
+                # denormalize the pred at the final step (get better results)   
+                pred = loader.dataset.denormalize_x(pred)    
+
+                # # save the data to np_data
+                save_data['output'].append(yy)
+                save_data['pred'].append(pred)
+
+            # organzie np_data
+            save_data['output'] = torch.cat(save_data['output'], axis=0).cpu().numpy()
+            save_data['pred'] = torch.cat(save_data['pred'], axis=0).cpu().numpy()
+            
+
+            np.savez(f'{args.log_path}/{key}_pred.npz', **save_data)
+            print(f"Saved {key} predictions to {args.log_path}/{key}_pred.npz")
+
+    print("Successfully saved the predictions for diffusion training")
+
+
+
+
+
 
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    # model, test_loader, log_path = load_data_model(just_load_path=False)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
-    #### 2. load the save_data
-    save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
+    # #### 2. load the save_data
+    # save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
     
-    #### 3. compute different types of metrics
-    compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
+    # #### 3. compute different types of metrics
+    # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
-    
+    #### 4. save the data for diffusion training
+    no_preprocessing_pred_save_data(args)
