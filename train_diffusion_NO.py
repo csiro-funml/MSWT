@@ -265,13 +265,19 @@ for epoch in tqdm(range(num_epochs)):
 
             # get one sample from the test set then save the prediction to writer
             l_fidel, h_fidel = next(iter(test_loader))
+            h_fidel = h_fidel[0].unsqueeze(0).to(device) # only one sample
+            l_fidel = l_fidel[0].unsqueeze(0).to(device)
             pred, sampling_images = model.sample(l_fidel.to(device), save_sampling_images=True)
+            sampling_images = sampling_images.squeeze()
+            pred = pred.squeeze()
+            l_fidel = l_fidel.squeeze()
+            h_fidel = h_fidel.squeeze()
             # use make_grid to save the images
             print("sampling_images.shape", sampling_images.shape)
             print("pred.shape", pred.shape)
             print("l_fidel.shape", l_fidel.shape)
             print("h_fidel.shape", h_fidel.shape)
-
+            
             sampling_images = make_grid(sampling_images, nrow=10)
             writer.add_image("NO_DM_sampling", sampling_images, epoch)
             writer.add_image("NO_DM_pred", pred, epoch)
