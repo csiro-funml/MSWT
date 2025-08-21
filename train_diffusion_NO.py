@@ -346,91 +346,118 @@ best_model_id = 0
 
 os.makedirs('models', exist_ok=True)
 t0 = time.time()
+train = False
+if train == True:
+    print(f"Starting training for {num_epochs} epochs...")
+    range_epoch = range(num_epochs)
+    for epoch in tqdm(range_epoch):
+        begin_time = time.time()
+        model.train()
+        train_loss = 0.0
 
-print(f"Starting training for {num_epochs} epochs...")
-range_epoch = range(num_epochs)
-for epoch in tqdm(range_epoch):
-    begin_time = time.time()
-    model.train()
-    train_loss = 0.0
+        train_time = time.time()
+        for l_fidel, h_fidel in tqdm(train_loader, desc=f'Epoch {epoch + 1}/{num_epochs}'):
+            optimizer.zero_grad()
+            # l_fidel is the NO output, h_fidel is the ground truth
+            # Normalize data
+            l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
+            h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
+            
+            with autocast(device_type=device.type):
+                loss = model(h_fidel.to(device), l_fidel.to(device))
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            train_loss += loss.item() * l_fidel.shape[0]
 
-    train_time = time.time()
-    for l_fidel, h_fidel in tqdm(train_loader, desc=f'Epoch {epoch + 1}/{num_epochs}'):
-        optimizer.zero_grad()
-        # l_fidel is the NO output, h_fidel is the ground truth
-        # Normalize data
-        l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
-        h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
-        
-        with autocast(device_type=device.type):
-            loss = model(h_fidel.to(device), l_fidel.to(device))
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
-        train_loss += loss.item() * l_fidel.shape[0]
+            # Update learning rate
+            scheduler.step()
 
-        # Update learning rate
-        scheduler.step()
+        train_loss /= len(train_loader)
+        train_time = time.time()-train_time
 
-    train_loss /= len(train_loader)
-    train_time = time.time()-train_time
+        # Validation
+        # if epoch !=0 and epoch % 10 == 0:
+        if epoch % 10 == 0: # temporarily for testing
+            val_time = time.time()
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for l_fidel, h_fidel in val_loader:
+                    # Normalize data
+                    l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
+                    h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
+                    
+                    with autocast(device_type=device.type):
+                        # Sample from diffusion model using the low-fidelity input as conditioning
+                        pred = model.sample(l_fidel.to(device))
+                        loss = loss_func(pred.permute(0, 2, 3, 1), h_fidel.permute(0, 2, 3, 1).to(device))
+                    val_loss += loss.item() * l_fidel.shape[0]
 
-    # Validation
-    # if epoch !=0 and epoch % 10 == 0:
-    if epoch % 10 == 0: # temporarily for testing
-        val_time = time.time()
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for l_fidel, h_fidel in val_loader:
-                # Normalize data
-                l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
-                h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
-                
-                with autocast(device_type=device.type):
-                    # Sample from diffusion model using the low-fidelity input as conditioning
-                    pred = model.sample(l_fidel.to(device))
-                    loss = loss_func(pred.permute(0, 2, 3, 1), h_fidel.permute(0, 2, 3, 1).to(device))
-                val_loss += loss.item() * l_fidel.shape[0]
+            val_loss /= len(val_loader)
 
-        val_loss /= len(val_loader)
+                # Save the model if validation loss is the lowest so far
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_id = epoch+1
+                torch.save(model.state_dict(), f'{args.log_path}/model_diffusion.pt')
+            
+            if epoch % 500 == 0:
+                torch.save(model.state_dict(), f'{args.log_path}/model_diffusion_{epoch}.pt')
 
-            # Save the model if validation loss is the lowest so far
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_model_id = epoch+1
-            torch.save(model.state_dict(), f'{args.log_path}/model_diffusion.pt')
-        
-        if epoch % 500 == 0:
-            torch.save(model.state_dict(), f'{args.log_path}/model_diffusion_{epoch}.pt')
+            val_time = time.time() - val_time
+            
+            time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
+            elapsed_time = time.time() - begin_time
+            print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, Val Loss: {val_loss:.4e}, best model: {best_model_id}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}, val time: {val_time:.2f}')
 
-        val_time = time.time() - val_time
-        
-        time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
-        elapsed_time = time.time() - begin_time
-        print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, Val Loss: {val_loss:.4e}, best model: {best_model_id}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}, val time: {val_time:.2f}')
-
-    else:
-        time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
-        print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}')
+        else:
+            time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
+            print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}')
 
 
-print('Training finished.')
-print(f"Training Time: {time.time() - t0:.1f}s")
+    print('Training finished.')
+    print(f"Training Time: {time.time() - t0:.1f}s")
+else:
+    # load model
+    model_path =  f'{args.log_path}/model_diffusion.pt'
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    print(f"Loaded model from {model_path}")
 
 # Testing loop
 model.eval()
-test_loss = 0.0
-with torch.no_grad():
-    for l_fidel, h_fidel in test_loader:
-        # Normalize data
-        l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
-        h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
-        
-        with autocast():
-            pred = model.sample(l_fidel.to(device))
-            loss = loss_func(pred.permute(0, 2, 3, 1), h_fidel.permute(0, 2, 3, 1).to(device))
-        test_loss += loss.item() * l_fidel.shape[0]
+if torch.cuda.is_available():
+    test_loss = 0.0
+    with torch.no_grad():
+        for l_fidel, h_fidel in test_loader:
+            # Normalize data
+            l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
+            h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
+            
+            with autocast(device_type=device.type):
+                pred = model.sample(l_fidel.to(device))
+            test_loss += loss.item() * l_fidel.shape[0]
 
-test_loss /= len(test_loader)
-print(f'Test Loss: {test_loss:.4e}')
+    test_loss /= len(test_loader)
+    print(f'Test Loss: {test_loss:.4e}')
+
+
+# get one sample from the test set and save the sampling process
+l_fidel, h_fidel = next(iter(test_loader))
+l_fidel = (l_fidel - Par['inp_shift'].cpu()) / (Par['inp_scale'].cpu() + 1e-6)
+h_fidel = (h_fidel - Par['out_shift'].cpu()) / (Par['out_scale'].cpu() + 1e-6)
+
+pred, pred_list = model.sample(l_fidel.to(device), get_sampling=True)
+
+print("prediction shape: ", pred_list.shape, "output shape: ", h_fidel.shape)
+
+import matplotlib.pyplot as plt
+from torchvision.utils import make_grid
+
+plot_tensor = torch.cat((pred_list, h_fidel.unsqueeze(0)), dim=0)[:, 0, :, :]
+# plot_tensor = torch.cat((plot_tensor[:10], plot_tensor[-10:]), dim=0)
+grid_tensor = make_grid(plot_tensor, nrow=10)
+# plot the first 100 samples
+plt.imshow(grid_tensor.permute(1, 2, 0).numpy())
+plt.savefig(f'{args.log_path}/sampling_process.png')
+plt.show()
