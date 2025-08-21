@@ -23,6 +23,7 @@ import argparse
 from torch.utils.tensorboard import SummaryWriter
 from models.diff_Unet import Unet
 from models.diffusion import ElucidatedDiffusion
+from torchvision.utils import make_grid
 
 torch.manual_seed(23)
 import pickle
@@ -261,6 +262,22 @@ for epoch in tqdm(range(num_epochs)):
         val_time = time.time() - val_time
         if args.use_writer:
             writer.add_scalar("val_loss", val_loss, epoch)
+
+            # get one sample from the test set then save the prediction to writer
+            l_fidel, h_fidel = next(iter(test_loader))
+            pred, sampling_images = model.sample(l_fidel.to(device), save_sampling_images=True)
+            # use make_grid to save the images
+            print("sampling_images.shape", sampling_images.shape)
+            print("pred.shape", pred.shape)
+            print("l_fidel.shape", l_fidel.shape)
+            print("h_fidel.shape", h_fidel.shape)
+
+            sampling_images = make_grid(sampling_images, nrow=10)
+            writer.add_image("NO_DM_sampling", sampling_images, epoch)
+            writer.add_image("NO_DM_pred", pred, epoch)
+            writer.add_image("NO_pred", l_fidel, epoch)
+            writer.add_image("ground_truth", h_fidel, epoch)
+            exit()
         time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
         elapsed_time = time.time() - begin_time
         print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, Val Loss: {val_loss:.4e}, best model: {best_model_id}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}, val time: {val_time:.2f}')
