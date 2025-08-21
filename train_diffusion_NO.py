@@ -436,6 +436,7 @@ if torch.cuda.is_available():
             
             with autocast(device_type=device.type):
                 pred = model.sample(l_fidel.to(device))
+                loss = loss_func(pred.permute(0, 2, 3, 1), h_fidel.permute(0, 2, 3, 1).to(device))
             test_loss += loss.item() * l_fidel.shape[0]
 
     test_loss /= len(test_loader)
