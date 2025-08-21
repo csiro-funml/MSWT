@@ -20,7 +20,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 from torch.amp import autocast, GradScaler
 import argparse
-
+from torch.utils.tensorboard import SummaryWriter
 from models.diff_Unet import Unet
 from models.diffusion import ElucidatedDiffusion
 
@@ -211,6 +211,9 @@ best_val_loss = float('inf')
 best_model_id = 0
 
 
+if args.use_writer:
+    writer = SummaryWriter(log_dir=log_path)
+
 t0 = time.time()
 for epoch in tqdm(range(num_epochs)):
     begin_time = time.time()
@@ -232,6 +235,8 @@ for epoch in tqdm(range(num_epochs)):
 
     train_loss /= len(train_loader)
     train_time = time.time()-train_time
+    if args.use_writer:
+        writer.add_scalar("train_loss", train_loss, epoch)
 
     # Validation
     if epoch !=0 and epoch % 10 == 0:
@@ -254,7 +259,8 @@ for epoch in tqdm(range(num_epochs)):
             torch.save(model.state_dict(), f'{log_path}/best_model.pt')
 
         val_time = time.time() - val_time
-        
+        if args.use_writer:
+            writer.add_scalar("val_loss", val_loss, epoch)
         time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
         elapsed_time = time.time() - begin_time
         print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, Val Loss: {val_loss:.4e}, best model: {best_model_id}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}, val time: {val_time:.2f}')
