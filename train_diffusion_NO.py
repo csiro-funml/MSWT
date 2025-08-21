@@ -455,7 +455,7 @@ print("prediction shape: ", pred_list.shape, "output shape: ", h_fidel.shape)
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
 
-plot_tensor = torch.cat((pred_list.cpu(), h_fidel.unsqueeze(0)), dim=0)[:, 0, :, :].detach().cpu()
+plot_tensor = torch.cat((pred_list.cpu(), l_fidel.unsqueeze(0),  h_fidel.unsqueeze(0)), dim=0)[:, 0, :, :].detach().cpu()
 # plot_tensor = torch.cat((plot_tensor[:10], plot_tensor[-10:]), dim=0)
 grid_tensor = make_grid(plot_tensor, nrow=10)
 # plot the first 100 samples
