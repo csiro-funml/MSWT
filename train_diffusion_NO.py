@@ -90,9 +90,9 @@ def create_diffusion_collate_fn(neural_operator, device, base_dataset):
             
             # Handle ground truth
             if len(y_batch.shape) == 5 and y_batch.shape[-2] > 1:  # (B, H, W, T, C) - multiple steps
-                y_batch = y_batch[:, :, :, -1, :]  # Take last timestep (B, H, W, C)
+                y_batch = y_batch[:, :, :, 0, :]  # Take the first timestep (B, H, W, C)
             elif len(y_batch.shape) == 4 and y_batch.shape[-2] > 1:  # (B, H, W, T, C) with T > 1
-                y_batch = y_batch[:, :, :, -1, :]  # Take last timestep (B, H, W, C)
+                y_batch = y_batch[:, :, :, 0, :]  # Take last timestep (B, H, W, C)
             else:
                 y_batch = y_batch.squeeze(-2)  # (B, H, W, C)
             
