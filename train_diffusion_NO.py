@@ -90,14 +90,14 @@ log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_
 # inp = np.load(f"/oscar/data/gk/voommen/no_diffusion/kolmogrov/res_{res}/matcho/Y_PRED.npy") #low-fidelity
 # out = np.load(f"/oscar/data/gk/voommen/no_diffusion/kolmogrov/res_{res}/matcho/Y_TRUE.npy") #high-fidelity
 
-x_train = np.load(f"{log_path}/train_pred.npz")['pred']
-y_train = np.load(f"{log_path}/train_pred.npz")['output']
+x_train = np.load(f"{log_path}/train_pred.npz")['pred'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
+y_train = np.load(f"{log_path}/train_pred.npz")['output'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
 
-x_val = np.load(f"{log_path}/val_pred.npz")['pred']
-y_val = np.load(f"{log_path}/val_pred.npz")['output']
+x_val = np.load(f"{log_path}/val_pred.npz")['pred'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
+y_val = np.load(f"{log_path}/val_pred.npz")['output'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
 
-x_test = np.load(f"{log_path}/test_pred.npz")['pred']
-y_test = np.load(f"{log_path}/test_pred.npz")['output']
+x_test = np.load(f"{log_path}/test_pred.npz")['pred'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
+y_test = np.load(f"{log_path}/test_pred.npz")['output'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
 
 print("x_train shape", x_train.shape, "y_train shape", y_train.shape)
 print("x_val shape", x_val.shape, "y_val shape", y_val.shape)
@@ -105,10 +105,9 @@ print("x_test shape", x_test.shape, "y_test shape", y_test.shape)
 
 print(f"Data Loading Time: {time.time() - begin_time:.1f}s")
 
-exit()
 
 
-inp_min = np.min(x_train, axis=(0,2,3)).reshape(1,-1,1,1)
+inp_min = np.min(x_train, axis=(0,2,3)).reshape(1,-1,1,1) # (1, T, 1, 1)
 inp_max = np.max(x_train, axis=(0,2,3)).reshape(1,-1,1,1)
 out_min = np.min(y_train, axis=(0,2,3)).reshape(1,-1,1,1)
 out_max = np.max(y_train, axis=(0,2,3)).reshape(1,-1,1,1)
@@ -157,7 +156,7 @@ Par.update({"channels"       : x_train.shape[1],
             })
 
 print("Par")
-with open('Par.pkl', 'wb') as f:
+with open(log_path + '/Par.pkl', 'wb') as f:
     pickle.dump(Par, f)
 
 x_train_tensor = torch.tensor(x_train, dtype=torch.float32)
@@ -211,9 +210,9 @@ num_epochs = Par['num_epochs']
 best_val_loss = float('inf')
 best_model_id = 0
 
-os.makedirs('models', exist_ok=True)
+
 t0 = time.time()
-for epoch in range(num_epochs):
+for epoch in tqdm(range(num_epochs)):
     begin_time = time.time()
     model.train()
     train_loss = 0.0
@@ -221,12 +220,12 @@ for epoch in range(num_epochs):
     train_time = time.time()
     for l_fidel, h_fidel  in tqdm(train_loader, desc=f'Epoch {epoch + 1}/{num_epochs}'):
         optimizer.zero_grad()
-        with autocast():
+        with autocast(device_type=device.type):
             loss = model(h_fidel.to(device), l_fidel.to(device))
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        train_loss += loss.item()
+        train_loss += loss.item() * l_fidel.shape[0]
 
         # Update learning rate
         # scheduler.step()
@@ -241,10 +240,10 @@ for epoch in range(num_epochs):
         val_loss = 0.0
         with torch.no_grad():
             for l_fidel, h_fidel in val_loader:
-                with autocast():
+                with autocast(device_type=device.type):
                     pred = model.sample(l_fidel.to(device))
                     loss   = error_metric(pred, h_fidel.to(device), Par)
-                val_loss += loss.item()
+                val_loss += loss.item() * l_fidel.shape[0]
 
         val_loss /= len(val_loader)
 
@@ -252,7 +251,7 @@ for epoch in range(num_epochs):
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_model_id = epoch+1
-            torch.save(model.state_dict(), f'models/best_model.pt')
+            torch.save(model.state_dict(), f'{log_path}/best_model.pt')
 
         val_time = time.time() - val_time
         
@@ -273,10 +272,10 @@ model.eval()
 test_loss = 0.0
 with torch.no_grad():
     for l_fidel, h_fidel in test_loader:
-        with autocast():
+        with autocast(device_type=device.type):
             pred = model.sample(l_fidel.to(device))
             loss   = error_metric(pred, h_fidel.to(device), Par)
-        test_loss += loss.item()
+        test_loss += loss.item() * l_fidel.shape[0]
 
 test_loss /= len(test_loader)
 print(f'Test Loss: {test_loss:.4e}')
