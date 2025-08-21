@@ -268,10 +268,10 @@ for epoch in tqdm(range(num_epochs)):
             h_fidel = h_fidel[0].unsqueeze(0).to(device) # only one sample
             l_fidel = l_fidel[0].unsqueeze(0).to(device)
             pred, sampling_images = model.sample(l_fidel.to(device), save_sampling_images=True)
-            sampling_images = sampling_images.squeeze()
-            pred = pred.squeeze()
-            l_fidel = l_fidel.squeeze()
-            h_fidel = h_fidel.squeeze()
+            sampling_images = sampling_images.squeeze(1).permute(0,2,3,1).cpu()
+            pred = pred.squeeze(0).permute(1,2,0).cpu()
+            l_fidel = l_fidel.squeeze(0).permute(1,2,0).cpu()
+            h_fidel = h_fidel.squeeze(0).permute(1,2,0).cpu()
             # use make_grid to save the images
             print("sampling_images.shape", sampling_images.shape)
             print("pred.shape", pred.shape)
