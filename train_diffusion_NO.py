@@ -71,8 +71,11 @@ class MyDataset(Dataset):
         return x_sample, y_sample
     
 def preprocess(x,y, Par):
-    x = sliding_window_view(x[:,Par['lb']-1:,:,:], window_shape=Par['lf'], axis=1 ).transpose(0,1,4,2,3).reshape(-1,Par['lf'],Par['nx'], Par['ny'])
-    y = sliding_window_view(y[:,Par['lb']-1:,:,:], window_shape=Par['lf'], axis=1 ).transpose(0,1,4,2,3).reshape(-1,Par['lf'],Par['nx'], Par['ny'])
+    x = sliding_window_view(x[:,Par['lb']-1:], window_shape=Par['lf'], axis=1 )
+    # merge the batch dimension and the shift dimension to make it look like one step (N, C, H, W)
+    x = x.transpose(0,1,5,2,3,4).reshape(-1, Par['channels'], Par['nx'], Par['ny'])
+    y = sliding_window_view(y[:,Par['lb']-1:], window_shape=Par['lf'], axis=1 )
+    y = y.transpose(0,1,5,2,3,4).reshape(-1, Par['channels'], Par['nx'], Par['ny'])
 
     print('x: ', x.shape)
     print('y: ', y.shape)
@@ -91,27 +94,39 @@ log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_
 # inp = np.load(f"/oscar/data/gk/voommen/no_diffusion/kolmogrov/res_{res}/matcho/Y_PRED.npy") #low-fidelity
 # out = np.load(f"/oscar/data/gk/voommen/no_diffusion/kolmogrov/res_{res}/matcho/Y_TRUE.npy") #high-fidelity
 
-x_train = np.load(f"{log_path}/train_pred.npz")['pred'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
-y_train = np.load(f"{log_path}/train_pred.npz")['output'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
 
-x_val = np.load(f"{log_path}/val_pred.npz")['pred'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
-y_val = np.load(f"{log_path}/val_pred.npz")['output'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
+# randomly generate x_train, y_train, x_val, y_val, x_test, y_test for testing
+if not torch.cuda.is_available():
+    n_train_toy, T_in,T_out, C = 4, 7, 7, 3
+    x_train = np.random.randn(n_train_toy, res, res, T_in, C).transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_train = np.random.randn(n_train_toy, res, res, T_in, C).transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    x_val = np.random.randn(n_train_toy, res, res, T_out, C).transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_val = np.random.randn(n_train_toy, res, res, T_out, C).transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    x_test = np.random.randn(n_train_toy, res, res, T_out, C).transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_test = np.random.randn(n_train_toy, res, res, T_out, C).transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+else:
+    x_train = np.load(f"{log_path}/train_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_train = np.load(f"{log_path}/train_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
 
-x_test = np.load(f"{log_path}/test_pred.npz")['pred'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
-y_test = np.load(f"{log_path}/test_pred.npz")['output'][...,0].transpose(0, 3, 1, 2) # (N, H, W, T) -> (N, T, H, W)
+    x_val = np.load(f"{log_path}/val_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_val = np.load(f"{log_path}/val_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+
+    x_test = np.load(f"{log_path}/test_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_test = np.load(f"{log_path}/test_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+
 
 print("x_train shape", x_train.shape, "y_train shape", y_train.shape)
 print("x_val shape", x_val.shape, "y_val shape", y_val.shape)
 print("x_test shape", x_test.shape, "y_test shape", y_test.shape)
 
 print(f"Data Loading Time: {time.time() - begin_time:.1f}s")
+C = x_train.shape[2] # number of channels
 
-
-
-inp_min = np.min(x_train, axis=(0,2,3)).reshape(1,-1,1,1) # (1, T, 1, 1)
-inp_max = np.max(x_train, axis=(0,2,3)).reshape(1,-1,1,1)
-out_min = np.min(y_train, axis=(0,2,3)).reshape(1,-1,1,1)
-out_max = np.max(y_train, axis=(0,2,3)).reshape(1,-1,1,1)
+#  (N, T, C, H, W) -> (1, T, C, 1, 1), get the min/max per channel and time step
+inp_min = np.min(x_train, axis=(0,3,4)).reshape(1,-1,C, 1,1) # (1, T, C, 1, 1)
+inp_max = np.max(x_train, axis=(0,3,4)).reshape(1,-1,C, 1,1) # (1, T, C, 1, 1)
+out_min = np.min(y_train, axis=(0,3,4)).reshape(1,-1,C, 1,1) # (1, T, C, 1, 1)
+out_max = np.max(y_train, axis=(0,3,4)).reshape(1,-1,C, 1,1) # (1, T, C, 1, 1)
 
 
 
@@ -119,12 +134,13 @@ Par = {"inp_shift" : torch.tensor(inp_min, dtype=DTYPE, device=device),
        "inp_scale" : torch.tensor(inp_max - inp_min, dtype=DTYPE, device=device),
        "out_shift" : torch.tensor(out_min, dtype=DTYPE, device=device),
        "out_scale" : torch.tensor(out_max - out_min, dtype=DTYPE, device=device),
-       "nx"        : x_train.shape[2],
-       "ny"        : x_train.shape[3],
+       "nx"        : x_train.shape[-2],
+       "ny"        : x_train.shape[-1],
        "nf"        : 1,
        "lb"        : 1,
        "lf"        : 1,
-       "num_epochs": 10000
+       "num_epochs": 10000,
+       "channels"  : C
        }
 
 # Normalizing the data to [0,1]
@@ -140,7 +156,7 @@ y_train = (y_train - shift)/scale
 y_val = (y_val - shift)/scale
 y_test = (y_test - shift)/scale
 
-Par["sigma_data"] = np.std(y_train)
+Par["sigma_data"] = np.std(y_train, axis=(0,1,3,4)) # I feel the sigma_data should be per channel
 
 # Traj splitting
 begin_time = time.time()
@@ -152,13 +168,12 @@ print('\nTest Dataset')
 x_test, y_test = preprocess(x_test, y_test, Par)
 print(f"Data Preprocess Time: {time.time() - begin_time:.1f}s")
 
-Par.update({"channels"       : x_train.shape[1],
-            "self_condition" : True
+Par.update({"self_condition" : True
             })
 
 print("Par")
-with open(log_path + '/Par.pkl', 'wb') as f:
-    pickle.dump(Par, f)
+# with open(log_path + '/Par.pkl', 'wb') as f:
+    # pickle.dump(Par, f)
 
 x_train_tensor = torch.tensor(x_train, dtype=torch.float32)
 y_train_tensor = torch.tensor(y_train, dtype=torch.float32)
@@ -267,17 +282,15 @@ for epoch in tqdm(range(num_epochs)):
             l_fidel = l_fidel[0].unsqueeze(0).to(device)
             pred, sampling_images = model.sample(l_fidel.to(device), save_sampling_images=True) # (n_sample, B, C, H, W)
             sampling_images = sampling_images.squeeze(1).cpu()
-            channel_idx = 0 # only save the first channel
-            pred = pred.squeeze(0)[channel_idx].unsqueeze(0).cpu() #
-            l_fidel = l_fidel.squeeze(0)[channel_idx].unsqueeze(0).cpu()
-            h_fidel = h_fidel.squeeze(0)[channel_idx].unsqueeze(0).cpu()
-           
+            pred = pred.squeeze(0).cpu()
+            l_fidel = l_fidel.squeeze(0).cpu()
+            h_fidel = h_fidel.squeeze(0).cpu()
+            
             sampling_images = make_grid(sampling_images, nrow=10)
-            sampling_images = sampling_images[0].unsqueeze(0)
             writer.add_image("NO_DM_sampling", sampling_images, epoch)
             writer.add_image("NO_DM_pred", pred, epoch)
-            writer.add_image("NO_pred", l_fidel)
-            writer.add_image("ground_truth", h_fidel)
+            writer.add_image("NO_pred", l_fidel, epoch)
+            writer.add_image("ground_truth", h_fidel, epoch)
         time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
         elapsed_time = time.time() - begin_time
         print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, Val Loss: {val_loss:.4e}, best model: {best_model_id}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}, val time: {val_time:.2f}')
