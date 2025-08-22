@@ -42,7 +42,7 @@ parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3'
 parser.add_argument('--use_writer', action='store_true', default=False)
 parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
-
+parser.add_argument('--batch_size',type=int,default=512)
 args = parser.parse_args()
 
 
@@ -174,12 +174,10 @@ val_dataset = MyDataset(x_val_tensor, y_val_tensor)
 test_dataset = MyDataset(x_test_tensor, y_test_tensor)
 
 # Define data loaders
-train_batch_size = 100 #16
-val_batch_size   = 100
-test_batch_size  = 100
-train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=val_batch_size)
-test_loader = DataLoader(test_dataset, batch_size=test_batch_size)
+
+train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=args.batch_size)
+test_loader = DataLoader(test_dataset, batch_size=args.batch_size)
 
 # Define Network Architecture
 net = Unet(
