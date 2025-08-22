@@ -274,8 +274,8 @@ for epoch in tqdm(range(num_epochs)):
             sampling_images = make_grid(sampling_images, nrow=10)
             writer.add_image("NO_DM_sampling", sampling_images, epoch)
             writer.add_image("NO_DM_pred", pred, epoch)
-            writer.add_image("NO_pred", l_fidel, epoch)
-            writer.add_image("ground_truth", h_fidel, epoch)
+            writer.add_image("NO_pred", l_fidel)
+            writer.add_image("ground_truth", h_fidel)
         time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
         elapsed_time = time.time() - begin_time
         print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, Val Loss: {val_loss:.4e}, best model: {best_model_id}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}, val time: {val_time:.2f}')
