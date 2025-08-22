@@ -73,7 +73,10 @@ class ElucidatedDiffusion(nn.Module):
 
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
-        self.sigma_data = sigma_data
+        if len(sigma_data) > 1:
+            self.sigma_data = rearrange(torch.tensor(sigma_data, dtype=torch.float32), 'c -> 1 c 1 1').to(self.device)
+        else:
+            self.sigma_data = sigma_data # just a value
 
         self.rho = rho
 
@@ -289,7 +292,7 @@ class ElucidatedDiffusion(nn.Module):
 
         losses = F.mse_loss(denoised, images, reduction = 'none')
         losses = reduce(losses, 'b ... -> b', 'mean')
-
+        # the loss is rescaled by the data distribution P_mean and P_std
         losses = losses * self.loss_weight(sigmas)
 
         return losses.mean()
