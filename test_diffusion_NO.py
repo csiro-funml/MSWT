@@ -136,10 +136,10 @@ def load_preprocessing_predictions(args):
 
 def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
     # Normalizing the data to [0,1]
-    shift_x = Par['inp_shift'].detach().cpu().numpy() # (1, T, C, 1, 1)
-    scale_x = Par['inp_scale'].detach().cpu().numpy() # (1, T, C, 1, 1)
-    shift_y = Par['out_shift'].detach().cpu().numpy() # (1, T, C, 1, 1)
-    scale_y = Par['out_scale'].detach().cpu().numpy() # (1, T, C, 1, 1)
+    shift_x = Par['inp_shift'].to(device) # (1, T, C, 1, 1)
+    scale_x = Par['inp_scale'].to(device) # (1, T, C, 1, 1)
+    shift_y = Par['out_shift'].to(device) # (1, T, C, 1, 1)
+    scale_y = Par['out_scale'].to(device) # (1, T, C, 1, 1)
     
     # Testing loop
     model.eval()
