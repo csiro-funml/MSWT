@@ -174,8 +174,8 @@ def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
                 save_data['output'].append(y_gt)
         
         # concate the predictions and ground truth
-        save_data['pred'] = torch.cat(save_data['pred'], dim=0)
-        save_data['output'] = torch.cat(save_data['output'], dim=0)
+        save_data['pred'] = torch.cat(save_data['pred'], dim=0).permute(0, 3, 4, 1, 2) # (N, T, C, H, W) -> (N, H, W, T, C)
+        save_data['output'] = torch.cat(save_data['output'], dim=0).permute(0, 3, 4, 1, 2) # (N, T, C, H, W) -> (N, H, W, T, C)
         
         # save predictions and ground truth
         # print the shape of the np_data
@@ -188,8 +188,8 @@ def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
 
 
 def compute_evalutation_metrics(save_data, model_name='', log_path=''):
-    pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
-    
+    # pred, target = save_data['pred'], save_data['output'] # shape: (N, H, W, T, C)
+    pred, target = save_data['pred'].permute(0, 4, 1, 2, 3), save_data['output'].permute(0, 4, 1, 2, 3)
     # for step in [0, -1]: # first step and last step
         # for c in range(pred.shape[-1]):
             # low_err, mid_err, high_err = SpectralError()(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
