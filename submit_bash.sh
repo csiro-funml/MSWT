@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --time=23:00:00
+#SBATCH --time=01:00:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:4
 #SBATCH --ntasks-per-node=1
 #SBATCH --account=OD-230881
 #SBATCH --cpus-per-task=4        # cpu-cores per task (>1 if multi-threaded tasks)
@@ -34,4 +34,4 @@ source $HOME/.venvs/pytorch/bin/activate
 
 
 # Train the diffusion model
-CUDA_VISIBLE_DEVICES=0 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --use_writer
+CUDA_VISIBLE_DEVICES=0,1,2,3 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --use_writer
