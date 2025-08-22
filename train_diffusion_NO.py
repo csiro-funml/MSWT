@@ -172,8 +172,9 @@ Par.update({"self_condition" : True
             })
 
 print("Par")
-# with open(log_path + '/Par.pkl', 'wb') as f:
-    # pickle.dump(Par, f)
+with open(log_path + '/Par.pkl', 'wb') as f:
+    pickle.dump(Par, f)
+exit(-1)
 
 x_train_tensor = torch.tensor(x_train, dtype=torch.float32)
 y_train_tensor = torch.tensor(y_train, dtype=torch.float32)
