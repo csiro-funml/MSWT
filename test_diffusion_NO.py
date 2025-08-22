@@ -24,6 +24,8 @@ from torch.utils.tensorboard import SummaryWriter
 from models.diff_Unet import Unet
 from models.diffusion import ElucidatedDiffusion
 from torchvision.utils import make_grid
+import pandas as pd
+from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
 
 torch.manual_seed(23)
 
@@ -83,7 +85,7 @@ def preprocess(x,y, Par):
     return x,y
 
 
-def load_preprocessing_predictions(args):
+def load_preprocessing_predictions(args, just_load_path=False):
     res = 128
 
     ntrain = 5200 if args.dataset == 'ns2d_pda' else 0
@@ -93,6 +95,8 @@ def load_preprocessing_predictions(args):
         print(f"Loading data from {log_path}")
     else:
         log_path = './logs/' + comment
+    if just_load_path:
+        return None, None, None, log_path
     
         # randomly generate x_train, y_train, x_val, y_val, x_test, y_test for testing
     if not torch.cuda.is_available():
@@ -183,15 +187,62 @@ def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
         
 
 
+def compute_evalutation_metrics(save_data, model_name='', log_path=''):
+    pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
+    
+    # for step in [0, -1]: # first step and last step
+        # for c in range(pred.shape[-1]):
+            # low_err, mid_err, high_err = SpectralError()(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
+            
+
+    loss_dict = {}
+    loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
+    loss_dict['rmse'] = RMSE()
+    loss_dict['boundary_rmse'] = BoundaryRMSE()
+    loss_dict['max_avg'] = MaxAbsError()
+    loss_dict['max_global'] = GlobalMaxAbsError()
+    loss_dict['spectral_error'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97)
+    
+    step_dict = {0: "t=1", -1: "t=T"}
+
+    # Standard error metrics
+    print("\n=== Channel-wise Error Metrics ===")
+    save_df = pd.DataFrame(columns=["step", "channel", "metric", f"{model_name}"])
+    for step in [0, -1]: # first step and last step
+        for c in range(pred.shape[-1]):
+            # evaluate different metrics per channel
+            for key, loss_func in loss_dict.items():
+                if key == 'spectral_error':
+                    # (B, H, W, T, C)
+                    loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None], channel=c, time_step=step)
+                    # loss metric is a dict with keys: 'low_err', 'mid_err', 'high_err', 'k_low', 'k_high'
+                    print("frequency bands", loss_metric['k_low'], loss_metric['k_high'])
+                    for band_key, val in loss_metric.items():
+                        if band_key == 'k_low' or band_key == 'k_high':
+                            continue
+                        print(f"Channel {c} {step_dict[step]} {band_key}: {val:.6f}")
+                        new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": band_key, f"{model_name}": val}).to_frame().T
+                        save_df = pd.concat([save_df, new_row], ignore_index=True)
+                else:
+                    
+                    loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
+                    print(f"Channel {c} {step_dict[step]} {key}: {loss_metric.item():.6f}")   
+                    new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}).to_frame().T
+                    save_df = pd.concat([save_df, new_row], ignore_index=True)
+    print(save_df.head(n=16))
+    save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}_diffusion.csv", index=False)
+    return loss_dict
+    
+
 
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, Par, log_path = load_preprocessing_predictions(args)
+    model, test_loader, Par, log_path = load_preprocessing_predictions(args, just_load_path=True)
     
     #### 2. load the save_data
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, Par=Par)
-    # save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, Par=Par)
+    save_data = torch.load(f'{log_path}/test_data_diffusion.pth', map_location=device)
     
     #### 3. compute different types of metrics
-    # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
+    compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
