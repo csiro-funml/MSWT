@@ -272,18 +272,12 @@ for epoch in tqdm(range(num_epochs)):
             pred = pred.squeeze(0).cpu()
             l_fidel = l_fidel.squeeze(0).cpu()
             h_fidel = h_fidel.squeeze(0).cpu()
-            # use make_grid to save the images
-            print("sampling_images.shape", sampling_images.shape)
-            print("pred.shape", pred.shape)
-            print("l_fidel.shape", l_fidel.shape)
-            print("h_fidel.shape", h_fidel.shape)
             
             sampling_images = make_grid(sampling_images, nrow=10)
             writer.add_image("NO_DM_sampling", sampling_images, epoch)
             writer.add_image("NO_DM_pred", pred, epoch)
             writer.add_image("NO_pred", l_fidel, epoch)
             writer.add_image("ground_truth", h_fidel, epoch)
-            exit()
         time_stamp = str('[')+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+str(']')
         elapsed_time = time.time() - begin_time
         print(time_stamp + f' - Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4e}, Val Loss: {val_loss:.4e}, best model: {best_model_id}, LR: {scheduler.get_last_lr()[0]:.4e}, train time: {train_time:.2f}, val time: {val_time:.2f}')
