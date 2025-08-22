@@ -267,11 +267,13 @@ for epoch in tqdm(range(num_epochs)):
             l_fidel = l_fidel[0].unsqueeze(0).to(device)
             pred, sampling_images = model.sample(l_fidel.to(device), save_sampling_images=True) # (n_sample, B, C, H, W)
             sampling_images = sampling_images.squeeze(1).cpu()
-            pred = pred.squeeze(0).cpu()
-            l_fidel = l_fidel.squeeze(0).cpu()
-            h_fidel = h_fidel.squeeze(0).cpu()
-            
+            channel_idx = 0 # only save the first channel
+            pred = pred.squeeze(0)[channel_idx].unsqueeze(0).cpu() #
+            l_fidel = l_fidel.squeeze(0)[channel_idx].unsqueeze(0).cpu()
+            h_fidel = h_fidel.squeeze(0)[channel_idx].unsqueeze(0).cpu()
+           
             sampling_images = make_grid(sampling_images, nrow=10)
+            sampling_images = sampling_images[0].unsqueeze(0)
             writer.add_image("NO_DM_sampling", sampling_images, epoch)
             writer.add_image("NO_DM_pred", pred, epoch)
             writer.add_image("NO_pred", l_fidel)
