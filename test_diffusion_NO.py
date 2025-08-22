@@ -152,6 +152,8 @@ def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
             with autocast(device_type=device.type):
                 # two things:  normalize the data by x scale, and also looping over time steps
                 # loop over time steps
+                y_cond = y_cond.to(device)
+                y_gt = y_gt.to(device)
                 pred_i = []
                 y_cond_norm = (y_cond - shift_x)/scale_x # (N, T, C, H, W)
                 for t in range(y_cond.shape[1]):
