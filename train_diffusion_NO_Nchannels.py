@@ -255,7 +255,7 @@ for epoch in tqdm(range(num_epochs)):
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_model_id = epoch+1
-            torch.save(model.state_dict(), f'{log_path}/best_model_diffusion.pt')
+            torch.save(model.state_dict(), f'{log_path}/best_model_diffusion_Nchannels.pt')
 
         val_time = time.time() - val_time
         if args.use_writer:
