@@ -188,8 +188,9 @@ def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
 
 
 def compute_evalutation_metrics(save_data, model_name='', log_path=''):
-    # pred, target = save_data['pred'], save_data['output'] # shape: (N, H, W, T, C)
-    pred, target = save_data['pred'].permute(0, 4, 1, 2, 3), save_data['output'].permute(0, 4, 1, 2, 3)
+    pred, target = save_data['pred'], save_data['output'] # shape: (N, H, W, T, C)
+    print("pred shape", pred.shape)
+    print("target shape", target.shape)
     # for step in [0, -1]: # first step and last step
         # for c in range(pred.shape[-1]):
             # low_err, mid_err, high_err = SpectralError()(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
@@ -238,11 +239,11 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, Par, log_path = load_preprocessing_predictions(args, just_load_path=True)
+    model, test_loader, Par, log_path = load_preprocessing_predictions(args, just_load_path=False)
     
     #### 2. load the save_data
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, Par=Par)
-    save_data = torch.load(f'{log_path}/test_data_diffusion.pth', map_location=device)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, Par=Par)
+    # save_data = torch.load(f'{log_path}/test_data_diffusion.pth', map_location=device)
     
     #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
