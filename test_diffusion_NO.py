@@ -104,7 +104,7 @@ def load_preprocessing_predictions(args):
         y_test = np.load(f"{log_path}/test_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
 
     # load parameters using the robust helper function
-    Par = (f"{log_path}/Par.pkl", device)
+    Par = torch.load(f"{log_path}/Par.pth", map_location=device)
     # I will shift the data the original scale during prediction (so as to be compatible with other baselines)
 
     x_test_tensor  = torch.tensor(x_test,  dtype=torch.float32)
@@ -134,27 +134,28 @@ def load_preprocessing_predictions(args):
     
     return model, test_loader, Par, log_path
 
-def predict_and_save(model, test_loader, save=False, log_path=None):
+def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
     # Normalizing the data to [0,1]
-    shift_x = Par['inp_shift'].detach().cpu().numpy()
-    scale_x = Par['inp_scale'].detach().cpu().numpy()
-    shift_y = Par['out_shift'].detach().cpu().numpy()
-    scale_y = Par['out_scale'].detach().cpu().numpy()
+    shift_x = Par['inp_shift'].detach().cpu().numpy() # (1, T, C, 1, 1)
+    scale_x = Par['inp_scale'].detach().cpu().numpy() # (1, T, C, 1, 1)
+    shift_y = Par['out_shift'].detach().cpu().numpy() # (1, T, C, 1, 1)
+    scale_y = Par['out_scale'].detach().cpu().numpy() # (1, T, C, 1, 1)
     
     # Testing loop
     model.eval()
-    test_loss = 0.0
+    save_data = {}
+    save_data['output'] = []
+    save_data['pred'] = []
+
     with torch.no_grad():
         for y_cond, y_gt in test_loader:
             with autocast(device_type=device.type):
                 # two things:  normalize the data by x scale, and also looping over time steps
                 # loop over time steps
                 pred_i = []
+                y_cond_norm = (y_cond - shift_x)/scale_x # (N, T, C, H, W)
                 for t in range(y_cond.shape[1]):
-                    y_cond_t = y_cond[:, t, :, :, :]
-                    # normalize the data by x scale
-                    y_cond_t = (y_cond_t - shift_x)/scale_x
-                    # y_gt_t = (y_gt[:, t, :, :, :] - shift_)/scale_y
+                    y_cond_t = y_cond_norm[:, t, :, :, :]
                     # sample the data
                     pred_t = model.sample(y_cond_t.to(device))
                     pred_i.append(pred_t)
@@ -185,7 +186,7 @@ if __name__ == '__main__':
     model, test_loader, Par, log_path = load_preprocessing_predictions(args)
     
     #### 2. load the save_data
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, Par=Par)
     # save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
     
     #### 3. compute different types of metrics

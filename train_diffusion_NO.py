@@ -174,7 +174,7 @@ Par.update({"self_condition" : True
 print("Par")
 # save Par to a pth file
 torch.save(Par, log_path + '/Par.pth')
-exit(-1)
+
 x_train_tensor = torch.tensor(x_train, dtype=torch.float32)
 y_train_tensor = torch.tensor(y_train, dtype=torch.float32)
 
