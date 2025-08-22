@@ -281,6 +281,8 @@ for epoch in tqdm(range(num_epochs)):
             h_fidel = h_fidel.to(device) # only one sample
             l_fidel = l_fidel.to(device)
             pred, sampling_images = model.sample(l_fidel.to(device), save_sampling_images=True) # (n_sample, B, C, H, W)
+            print("l_fidel.shape", l_fidel.shape, "h_fidel.shape", h_fidel.shape, "pred.shape", pred.shape, "sampling_images.shape", sampling_images.shape)
+            
             sampling_images = sampling_images.squeeze(1).cpu()
             channel_idx = 0
             pred = pred.squeeze(0)[channel_idx].unsqueeze(0).cpu() # squeeze the batch dimemnsion and only take the channel
