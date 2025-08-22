@@ -175,7 +175,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
         
         # save predictions and ground truth
         # print the shape of the np_data
-        print("save_data shape", save_data['input'].shape, save_data['output'].shape, save_data['pred'].shape)
+        print("save_data shape", save_data['output'].shape, save_data['pred'].shape)
 
         # save to npz
         if save:
