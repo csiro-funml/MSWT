@@ -278,18 +278,17 @@ for epoch in tqdm(range(num_epochs)):
 
             # get one sample from the test set then save the prediction to writer
             l_fidel, h_fidel = next(iter(test_loader))
-            h_fidel = h_fidel.to(device) # only one sample
-            l_fidel = l_fidel.to(device)
+            h_fidel = h_fidel[0].unsqueeze(0).to(device) # only one sample
+            l_fidel = l_fidel[0].unsqueeze(0).to(device)
             pred, sampling_images = model.sample(l_fidel.to(device), save_sampling_images=True) # (n_sample, B, C, H, W)
-            print("l_fidel.shape", l_fidel.shape, "h_fidel.shape", h_fidel.shape, "pred.shape", pred.shape, "sampling_images.shape", sampling_images.shape)
-            
-            sampling_images = sampling_images.squeeze(1).cpu()
+            # print("l_fidel.shape", l_fidel.shape, "h_fidel.shape", h_fidel.shape, "pred.shape", pred.shape, "sampling_images.shape", sampling_images.shape)
             channel_idx = 0
-            pred = pred.squeeze(0)[channel_idx].unsqueeze(0).cpu() # squeeze the batch dimemnsion and only take the channel
-            l_fidel = l_fidel.squeeze(0)[channel_idx].unsqueeze(0).cpu()
-            h_fidel = h_fidel.squeeze(0)[channel_idx].unsqueeze(0).cpu()
+            sampling_images = sampling_images[:, :, channel_idx].cpu() # (n_sample, 1, H, W), # use the batch dimension as the fake channel dimension
+            pred = pred[:, channel_idx].cpu() # use the batch dimension as the fake channel dimension
+            l_fidel = l_fidel[:, channel_idx].cpu()
+            h_fidel = h_fidel[:, channel_idx].cpu()
             
-            sampling_images = make_grid(sampling_images, nrow=10)[channel_idx]
+            sampling_images = make_grid(sampling_images, nrow=10)
             writer.add_image("NO_DM_sampling", sampling_images, epoch)
             writer.add_image("NO_DM_pred", pred, epoch)
             writer.add_image("NO_pred", l_fidel, epoch)
