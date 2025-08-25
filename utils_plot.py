@@ -1133,12 +1133,15 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     # axes[0, 0] is the target at the first time step,
     axes[0, 0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
     axes[0, 0].set_ylabel('GT T+1')
-    axes[0, 0].axis('off')
-    
+    # just turn off the ticks but not lables
+    axes[0, 0].set_xticks([])
+    axes[0, 0].set_yticks([])
+
     #  axes[2, 0] is the target at the last time step,
     axes[2, 0].imshow(target[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
     axes[2, 0].set_ylabel('GT T+T_out')
-    axes[2, 0].axis('off')
+    axes[2, 0].set_xticks([])
+    axes[2, 0].set_yticks([])
     
     # turn off axes  ofr axes[1,0] and [3,0]
     axes[1, 0].axis('off')
@@ -1148,22 +1151,27 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     # axes[0, 1] to axes[1, 1] is the prediction and the abs error at the first time step
     cm0 = axes[0, 1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
     axes[0, 1].set_ylabel('Pred T+1')
-    axes[0, 1].axis('off')
+    axes[0, 1].set_xticks([])
+    axes[0, 1].set_yticks([])
     fig.colorbar(cm0, ax=axes[0, 1], location='right', anchor=(0, 0.3), shrink=0.7) # add colorbar
+    
     cm1 = axes[1, 1].imshow(error[..., 0], cmap=cmap)
     axes[1, 1].set_ylabel('Abs. Error T+1')
-    axes[1, 1].axis('off')
+    axes[1, 1].set_xticks([])
+    axes[1, 1].set_yticks([])
     fig.colorbar(cm1, ax=axes[1, 1], location='right', anchor=(0, 0.3), shrink=0.7)
 
      # axes[2, 1] to axes[3, 1] is the prediction and the abs error at the last time step
     cm2 = axes[2, 1].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
     axes[2, 1].set_ylabel('Pred T+T_out')
-    axes[2, 1].axis('off')
+    axes[2, 1].set_xticks([])
+    axes[2, 1].set_yticks([])
     fig.colorbar(cm2, ax=axes[2, 1], location='right', anchor=(0, 0.3), shrink=0.7)
 
     cm3 = axes[3, 1].imshow(error[..., -1], cmap=cmap)
     axes[3, 1].set_ylabel('Abs. Error T+T_out')
-    axes[3, 1].axis('off')
+    axes[3, 1].set_xticks([])
+    axes[3, 1].set_yticks([])
     fig.colorbar(cm3, ax=axes[3, 1], location='right', anchor=(0, 0.3), shrink=0.7)
     
     # tight layout
