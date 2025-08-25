@@ -1,6 +1,7 @@
 # ---------------------------------------------------------------------------------------------
-# Author: Vivek Oommen
-# Date: 08/01/2024
+# Take a trained neural operator as a prior (conditional) and train a diffusion model for denoising
+# This code is developed with reference to the following GitHub repo: NO_DM
+# https://github.com/vivekoommen/NeuralOperator_DiffusionModel/tree/main/case_2_buoyancy/no_dm/unet
 # ---------------------------------------------------------------------------------------------
 
 import os
