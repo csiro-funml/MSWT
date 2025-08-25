@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=00:03:00
+#SBATCH --time=00:30:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -27,6 +27,9 @@ source $HOME/.venvs/pytorch/bin/activate
 ## resume training
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py  --use_writer --dataset='ns2d_pda' --model='wavelet_transformer' --lr_method='cossin' --resume_path=True
 
+## Train the HFS model
+CUDA_VISIBLE_DEVICES=0 python3 train_HFS_NO.py --dataset='ns2d_pda' --model='HFS' --use_writer --T_in=7
+
 
 ## Test the model
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='sw2d_pda' --model='FNO'
@@ -39,4 +42,4 @@ source $HOME/.venvs/pytorch/bin/activate
 
 
 # Utile plotting in the server
-CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
+# CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
