@@ -1129,7 +1129,7 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     vmin = np.min(target)
     vmax = np.max(target)
     cmap = 'RdBu_r'
-    fig, axes = plt.subplots(4, 2, figsize=(10, 10))
+    fig, axes = plt.subplots(4, 2, figsize=(8, 10))
     # axes[0, 0] is the target at the first time step,
     axes[0, 0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
     axes[0, 0].set_ylabel('GT T+1')
