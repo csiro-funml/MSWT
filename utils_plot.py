@@ -1236,7 +1236,7 @@ if __name__ == '__main__':
     
     
     # FNO-Diffusion test data
-    pred_data = torch.load(f'{log_path}/test_data_diffusion.pth', map_location=device)
+    pred_data = torch.load(f'{log_path}/test_data_diffusion_prediction.pth', map_location=device)
     plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO-Diffusion', log_path=log_path)
 
     
