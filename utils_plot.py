@@ -1145,28 +1145,28 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     axes[3, 0].axis('off')
     
     
-    # axes[1, 0] to axes[1, 1] is the prediction and the abs error at the first time step
-    axes[1, 0].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
-    axes[1, 0].set_ylabel('Pred T+1')
-    axes[1, 0].axis('off')
+    # axes[0, 1] to axes[1, 1] is the prediction and the abs error at the first time step
+    axes[0, 1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    axes[0, 1].set_ylabel('Pred T+1')
+    axes[0, 1].axis('off')
     axes[1, 1].imshow(abs_error[..., 0], cmap=cmap)
     axes[1, 1].set_ylabel('Abs. Error T+1')
     axes[1, 1].axis('off')
 
-     # axes[1, 2] to axes[1, 3] is the prediction and the abs error at the last time step
-    axes[1, 2].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
-    axes[1, 2].set_ylabel('Pred T+T_out')
-    axes[1, 2].axis('off')
+     # axes[2, 1] to axes[3, 1] is the prediction and the abs error at the last time step
+    axes[2, 1].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
+    axes[2, 1].set_ylabel('Pred T+T_out')
+    axes[2, 1].axis('off')
     # add colorbar
     cbar_ax = fig.add_axes([0.92, 0.3, 0.02, 0.4]) # put it to right hand side of the figure # Colorbar axis
-    fig.colorbar(axes[1, 2], cax=cbar_ax)
+    fig.colorbar(axes[2, 1], cax=cbar_ax)
     
-    axes[1, 3].imshow(abs_error[..., -1], cmap=cmap)
-    axes[1, 3].set_ylabel('Abs. Error T+T_out')
+    axes[3, 1].imshow(abs_error[..., -1], cmap=cmap)
+    axes[3, 1].set_ylabel('Abs. Error T+T_out')
     axes[3, 1].axis('off')
     # add colorbar
     cbar_ax = fig.add_axes([0.92, 0.3, 0.02, 0.4]) # put it to right hand side of the figure # Colorbar axis
-    fig.colorbar(axes[1, 3], cax=cbar_ax)
+    fig.colorbar(axes[3, 1], cax=cbar_ax)
     
     # tight layout
     fig.tight_layout()
