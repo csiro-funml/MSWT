@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=23:59:00
+#SBATCH --time=00:03:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -21,7 +21,7 @@ source $HOME/.venvs/pytorch/bin/activate
 
 
 ## Train the model
-CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --use_writer --model='FNO' --lr_method='cossin' --T_in=7 --epochs=10000
+# CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --use_writer --model='FNO' --lr_method='cossin' --T_in=7 --epochs=10000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=2000
 
 ## resume training
@@ -39,4 +39,4 @@ CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --use_writer 
 
 
 # Utile plotting in the server
-# CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 
+CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 

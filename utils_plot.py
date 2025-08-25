@@ -1128,6 +1128,8 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     # use target min and max as vmin and vmax
     vmin = np.min(target)
     vmax = np.max(target)
+    error_vmin = -0.23
+    error_vmax = 0.23
     cmap = 'RdBu_r'
     fig, axes = plt.subplots(4, 2, figsize=(8, 10))
     # axes[0, 0] is the target at the first time step,
@@ -1155,8 +1157,8 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     axes[0, 1].set_yticks([])
     fig.colorbar(cm0, ax=axes[0, 1], location='right', anchor=(0, 0.3), shrink=0.7) # add colorbar
     
-    cm1 = axes[1, 1].imshow(error[..., 0], cmap=cmap)
-    axes[1, 1].set_ylabel('Abs. Error T+1')
+    cm1 = axes[1, 1].imshow(error[..., 0], cmap=cmap, vmin=error_vmin, vmax=error_vmax)
+    axes[1, 1].set_ylabel('Error T+1')
     axes[1, 1].set_xticks([])
     axes[1, 1].set_yticks([])
     fig.colorbar(cm1, ax=axes[1, 1], location='right', anchor=(0, 0.3), shrink=0.7)
@@ -1168,8 +1170,8 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     axes[2, 1].set_yticks([])
     fig.colorbar(cm2, ax=axes[2, 1], location='right', anchor=(0, 0.3), shrink=0.7)
 
-    cm3 = axes[3, 1].imshow(error[..., -1], cmap=cmap)
-    axes[3, 1].set_ylabel('Abs. Error T+T_out')
+    cm3 = axes[3, 1].imshow(error[..., -1], cmap=cmap, vmin=error_vmin, vmax=error_vmax)
+    axes[3, 1].set_ylabel('Error T+T_out')
     axes[3, 1].set_xticks([])
     axes[3, 1].set_yticks([])
     fig.colorbar(cm3, ax=axes[3, 1], location='right', anchor=(0, 0.3), shrink=0.7)
@@ -1231,13 +1233,13 @@ if __name__ == '__main__':
     comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
     log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
     # FNO test data
-    # pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
-    # plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_path=log_path)
+    pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_path=log_path)
     
     
     # FNO-Diffusion test data
-    pred_data = torch.load(f'{log_path}/test_data_diffusion_prediction.pth', map_location=device)
-    plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO-Diffusion', log_path=log_path)
+    # pred_data = torch.load(f'{log_path}/test_data_diffusion_prediction.pth', map_location=device)
+    # plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO-Diffusion', log_path=log_path)
 
     
     
