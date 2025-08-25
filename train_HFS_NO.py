@@ -161,6 +161,8 @@ def train(model, epoch_number, learning_rate, target_lr,model_path, display_ever
         for i, (x_train, y_train) in enumerate(train_loader):
             x_train = x_train.to(device)
             y_train = y_train.to(device)
+            x_train = train_dataset.normalize_x(x_train)
+            y_train = train_dataset.normalize_x(y_train)
             loss = train_step(model, x_train, y_train)
             optimizer.zero_grad()
             loss.backward()
@@ -183,6 +185,8 @@ def train(model, epoch_number, learning_rate, target_lr,model_path, display_ever
                 for j, (x_val, y_val) in enumerate(val_loader):
                     x_val = x_val.to(device)
                     y_val = y_val.to(device)
+                    x_val = train_dataset.normalize_x(x_val)
+                    y_val = train_dataset.normalize_x(y_val)
                     loss_val = train_step(model, x_val, y_val)
                     batch_val_loss.append(loss_val.item())
                 val_loss.append(np.mean(batch_val_loss))
