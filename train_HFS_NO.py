@@ -28,6 +28,8 @@ from timeit import default_timer
 from utils.griddataset import TemporalDataset2D, LocalTemporalDataset2D
 from utils.utilities import count_parameters
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+import sys
 
 torch.manual_seed(1234)
 np.random.seed(1234)
@@ -111,6 +113,19 @@ log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_
 # model_path = log_path + '/model.pth'
 model_path = log_path + f'/model.pth' # I will test a longer training epoch
 print(model_path)
+
+if args.use_writer:
+    writer = SummaryWriter(log_dir=log_path)
+    # write params (usually you only do this once)
+    json.dump(vars(args),
+          open(os.path.join(log_path, 'params.json'), 'w'),
+          indent=4)
+    # open the log file in append mode, line‑buffered
+    fp = open(os.path.join(log_path, 'logs.txt'), 'a', buffering=1)
+    # redirect stdout there (so all prints go into logs.txt)
+    sys.stdout = fp
+else:
+    writer = None
 
 def train_step(model,x,y):
 
