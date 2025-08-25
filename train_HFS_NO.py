@@ -60,7 +60,7 @@ parser.add_argument('--normalize',type=int, default=1)
 
 
 ###### optimizer and training setups
-parser.add_argument('--batch_size', type=int, default=64)
+parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--epochs', type=int, default=2000)
 parser.add_argument('--save_everyepoch', type=int, default=10)
 parser.add_argument('--lr', type=float, default=0.001)
