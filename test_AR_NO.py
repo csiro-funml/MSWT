@@ -237,7 +237,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
 
         # save to npz
         if save:
-            torch.save(save_data, f'{log_path}/test_data.pth')
+            torch.save(save_data, f'{log_path}/test_data_prediction.pth')
 
         return save_data
 
@@ -380,8 +380,8 @@ def no_postprocessing_pred_save_data(args):
             save_data['pred'] = torch.cat(save_data['pred'], axis=0).cpu().numpy()
             
             print("save_data shape", save_data['output'].shape, save_data['pred'].shape)
-            np.savez(f'{log_path}/{key}_pred.npz', **save_data)
-            print(f"Saved {key} predictions to {log_path}/{key}_pred.npz")
+            np.savez(f'{log_path}/diffusion/{key}_pred.npz', **save_data)
+            print(f"Saved {key} predictions to {log_path}/diffusion/{key}_pred.npz")
 
     print("Successfully saved the predictions for diffusion training")
 
@@ -397,7 +397,7 @@ if __name__ == '__main__':
     save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
-    save_data = torch.load(f'{log_path}/test_data.pth', map_location=device)
+    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
