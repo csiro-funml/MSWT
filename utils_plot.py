@@ -1114,9 +1114,25 @@ def plot_megnitude_hist(loss_magnitude):
     plt.close()
 
 
+def plot_prediction_gt_abserror(pred_data, sample_id=0, log_path=None):
+    print("saved_data shape", pred_data['pred'].shape, "pred_data.keys()", pred_data.keys())
+    pred = pred_data['pred'][sample_id, ...]
+    target = pred_data['target'][sample_id, ...]
+    print("actual shape", pred.shape, target.shape)
+    abs_error = torch.abs(pred - target)
+    return pred, target, abs_error
+    # plot the prediction and ground truth and abs error
+    # plt.imshow(pred[0, 0, ...], vmin=vmin, vmax=vmax, cmap=custom_cmap)
+    # plt.axis('off')
+    # plt.title('Prediction')
+    # plt.tight_layout()
 
 
 if __name__ == '__main__':
+    
+    """
+    Obsolete code, keep for reference
+
     ################################################################
     # Block 1: plot the single model results (no comparison with FNO)
     ################################################################
@@ -1132,37 +1148,39 @@ if __name__ == '__main__':
     ################################################################
     
     ##  get ntrain from DATASET_DICT
-    ntrain = DATASET_DICT[args.dataset]['train_size']
-    sample_ids = [4] if args.dataset == 'ns2d_pda' else [4]
-    model_name1 = 'FNO'
-    model_name2 = 'wavelet_transformer'
-    log_path1 = 'logs/{}_{}_ntrain{}'.format(model_name1, args.dataset, ntrain)    
-    log_path2 = 'logs/{}_{}_ntrain{}'.format(model_name2, args.dataset, ntrain)
-    np_data1 = np.load(f'{log_path1}/test_data.npz')
-    np_data2 = np.load(f'{log_path2}/test_data.npz')
-    model_name2 = 'Our'
-    # # Function 1: plot rollout predictions, errors, and energy spectrum
-    draw_rollout_error_comparison(np_data1, np_data2, channel_id=0, log_path1=log_path1, log_path2=log_path2, model_name1=model_name1, model_name2=model_name2, sample_ids=sample_ids, dataset=args.dataset)
-
-    # # # Function 2: plot the energy spectrum of the ground truth and the prediction
-    compare_multiscale_features_comparison(np_data1, np_data2, channel_id=0, log_path1=log_path1, log_path2=log_path2, sample_ids=sample_ids, dataset=args.dataset)
-
-    
-    ## Function 3: plot the resolution invariant results
-    # log_path1 = 'logs/FNO_ns2d_pda_ntrain5200_s64'
-    # log_path2 = 'logs/wavelet_transformer_ns2d_pda_ntrain5200_s64'
-    # plot_resolution_invariant_results(log_path1, log_path2)
-    
-
-
-    ################################################################
-    # Block 3 Use average pooling to represent multiscale features
-    ################################################################
     # ntrain = DATASET_DICT[args.dataset]['train_size']
-    # # sample_ids = np.random.randint(260)
-    # sample_ids =3
+    # sample_ids = [4] if args.dataset == 'ns2d_pda' else [4]
     # model_name1 = 'FNO'
+    # model_name2 = 'wavelet_transformer'
     # log_path1 = 'logs/{}_{}_ntrain{}'.format(model_name1, args.dataset, ntrain)    
+    # log_path2 = 'logs/{}_{}_ntrain{}'.format(model_name2, args.dataset, ntrain)
     # np_data1 = np.load(f'{log_path1}/test_data.npz')
-    # plot_average_pooling_multiscale_features(np_data1['input'][sample_ids], log_path='logs/demo_multiscale_decomposition')
+    # np_data2 = np.load(f'{log_path2}/test_data.npz')
+    # model_name2 = 'Our'
+    # # # Function 1: plot rollout predictions, errors, and energy spectrum
+    # draw_rollout_error_comparison(np_data1, np_data2, channel_id=0, log_path1=log_path1, log_path2=log_path2, model_name1=model_name1, model_name2=model_name2, sample_ids=sample_ids, dataset=args.dataset)
+
+    # # # # Function 2: plot the energy spectrum of the ground truth and the prediction
+    # compare_multiscale_features_comparison(np_data1, np_data2, channel_id=0, log_path1=log_path1, log_path2=log_path2, sample_ids=sample_ids, dataset=args.dataset)
+
+    """
+    
+
+    ################################################################
+    # Block 1: Plot the prediction and ground truth and abs error
+    ntrain = 7000 if args.dataset == 'sw2d_pda' else 5200
+    comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
+    log_path = './logs/' + comment 
+    # FNO test data
+    pred_data = torch.load(f'{log_path}/test_data.npt', map_location=device)
+    plot_prediction_gt_abserror(pred_data, sample_id=0, log_path=log_path)
+    
+    
+    # FNO-Diffusion test data
+    # pred_data = torch.load(f'{log_path}/test_data_diffusion.npt', map_location=device)
+
+    
+    
+    
+    
     

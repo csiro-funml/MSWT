@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=00:30:00
+#SBATCH --time=00:03:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -33,7 +33,10 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7
 
 
-# Train the diffusion model
+# Train/Test the diffusion model
 # CUDA_VISIBLE_DEVICES=0 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --use_writer --batch_size=128
+# CUDA_VISIBLE_DEVICES=0 python3 test_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --batch_size=128
 
-CUDA_VISIBLE_DEVICES=0 python3 test_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --batch_size=128
+
+# Utile plotting in the server
+CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 
