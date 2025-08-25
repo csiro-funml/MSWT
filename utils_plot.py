@@ -1118,10 +1118,10 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     print("saved_data shape", pred_data['pred'].shape, "pred_data.keys()", pred_data.keys())
     # keys are (input, output, pred), shape of  (B, H, W, T_in/out, C)
     
-    pred = pred_data['pred'][sample_id, ... , channel_id] # (H, W, T_out)
-    target = pred_data['output'][sample_id, ... , channel_id] # (H, W, T_out)
-    print("actual shape", pred.shape, target.shape)
-    abs_error = torch.abs(pred - target) # (H, W, T_out)
+    pred = pred_data['pred'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
+    target = pred_data['output'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
+    print("sample_id", sample_id, "channel_id", channel_id, "pred shape", pred.shape, "target shape", target.shape)
+    abs_error = np.abs(pred - target) # (H, W, T_out)    
     
     # axes has two columns and four rows: 
    
