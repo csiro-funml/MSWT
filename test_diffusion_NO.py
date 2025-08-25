@@ -240,11 +240,11 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, Par, log_path = load_preprocessing_predictions(args, just_load_path=True)
+    model, test_loader, Par, log_path = load_preprocessing_predictions(args, just_load_path=False)
     
     #### 2. load the save_data
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, Par=Par)
-    save_data = torch.load(f'{log_path}/test_data_diffusion.pth', map_location=device)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, Par=Par)
+    # save_data = torch.load(f'{log_path}/test_data_diffusion.pth', map_location=device)
     
     #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
