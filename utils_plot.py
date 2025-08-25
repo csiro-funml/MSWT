@@ -1154,19 +1154,17 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     axes[1, 1].axis('off')
 
      # axes[2, 1] to axes[3, 1] is the prediction and the abs error at the last time step
-    axes[2, 1].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
+    cm = axes[2, 1].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
     axes[2, 1].set_ylabel('Pred T+T_out')
     axes[2, 1].axis('off')
     # add colorbar
-    cbar_ax = fig.add_axes([0.92, 0.3, 0.02, 0.4]) # put it to right hand side of the figure # Colorbar axis
-    fig.colorbar(axes[2, 1], cax=cbar_ax)
-    
-    axes[3, 1].imshow(abs_error[..., -1], cmap=cmap)
+    fig.colorbar(cm, ax=axes[2, 1], location='right', anchor=(0, 0.3), shrink=0.7)
+
+    cm2 = axes[3, 1].imshow(abs_error[..., -1], cmap=cmap)
     axes[3, 1].set_ylabel('Abs. Error T+T_out')
     axes[3, 1].axis('off')
     # add colorbar
-    cbar_ax = fig.add_axes([0.92, 0.3, 0.02, 0.4]) # put it to right hand side of the figure # Colorbar axis
-    fig.colorbar(axes[3, 1], cax=cbar_ax)
+    fig.colorbar(cm2, ax=axes[3, 1], location='right', anchor=(0, 0.3), shrink=0.7)
     
     # tight layout
     fig.tight_layout()
