@@ -1121,7 +1121,7 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     pred = pred_data['pred'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
     target = pred_data['output'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
     print("sample_id", sample_id, "channel_id", channel_id, "pred shape", pred.shape, "target shape", target.shape)
-    abs_error = np.abs(pred - target) # (H, W, T_out)    
+    error = pred - target # (H, W, T_out)    
     
     # axes has two columns and four rows: 
    
@@ -1146,32 +1146,32 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     
     
     # axes[0, 1] to axes[1, 1] is the prediction and the abs error at the first time step
-    axes[0, 1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    cm0 = axes[0, 1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
     axes[0, 1].set_ylabel('Pred T+1')
     axes[0, 1].axis('off')
-    axes[1, 1].imshow(abs_error[..., 0], cmap=cmap)
+    fig.colorbar(cm0, ax=axes[0, 1], location='right', anchor=(0, 0.3), shrink=0.7) # add colorbar
+    cm1 = axes[1, 1].imshow(error[..., 0], cmap=cmap)
     axes[1, 1].set_ylabel('Abs. Error T+1')
     axes[1, 1].axis('off')
+    fig.colorbar(cm1, ax=axes[1, 1], location='right', anchor=(0, 0.3), shrink=0.7)
 
      # axes[2, 1] to axes[3, 1] is the prediction and the abs error at the last time step
-    cm = axes[2, 1].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
+    cm2 = axes[2, 1].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
     axes[2, 1].set_ylabel('Pred T+T_out')
     axes[2, 1].axis('off')
-    # add colorbar
-    fig.colorbar(cm, ax=axes[2, 1], location='right', anchor=(0, 0.3), shrink=0.7)
+    fig.colorbar(cm2, ax=axes[2, 1], location='right', anchor=(0, 0.3), shrink=0.7)
 
-    cm2 = axes[3, 1].imshow(abs_error[..., -1], cmap=cmap)
+    cm3 = axes[3, 1].imshow(error[..., -1], cmap=cmap)
     axes[3, 1].set_ylabel('Abs. Error T+T_out')
     axes[3, 1].axis('off')
-    # add colorbar
-    fig.colorbar(cm2, ax=axes[3, 1], location='right', anchor=(0, 0.3), shrink=0.7)
+    fig.colorbar(cm3, ax=axes[3, 1], location='right', anchor=(0, 0.3), shrink=0.7)
     
     # tight layout
     fig.tight_layout()
-    plt.savefig(f'{log_path}/{model_name}_prediction_gt_abserror.png')
+    plt.savefig(f'{log_path}/{model_name}_prediction_gt_error.png')
     plt.show()
     
-    return pred, target, abs_error
+    return pred, target, error
     # plot the prediction and ground truth and abs error
     # plt.imshow(pred[0, 0, ...], vmin=vmin, vmax=vmax, cmap=custom_cmap)
     # plt.axis('off')
