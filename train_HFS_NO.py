@@ -136,8 +136,9 @@ def train(model, epoch_number, learning_rate, target_lr,model_path, display_ever
     scheduler2 = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,T_0=10, T_mult=1, eta_min=5e-06)
     epoch_time = 0
 
-    epoc_bar = range(epoch_number)
-    for epoch in tqdm(epoc_bar): # the last item of train_loss to display
+    pbar = tqdm(range(epoch_number))
+    for epoch in pbar: # the last item of train_loss to display
+        model.train()
         ## Optionally call warmup learning rate function
         # warmup_lr(optimizer,scheduler1,scheduler2,epoch,warmup_steps,initial_lr=learning_rate,target_lr=target_lr)
         epoch_start = time.time()
@@ -158,8 +159,11 @@ def train(model, epoch_number, learning_rate, target_lr,model_path, display_ever
         train_loss.append(np.mean(batch_loss))
         print('epoch {}, best epoch: {}, train loss {:.5f}'
             .format(epoch, best_loss_epoch, train_loss[-1]))
+        
+        pbar.set_postfix(loss=f"{train_loss[-1]:.4f}", epoch=f"{epoch}/{args.epochs}")
         if epoch % 10 == 0:
             with torch.no_grad():
+                model.eval()
                 batch_val_loss = []
                 for j, (x_val, y_val) in enumerate(val_loader):
                     x_val = x_val.to(device)
@@ -210,7 +214,7 @@ def train(model, epoch_number, learning_rate, target_lr,model_path, display_ever
     best_loss = float('inf')
     # save_checkpoint(model, epoch, loss_val, best_loss=best_loss, checkpoint_name=checkpoint_name)
     
-model = ResUNet(in_c = 3 * args.T_in + 2 ,out_c = 3, features = [32,64,64,128,128], bottleneck_feature=256, device=device)
+model = ResUNet(in_c = 3 * args.T_in + 2 ,out_c = 3, features = [32,64,64,128,128], bottleneck_feature=256, device=device).to(device)
 
 # todo: change this
 checkpoint_name = args.log_path + 'kolmo_HFS'
