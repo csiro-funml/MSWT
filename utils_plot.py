@@ -1114,12 +1114,65 @@ def plot_megnitude_hist(loss_magnitude):
     plt.close()
 
 
-def plot_prediction_gt_abserror(pred_data, sample_id=0, log_path=None):
+def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_path=None):
     print("saved_data shape", pred_data['pred'].shape, "pred_data.keys()", pred_data.keys())
-    pred = pred_data['pred'][sample_id, ...]
-    target = pred_data['target'][sample_id, ...]
+    # keys are (input, output, pred), shape of  (B, H, W, T_in/out, C)
+    
+    pred = pred_data['pred'][sample_id, ... , channel_id] # (H, W, T_out)
+    target = pred_data['output'][sample_id, ... , channel_id] # (H, W, T_out)
     print("actual shape", pred.shape, target.shape)
-    abs_error = torch.abs(pred - target)
+    abs_error = torch.abs(pred - target) # (H, W, T_out)
+    
+    # axes has two columns and four rows: 
+   
+    # use target min and max as vmin and vmax
+    vmin = np.min(target)
+    vmax = np.max(target)
+    cmap = 'RdBu_r'
+    fig, axes = plt.subplots(4, 2, figsize=(10, 10))
+    # axes[0, 0] is the target at the first time step,
+    axes[0, 0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    axes[0, 0].set_ylabel('GT T+1')
+    axes[0, 0].axis('off')
+    
+    #  axes[2, 0] is the target at the last time step,
+    axes[2, 0].imshow(target[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
+    axes[2, 0].set_ylabel('GT T+T_out')
+    axes[2, 0].axis('off')
+    
+    # turn off axes  ofr axes[1,0] and [3,0]
+    axes[1, 0].axis('off')
+    axes[3, 0].axis('off')
+    
+    
+    # axes[1, 0] to axes[1, 1] is the prediction and the abs error at the first time step
+    axes[1, 0].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    axes[1, 0].set_ylabel('Pred T+1')
+    axes[1, 0].axis('off')
+    axes[1, 1].imshow(abs_error[..., 0], cmap=cmap)
+    axes[1, 1].set_ylabel('Abs. Error T+1')
+    axes[1, 1].axis('off')
+
+     # axes[1, 2] to axes[1, 3] is the prediction and the abs error at the last time step
+    axes[1, 2].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
+    axes[1, 2].set_ylabel('Pred T+T_out')
+    axes[1, 2].axis('off')
+    # add colorbar
+    cbar_ax = fig.add_axes([0.92, 0.3, 0.02, 0.4]) # put it to right hand side of the figure # Colorbar axis
+    fig.colorbar(axes[1, 2], cax=cbar_ax)
+    
+    axes[1, 3].imshow(abs_error[..., -1], cmap=cmap)
+    axes[1, 3].set_ylabel('Abs. Error T+T_out')
+    axes[3, 1].axis('off')
+    # add colorbar
+    cbar_ax = fig.add_axes([0.92, 0.3, 0.02, 0.4]) # put it to right hand side of the figure # Colorbar axis
+    fig.colorbar(axes[1, 3], cax=cbar_ax)
+    
+    # tight layout
+    fig.tight_layout()
+    plt.savefig(f'{log_path}/{model_name}_prediction_gt_abserror.png')
+    plt.show()
+    
     return pred, target, abs_error
     # plot the prediction and ground truth and abs error
     # plt.imshow(pred[0, 0, ...], vmin=vmin, vmax=vmax, cmap=custom_cmap)
@@ -1173,7 +1226,7 @@ if __name__ == '__main__':
     log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
     # FNO test data
     pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
-    plot_prediction_gt_abserror(pred_data, sample_id=0, log_path=log_path)
+    plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_path=log_path)
     
     
     # FNO-Diffusion test data
