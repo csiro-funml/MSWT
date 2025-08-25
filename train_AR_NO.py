@@ -125,7 +125,7 @@ if not args.pad:
 comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
 log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
 # model_path = log_path + '/model.pth'
-model_path = log_path + '/model_epochs{args.epochs}.pth' # I will test a longer training epoch
+model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
 print(model_path)
 if args.use_writer:
     writer = SummaryWriter(log_dir=log_path)
