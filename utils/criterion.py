@@ -172,7 +172,7 @@ class SpectralError(_WeightedLoss):
         plt.loglog(k_freq, E_bins_target, 'X-',markersize=2, label='target')
         plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred')
         plt.legend()
-        plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{channel}_{time_step}.png')
+        plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{self.model_name}_{channel}_{time_step}.png')
         plt.clf()
         # plt.show()
 
