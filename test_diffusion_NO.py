@@ -166,8 +166,8 @@ def predict_and_save(model, test_loader, save=False, log_path=None, Par=None):
                     pred_t = model.sample(y_cond_t.to(device))
                     pred_i.append(pred_t)
                 pred = torch.stack(pred_i, dim=0).permute(1, 0, 2, 3, 4) # (T, N, C, H, W) -> (N, T, C, H, W)
-                print("pred shape", pred.shape)
-                print("scale_y shape", scale_y.shape)
+                # print("pred shape", pred.shape)
+                # print("scale_y shape", scale_y.shape)
                 pred = pred*scale_y + shift_y
                 # save predictions and ground truth
                 save_data['pred'].append(pred)
