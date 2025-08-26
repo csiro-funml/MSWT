@@ -129,7 +129,7 @@ def load_data_model(just_load_path=False):
     if not os.path.exists(log_path):# running tests locallt
         log_path = './logs/' + comment
     # model_path = log_path + '/model.pth'
-    model_path = log_path + '/checkpoint_epoch_1200.pth'
+    model_path = log_path + '/checkpoint_epoch1200.pth'
     print(model_path)
     
     # if just_load_path, return the log_path
