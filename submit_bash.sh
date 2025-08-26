@@ -33,7 +33,7 @@ source $HOME/.venvs/pytorch/bin/activate
 
 ## Test the model
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='sw2d_pda' --model='FNO' 
-CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 
+# CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 
 
 
 # Train/Test the diffusion model
@@ -41,7 +41,7 @@ CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 test_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --batch_size=128
 
 # Test the HFS model
-# CUDA_VISIBLE_DEVICES=0 python3 test_HFS_NO.py --dataset='ns2d_pda' --model='HFS' --T_in=7
+CUDA_VISIBLE_DEVICES=0 python3 test_HFS_NO.py --dataset='ns2d_pda' --model='HFS' --T_in=7
 
 
 # Utile plotting in the server

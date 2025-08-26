@@ -128,7 +128,8 @@ def load_data_model(just_load_path=False):
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
     if not os.path.exists(log_path):# running tests locallt
         log_path = './logs/' + comment
-    model_path = log_path + '/model.pth'
+    # model_path = log_path + '/model.pth'
+    model_path = log_path + '/checkpoint_epoch_1200.pth'
     print(model_path)
     
     # if just_load_path, return the log_path
@@ -280,7 +281,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
                     new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}).to_frame().T
                     save_df = pd.concat([save_df, new_row], ignore_index=True)
     print(save_df.head(n=16))
-    save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}.csv", index=False)
+    save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}_epoch_1200.csv", index=False)
     return loss_dict
     
 
@@ -294,10 +295,10 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    save_data = predict_and_save(model, test_loader, save=False, log_path=log_path)
     
     #### 2. load the save_data
-    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
