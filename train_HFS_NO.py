@@ -176,6 +176,8 @@ def train(model, epoch_number, learning_rate, target_lr,model_path, display_ever
         train_loss.append(np.mean(batch_loss))
         print('epoch {}, best epoch: {}, train loss {:.5f}'
             .format(epoch, best_loss_epoch, train_loss[-1]))
+        if writer is not None:
+            writer.add_scalar('train_loss', train_loss[-1], epoch)
         
         pbar.set_postfix(loss=f"{train_loss[-1]:.4f}", epoch=f"{epoch}/{args.epochs}")
         if epoch % 10 == 0:
@@ -201,7 +203,17 @@ def train(model, epoch_number, learning_rate, target_lr,model_path, display_ever
                             }, model_path,
                             )
             # best_loss = save_checkpoint(model, epoch, loss_val, best_loss, checkpoint_name=checkpoint_name)
-        
+            if writer is not None:
+                writer.add_scalar('val_loss', val_loss[-1], epoch)
+
+        if epoch % 100 == 0 and epoch > 0:
+            # save the checkpoint model
+            torch.save({'args': args, 'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': epoch,
+                            'scheduler1': scheduler1.state_dict(),
+                            'scheduler2': scheduler2.state_dict(),
+                            }, log_path + f'/checkpoint_epoch{epoch}.pth',
+                            )
+
         lr_old = optimizer.param_groups[0]['lr']
         if (epoch+1)>=120 and (epoch+1)<=200:
             if (epoch+1) ==120:
