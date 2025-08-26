@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=23:59:00
+#SBATCH --time=00:05:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -28,12 +28,12 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py  --use_writer --dataset='ns2d_pda' --model='wavelet_transformer' --lr_method='cossin' --resume_path=True
 
 ## Train the HFS model
-CUDA_VISIBLE_DEVICES=0 python3 train_HFS_NO.py --dataset='ns2d_pda' --model='HFS' --use_writer --T_in=7 --use_writer
+# CUDA_VISIBLE_DEVICES=0 python3 train_HFS_NO.py --dataset='ns2d_pda' --model='HFS' --use_writer --T_in=7 --use_writer
 
 
 ## Test the model
-# CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='sw2d_pda' --model='FNO'
-# CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7
+# CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='sw2d_pda' --model='FNO' 
+CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 
 
 
 # Train/Test the diffusion model
