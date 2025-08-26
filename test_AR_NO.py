@@ -130,7 +130,7 @@ def load_data_model(just_load_path=False):
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
     if not os.path.exists(log_path):# running tests locallt
         log_path = './logs/' + comment
-    model_path = log_path + '/model_epochs_10000.pth' # for testing, note: to be deleted later
+    model_path = log_path + '/model.pth' # for testing, note: to be deleted later
     print(model_path)
     
     # if just_load_path, return the log_path
@@ -394,7 +394,7 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=False, log_path=log_path)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
