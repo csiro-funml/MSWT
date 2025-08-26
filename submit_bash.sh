@@ -45,4 +45,4 @@ CUDA_VISIBLE_DEVICES=0 python3 test_HFS_NO.py --dataset='ns2d_pda' --model='HFS'
 
 
 # Utile plotting in the server
-# CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
+# CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='HFS' 
