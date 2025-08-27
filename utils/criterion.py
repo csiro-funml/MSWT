@@ -11,6 +11,7 @@ import torch.nn as nn
 from typing import Tuple
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar, fsolve
+import os
 
 def get_loss_func(name, component, normalizer):
     if name == 'rel2':
@@ -173,7 +174,9 @@ class SpectralError(_WeightedLoss):
             plt.loglog(k_freq, E_bins_target, 'X-',markersize=2, label='target')
             plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred')
             plt.legend()
-            plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{self.model_name}_{channel}_{time_step}.png')
+            if not os.path.exists(f'{self.save_path}/spectral_error'):
+                os.makedirs(f'{self.save_path}/spectral_error')
+            plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{self.model_name}_c{channel}_t{time_step}.png')
             plt.clf()
         # plt.show()
 
