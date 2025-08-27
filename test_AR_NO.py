@@ -130,7 +130,8 @@ def load_data_model(just_load_path=False):
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
     if not os.path.exists(log_path):# running tests locallt
         log_path = './logs/' + comment
-    model_path = log_path + '/model.pth' # for testing, note: to be deleted later
+    # model_path = log_path + '/model.pth' # for testing, note: to be deleted later
+    model_path = log_path + f'/model_epochs_{args.epochs}.pth'
     print(model_path)
     
     # if just_load_path, return the log_path
@@ -329,7 +330,7 @@ def no_postprocessing_pred_save_data(args):
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
     if not os.path.exists(log_path):# running tests locallt
         log_path = './logs/' + comment
-    model_path = log_path + '/model.pth'
+    model_path = log_path + f'/model_epochs_{args.epochs}.pth'
     print(model_path)
     
     # Load pretrained neural operator
@@ -380,6 +381,8 @@ def no_postprocessing_pred_save_data(args):
             save_data['pred'] = torch.cat(save_data['pred'], axis=0).cpu().numpy()
             
             print("save_data shape", save_data['output'].shape, save_data['pred'].shape)
+            if not os.path.exists(f'{log_path}/diffusion'):
+                os.makedirs(f'{log_path}/diffusion')
             np.savez(f'{log_path}/diffusion/{key}_pred.npz', **save_data)
             print(f"Saved {key} predictions to {log_path}/diffusion/{key}_pred.npz")
 
@@ -403,4 +406,4 @@ if __name__ == '__main__':
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
     #### 4. postprocessing save the data for diffusion training
-    # no_postprocessing_pred_save_data(args)
+    no_postprocessing_pred_save_data(args)
