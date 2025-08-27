@@ -23,6 +23,7 @@ from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.uno import UNO
 from models.wavelet_transform import CrossWaveletTransformer
+from models.high_frequency_scaling import ResUNet
 import pickle
 from tqdm import tqdm
 import pandas as pd
@@ -170,6 +171,10 @@ def load_data_model(just_load_path=False):
         model = UNO( width=args.width, n_channels=train_dataset.n_channels, in_timesteps = args.T_in,  out_timesteps=1).to(device)
     elif args.model == 'wavelet_transformer':
         model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+    elif args.model == 'HFS':
+        model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
+                 bottleneck_feature=512, 
+                 device=device).to(device)
     else:
         raise NotImplementedError
 
