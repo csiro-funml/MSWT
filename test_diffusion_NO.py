@@ -134,7 +134,7 @@ def load_preprocessing_predictions(args, just_load_path=False):
                                     image_size=Par["nx"],
                                     sigma_data=Par["sigma_data"])
     # load the model
-    model.load_state_dict(torch.load(f"{log_path}/diffusion/best_model_diffusion.pt", map_location=device))
+    model.load_state_dict(torch.load(f"{log_path}/best_model_diffusion.pt", map_location=device))
     model.to(device)
     
     return model, test_loader, Par, log_path
