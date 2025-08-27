@@ -160,7 +160,9 @@ elif args.model == 'UNO':
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'HFS':
-    model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, features = [32,64,64,128,128], bottleneck_feature=256, device=device).to(device)
+    model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
+                    #  features = [32,64,64,128,128], bottleneck_feature=256, 
+                     device=device).to(device)
 else:
     raise NotImplementedError
 
