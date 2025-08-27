@@ -45,6 +45,7 @@ parser.add_argument('--use_writer', action='store_true', default=False)
 parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
 parser.add_argument('--batch_size',type=int,default=512)
+parser.add_argument('--epochs',type=int,default=3000)
 args = parser.parse_args()
 
 
@@ -91,7 +92,7 @@ begin_time = time.time()
 ntrain = 5200 if args.dataset == 'ns2d_pda' else 0
 comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
 log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
-
+log_path = log_path + f'/diffusion'
 
 # inp = np.load(f"/oscar/data/gk/voommen/no_diffusion/kolmogrov/res_{res}/matcho/Y_PRED.npy") #low-fidelity
 # out = np.load(f"/oscar/data/gk/voommen/no_diffusion/kolmogrov/res_{res}/matcho/Y_TRUE.npy") #high-fidelity
@@ -107,14 +108,14 @@ if not torch.cuda.is_available():
     x_test = np.random.randn(n_train_toy, res, res, T_out, C).transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
     y_test = np.random.randn(n_train_toy, res, res, T_out, C).transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
 else:
-    x_train = np.load(f"{log_path}/diffusion/train_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
-    y_train = np.load(f"{log_path}/diffusion/train_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    x_train = np.load(f"{log_path}/train_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_train = np.load(f"{log_path}/train_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
 
-    x_val = np.load(f"{log_path}/diffusion/val_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
-    y_val = np.load(f"{log_path}/diffusion/val_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    x_val = np.load(f"{log_path}/val_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_val = np.load(f"{log_path}/val_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
 
-    x_test = np.load(f"{log_path}/diffusion/test_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
-    y_test = np.load(f"{log_path}/diffusion/test_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    x_test = np.load(f"{log_path}/test_pred.npz")['pred'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
+    y_test = np.load(f"{log_path}/test_pred.npz")['output'].transpose(0, 3, 4, 1, 2) # (N, H, W, T, C) -> (N, T, C, H, W)
 
 
 print("x_train shape", x_train.shape, "y_train shape", y_train.shape)
@@ -141,7 +142,7 @@ Par = {"inp_shift" : torch.tensor(inp_min, dtype=DTYPE, device=device),
        "nf"        : 1,
        "lb"        : 1,
        "lf"        : 1,
-       "num_epochs": 3000,
+       "num_epochs": args.epochs,
        "channels"  : C
        }
 
