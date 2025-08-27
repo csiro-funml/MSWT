@@ -46,6 +46,13 @@ parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
 parser.add_argument('--batch_size',type=int,default=512)
 parser.add_argument('--epochs',type=int,default=3000)
+parser.add_argument('--opt',type=str,default='adam',choices=['adam', 'lion', 'lamb'])
+parser.add_argument('--lr',type=float,default=1e-3)
+parser.add_argument('--beta1',type=float,default=0.9)
+parser.add_argument('--beta2',type=float,default=0.999)
+parser.add_argument('--lr_method',type=str,default='cossin',choices=['cossin', 'cycle', 'step', 'warmup', 'linear', 'restart', 'cyclic'])
+
+
 args = parser.parse_args()
 
 
