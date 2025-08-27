@@ -318,7 +318,7 @@ for ep in pbar:
             pred_denorm = train_dataset.denormalize_x(pred)
             target_denorm = train_dataset.denormalize_x(target)
 
-            print("pred shape", pred.shape, "target shape", target.shape)
+            # print("pred shape", pred.shape, "target shape", target.shape)
             test_rel_l2_loss = loss_dict['rel_l2_loss'](pred_denorm, target_denorm)           
 
             # print("test_l2_step_avg", test_l2_step_avg.item())
