@@ -134,7 +134,7 @@ def load_preprocessing_predictions(args, just_load_path=False):
                                     image_size=Par["nx"],
                                     sigma_data=Par["sigma_data"])
     # load the model
-    model.load_state_dict(torch.load(f"{log_path}/best_model_diffusion.pt", map_location=device))
+    model.load_state_dict(torch.load(f"{log_path}/diffusion/best_model_diffusion.pt", map_location=device))
     model.to(device)
     
     return model, test_loader, Par, log_path
@@ -244,7 +244,7 @@ if __name__ == '__main__':
     model, test_loader, Par, log_path = load_preprocessing_predictions(args, just_load_path=False)
     
     #### 2. load the save_data
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, Par=Par)
+    save_data = predict_and_save(model, test_loader, save=False, log_path=log_path, Par=Par)
     # save_data = torch.load(f'{log_path}/test_data_diffusion_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
