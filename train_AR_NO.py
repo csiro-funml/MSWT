@@ -26,9 +26,10 @@ from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.uno import UNO
 from models.wavelet_transform import CrossWaveletTransformer
+from models.high_frequency_scaling import ResUNet
 import pickle
 from tqdm import tqdm
-
+from lion_pytorch import Lion
 
 
 ################################################################
@@ -38,7 +39,7 @@ from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
-parser.add_argument('--model', type=str, default='FNO') # FNO, ViT, UNO, CNO, Oformer, Transolver, DPOT, Crossformer, 
+parser.add_argument('--model', type=str, default='FNO') # FNO, wavelet_transformer, HFS
 parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
@@ -79,7 +80,7 @@ parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=2000)
 parser.add_argument('--save_everyepoch', type=int, default=10)
 parser.add_argument('--lr', type=float, default=0.001)
-parser.add_argument('--opt',type=str, default='adam', choices=['adam','lamb'])
+parser.add_argument('--opt',type=str, default='adam', choices=['adam','lamb','lion'])
 parser.add_argument('--beta1',type=float,default=0.9)
 parser.add_argument('--beta2',type=float,default=0.9)
 parser.add_argument('--lr_method',type=str, default='cossin') # cyclic for ViT perhaps
@@ -126,7 +127,7 @@ comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrai
 log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
 # model_path = log_path + '/model.pth'
 # model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
-model_path = log_path + f'/model.pth'
+model_path = log_path + f'/model_epochs_{args.epochs}.pth'
 print(model_path)
 if args.use_writer:
     writer = SummaryWriter(log_dir=log_path)
@@ -158,6 +159,8 @@ elif args.model == 'UNO':
     model = UNO( width=args.width, n_channels=train_dataset.n_channels, in_timesteps = args.T_in,  out_timesteps=1).to(device)
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+elif args.model == 'HFS':
+    model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, features = [32,64,64,128,128], bottleneck_feature=256, device=device).to(device)
 else:
     raise NotImplementedError
 
@@ -165,6 +168,8 @@ else:
 #### set optimizer
 if args.opt == 'lamb':
     optimizer = Lamb(model.parameters(), lr=args.lr, betas = (args.beta1, args.beta2), adam=True, debias=False,weight_decay=1e-4)
+elif args.opt == 'lion':
+    optimizer = Lion(model.parameters(), lr=args.lr, weight_decay = 0.01)
 else:
     optimizer = Adam(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), weight_decay=1e-6)
 

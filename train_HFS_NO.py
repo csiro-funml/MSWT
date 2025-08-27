@@ -140,6 +140,10 @@ def warmup_lr(optimizer, scheduler1, scheduler2, current_step, warmup_steps, ini
         scheduler1.base_lrs = [group['lr'] for group in optimizer.param_groups]
         scheduler2.base_lrs = [group['lr'] for group in optimizer.param_groups]
 
+
+
+
+
 def train(model, epoch_number, learning_rate, target_lr,model_path, display_every=10, checkpoint_interval=50,warmup_steps=10):
     best_loss = float('inf')
     best_loss_epoch = 0
@@ -244,6 +248,8 @@ def train(model, epoch_number, learning_rate, target_lr,model_path, display_ever
     #Save last epoch
     best_loss = float('inf')
     # save_checkpoint(model, epoch, loss_val, best_loss=best_loss, checkpoint_name=checkpoint_name)
+
+
     
 model = ResUNet(in_c = 3 * args.T_in + 2 ,out_c = 3, features = [32,64,64,128,128], bottleneck_feature=256, device=device).to(device)
 
