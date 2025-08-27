@@ -279,7 +279,8 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
             for key, loss_func in loss_dict.items():
                 if key == 'spectral_error':
                     # (B, H, W, T, C)
-                    loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None], channel=c, time_step=step)
+                    loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None],
+                                             channel=c, time_step=step, save_plot=True)
                     # loss metric is a dict with keys: 'low_err', 'mid_err', 'high_err', 'k_low', 'k_high'
                     print("frequency bands", loss_metric['k_low'], loss_metric['k_high'])
                     for band_key, val in loss_metric.items():
@@ -401,11 +402,11 @@ def no_postprocessing_pred_save_data(args):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
-    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
