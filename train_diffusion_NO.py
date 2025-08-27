@@ -46,12 +46,6 @@ parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
 parser.add_argument('--batch_size',type=int,default=512)
 parser.add_argument('--epochs',type=int,default=3000)
-parser.add_argument('--opt',type=str,default='adam',choices=['adam', 'lion', 'lamb'])
-parser.add_argument('--lr',type=float,default=1e-3)
-parser.add_argument('--beta1',type=float,default=0.9)
-parser.add_argument('--beta2',type=float,default=0.999)
-parser.add_argument('--lr_method',type=str,default='cossin',choices=['cossin', 'cycle', 'step', 'warmup', 'linear', 'restart', 'cyclic'])
-
 
 args = parser.parse_args()
 
@@ -225,37 +219,10 @@ dummy_input = (dummy_x, dummy_x)
 
 
 #### set optimizer
-if args.opt == 'lamb':
-    optimizer = Lamb(model.parameters(), lr=args.lr, betas = (args.beta1, args.beta2), adam=True, debias=False,weight_decay=1e-4)
-elif args.opt == 'lion':
-    optimizer = Lion(model.parameters(), lr=args.lr, weight_decay = 0.01)
-else:
-    optimizer = Adam(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), weight_decay=1e-6)
+optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=0)
 
-
-if args.lr_method == 'cycle':
-    print('Using cycle learning rate schedule')
-    scheduler = OneCycleLR(optimizer, max_lr=args.lr, div_factor=1e4, pct_start=(args.warmup_epochs / args.epochs), final_div_factor=1e4, steps_per_epoch=len(train_loader), epochs=args.epochs)
-elif args.lr_method == 'step':
-    print('Using step learning rate schedule')
-    scheduler = StepLR(optimizer, step_size=args.step_size * len(train_loader), gamma=args.step_gamma)
-elif args.lr_method == 'warmup':
-    print('Using warmup learning rate schedule')
-    scheduler = LambdaLR(optimizer, lambda steps: min((steps + 1) / (args.warmup_epochs * len(train_loader)), np.power(args.warmup_epochs * len(train_loader) / float(steps + 1), 0.5)))
-elif args.lr_method == 'linear':
-    print('Using warmup learning rate schedule')
-    scheduler = LambdaLR(optimizer, lambda steps: (1 - steps / (args.epochs * len(train_loader))))
-elif args.lr_method == 'restart':
-    print('Using cos anneal restart')
-    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=len(train_loader) * args.lr_step_size, eta_min=0.)
-elif args.lr_method == 'cyclic':
-    scheduler = CyclicLR(optimizer, base_lr=1e-5, max_lr=1e-3, step_size_up=args.lr_step_size * len(train_loader),mode='triangular2', cycle_momentum=False)
-elif args.lr_method == 'cossin':
-    scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs * len(train_loader)) 
-else:
-    raise NotImplementedError
-
-
+# Learning rate scheduler (Cosine Annealing)
+scheduler = CosineAnnealingLR(optimizer, T_max= Par['num_epochs'] * len(train_loader) )  # Adjust T_max as needed
 
 
 # Training loop
