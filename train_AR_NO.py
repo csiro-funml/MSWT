@@ -20,7 +20,7 @@ from torch.optim.lr_scheduler import OneCycleLR, StepLR, LambdaLR, CosineAnneali
 from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
-from utils.criterion import RelL2Norm, compute_error_fft 
+from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
@@ -161,7 +161,6 @@ elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'HFS':
     model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
-                    #  features = [32,64,64,128,128],
                      bottleneck_feature=512, 
                      device=device).to(device)
 else:
@@ -216,8 +215,13 @@ if args.resume_path:
 # Main function for pretraining
 ################################################################
 myloss = RelL2Norm(size_average=False)
-# myloss = nn.MSELoss()
-loss_magnitude = []
+loss_dict = {} # for testing
+loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
+loss_dict['rmse'] = RMSE()
+loss_dict['boundary_rmse'] = BoundaryRMSE()
+loss_dict['max_avg'] = MaxAbsError()
+loss_dict['max_global'] = GlobalMaxAbsError()
+loss_dict['spectral_error'] = SpectralError(model_name=args.model, save_path=log_path, low_percentile=0.70, high_percentile=0.97)
 
 
 best_loss = np.inf
@@ -230,8 +234,8 @@ for ep in pbar:
 
     t1 = t_1 = default_timer()
     t_load, t_train = 0., 0.
-    train_l2_step = 0
-    train_l2_full = 0
+    train_l2_norm = 0
+    train_l2_denorm = 0
 
     loss_previous = 10000
 
@@ -247,6 +251,7 @@ for ep in pbar:
             x_temp = xx.reshape((-1, C))
             for c_i in range(C):
                 print("channel: %s range before normalization "%c_i, x_temp[:, c_i].max().item(), x_temp[:, c_i].min().item())
+        
         # normalize it before the autoregressive predicting
         xx = train_dataset.normalize_x(xx)
         yy_norm = train_dataset.normalize_x(yy)
@@ -256,15 +261,13 @@ for ep in pbar:
             pred = model(xx)  # give the normalized output to the autoregressive predicting
             loss += myloss(pred, y)
 
-        train_l2_step += loss.item() * y.shape[0]
-
-        # loss_magnitude.append(compute_output_magnitude(yy_norm)) # (B, C)
+        train_l2_norm += loss.item() * y.shape[0]
 
         pbar.set_postfix(loss=f"{loss.item():.4f}", epoch=f"{ep}/{args.epochs}")
         # print("train input shape", xx.shape, "output shape", yy.shape, "pred shape", pred.shape, "mask shape", msk.shape)
         pred_denorm = train_dataset.denormalize_x(pred)
-        l2_full = myloss(pred_denorm, yy)
-        train_l2_full += l2_full.item() * y.shape[0]
+        loss_denorm = myloss(pred_denorm, yy)
+        train_l2_denorm += loss_denorm.item() * y.shape[0]
 
         optimizer.zero_grad()
         total_loss = loss
@@ -273,31 +276,26 @@ for ep in pbar:
         optimizer.step()
         scheduler.step()
         # break # todo : to remove
-    train_l2_step_avg, train_l2_full_avg = train_l2_step/ntrain, train_l2_full/ntrain
+    train_l2_norm_avg, train_l2_denorm_avg = train_l2_norm/ntrain, train_l2_denorm/ntrain
 
-
-    # loss_magnitude = torch.cat(loss_magnitude, dim=0).detach().cpu().numpy() # (N, C)
-    # plot_megnitude_hist(loss_magnitude)
 
     if args.use_writer:
-        writer.add_scalar("train_loss_step", train_l2_step_avg, ep)
-        writer.add_scalar("train_loss_full", train_l2_full_avg, ep)
+        writer.add_scalar("train_loss_norm", train_l2_norm_avg, ep)
+        writer.add_scalar("train_loss_denorm", train_l2_denorm_avg, ep)
 
     t_train += default_timer() -  t_1
     t_1 = default_timer()
 
     lr = optimizer.param_groups[0]['lr']
     if ep % args.save_everyepoch!=0:
-        print('epoch {}, best epoch: {}, lr {:.2e}, train l2 step {:.5f} train l2 full {:.5f}, time train avg {:.5f}'
-                .format(ep, best_loss_epoch, lr, train_l2_step_avg,  train_l2_full_avg,  t_train / len(train_loader)))
+        print('epoch {}, best epoch: {}, lr {:.2e}, train l2 norm {:.5f} train l2 denorm {:.5f}, time train avg {:.5f}'
+                .format(ep, best_loss_epoch, lr, train_l2_norm_avg, train_l2_denorm_avg,  t_train / len(train_loader)))
     else:
-        test_l2_full, test_l2_step = 0., 0.
         with torch.no_grad():
             model.eval()
             # compute spectrum once per epoch (first test batch)
-            wrote_spec_this_epoch = False
+            pred, target = [], []
             for xx, yy in val_loader:
-                loss = 0
                 xx = xx.to(device)
                 yy = yy.to(device)
                 # normalize it before the autoregressive predicting
@@ -307,59 +305,48 @@ for ep in pbar:
                     # print("t", t)
                     y = yy_norm[..., t:t + args.T_bundle, :]
                     pred_step = model(xx)
-                    if t == 0:
-                        loss_step = myloss(pred_step, y)
-                        pred = pred_step
-                    else:
-                        pred = torch.cat((pred, pred_step), -2) # concatenate on the time dimension
-                    # update the input 
-                    xx = torch.cat((xx[..., args.T_bundle:,:], pred_step), dim=-2)
+                    
+                    break # just test one step
 
-                # print("pred shape", pred.shape, "yy shape", yy.shape, 'mask shape', msk.shape, "arg t_bundle", args.T_bundle)
-                test_l2_step += loss_step.item() * y.shape[0]
-                # print("loss",loss.item())
-                pred_denorm = train_dataset.denormalize_x(pred)
-                test_l2_full += myloss(pred_denorm, yy).item() * y.shape[0]
+                pred.append(pred_step)
+                target.append(y)
 
-                
-                # print("my loss", test_l2_full.item())
-            test_l2_step_avg, test_l2_full_avg = test_l2_step/ntest, test_l2_full/ntest
+            pred = torch.cat(pred, dim=0)
+            target = torch.cat(target, dim=0)
+            
+            # denormalize the pred and target
+            pred_denorm = train_dataset.denormalize_x(pred)
+            target_denorm = train_dataset.denormalize_x(target)
+
+            print("pred shape", pred.shape, "target shape", target.shape)
+            test_rel_l2_loss = loss_dict['rel_l2_loss'](pred_denorm, target_denorm)           
+
             # print("test_l2_step_avg", test_l2_step_avg.item())
             # print("test_l2_full_avg", test_l2_full_avg.item())
             if args.use_writer:
-                writer.add_scalar("test_loss_step", test_l2_step_avg, ep)
-                writer.add_scalar("test_loss_full", test_l2_full_avg, ep)
-                
-                # each epoch, compute the frequency spectrum of the error on the validation set
-                error_fft = compute_error_fft(model, val_loader, num_bins, device, args)
-                for freq_bin in range(0, error_fft.shape[0], 5):
-                    writer.add_scalars('error_fft', {'freq-%s'%(freq_bin+1): error_fft[freq_bin]}, ep)
-                # write grayscale heatmap row for this epoch
-                # writer.add_image("error_fft", error_fft, ep, dataformats='CHW')
-        ## reset model (it should be on the test loss)
-        if test_l2_step_avg > 10 * loss_previous  or test_l2_step_avg == np.nan: # or (ep > 50 and l2_full / xx.shape[0] > 0.9):
-            print('loss explodes, loading model from previous epoch', test_l2_step_avg, loss_previous)
-            checkpoint = torch.load(model_path,map_location=device)
-            model.load_state_dict(checkpoint['model'])
-            optimizer.load_state_dict(checkpoint["optimizer"])
-            loss_previous = loss.item()
+                for key, loss_func in loss_dict.items():
+                    loss_metric = loss_func(pred_denorm, target_denorm)
+                    if key != 'spectral_error':
+                        writer.add_scalar(f"test_{key}", loss_metric.item(), ep)                
+                    else:
+                        for band_key in list(loss_metric.keys()): # only save  spec_low, spec_mid, spec_high
+                            writer.add_scalar(f"test_{key}_{band_key}", loss_metric[band_key], ep)
 
-
-        if test_l2_step_avg < best_loss:
-            best_loss = test_l2_step_avg
+        if test_rel_l2_loss < best_loss:
+            best_loss = test_rel_l2_loss
             best_loss_epoch = ep
             if args.use_writer:
                 # save error fft as well:
                 torch.save({'args': args, 'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': ep, 'scheduler': scheduler.state_dict(),
-                            'error_fft': error_fft}, model_path,
+                            }, model_path,
                            )
 
         t_test = default_timer() - t_1
         t2 = t_1 = default_timer()
         
         # log a compact summary of the spectrum row (mean of first 20 bins)
-        print('epoch {}, best epoch: {}, time {:.5f}, lr {:.2e}, train l2 step {:.5f} train l2 full {:.5f}, test l2 step {:.5f} test l2 full {:.5f}, time train avg {:.5f} load avg {:.5f} test {:.5f}'
-            .format(ep, best_loss_epoch, t2 - t1, lr, train_l2_step_avg,  train_l2_full_avg, test_l2_step_avg, test_l2_full_avg, t_train / len(train_loader), t_load / len(train_loader), t_test))
+        print('epoch {}, best epoch: {}, time {:.5f}, lr {:.2e}, train l2 norm {:.5f} train l2 denorm {:.5f}, test rel l2 loss {:.5f}, time train avg {:.5f} load avg {:.5f} test {:.5f}'
+            .format(ep, best_loss_epoch, t2 - t1, lr, train_l2_norm_avg,  train_l2_denorm_avg, test_rel_l2_loss, t_train / len(train_loader), t_load / len(train_loader), t_test))
 
 
 

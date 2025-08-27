@@ -145,7 +145,7 @@ class SpectralError(_WeightedLoss):
         self.low_percentile=low_percentile
         self.high_percentile=high_percentile
 
-    def forward(self, pred, y, channel=None, time_step=None):
+    def forward(self, pred, y, channel=None, time_step=None, save_plot=False):
         B, H, W, T, C = y.shape
         # find the spectral band edges from the truth using OLD method
 
@@ -169,11 +169,12 @@ class SpectralError(_WeightedLoss):
         # print(f"Mid frequency error ({self.k_low} to {self.k_high}): {mid_err:.6f}")
         # print(f"High frequency error ({self.k_high}+): {high_err:.6f}")
 
-        plt.loglog(k_freq, E_bins_target, 'X-',markersize=2, label='target')
-        plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred')
-        plt.legend()
-        plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{self.model_name}_{channel}_{time_step}.png')
-        plt.clf()
+        if save_plot:
+            plt.loglog(k_freq, E_bins_target, 'X-',markersize=2, label='target')
+            plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred')
+            plt.legend()
+            plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{self.model_name}_{channel}_{time_step}.png')
+            plt.clf()
         # plt.show()
 
         return {'spec_low': low_err, 'spec_mid': mid_err, 'spec_high': high_err, 'k_low': self.k_low, 'k_high': self.k_high}
