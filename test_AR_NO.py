@@ -77,7 +77,7 @@ parser.add_argument('--patch_size',type=int, default=16)
 
 ###### optimizer and training setups
 parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--epochs', type=int, default=500)
+parser.add_argument('--epochs', type=int, default=3000)
 parser.add_argument('--save_everyepoch', type=int, default=10)
 parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--opt',type=str, default='adam', choices=['adam','lamb'])
@@ -290,7 +290,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
                     new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}).to_frame().T
                     save_df = pd.concat([save_df, new_row], ignore_index=True)
     print(save_df.head(n=16))
-    save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}_epochs_10000.csv", index=False)
+    save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}_epochs_{args.epochs}.csv", index=False)
     return loss_dict
     
 
@@ -396,14 +396,14 @@ def no_postprocessing_pred_save_data(args):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
-    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
     #### 4. postprocessing save the data for diffusion training
-    no_postprocessing_pred_save_data(args)
+    # no_postprocessing_pred_save_data(args)
