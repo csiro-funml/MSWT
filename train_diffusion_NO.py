@@ -13,11 +13,9 @@ import datetime
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
-from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 from torch.amp import autocast, GradScaler
 import argparse
@@ -25,6 +23,9 @@ from torch.utils.tensorboard import SummaryWriter
 from models.diff_Unet import Unet
 from models.diffusion import ElucidatedDiffusion
 from torchvision.utils import make_grid
+from torch.optim.lr_scheduler import OneCycleLR, StepLR, LambdaLR, CosineAnnealingWarmRestarts, CyclicLR,  CosineAnnealingLR
+from utils.optimizer import Adam, Lamb
+from lion_pytorch import Lion
 
 torch.manual_seed(23)
 import pickle
@@ -140,7 +141,7 @@ Par = {"inp_shift" : torch.tensor(inp_min, dtype=DTYPE, device=device),
        "nf"        : 1,
        "lb"        : 1,
        "lf"        : 1,
-       "num_epochs": 10000,
+       "num_epochs": 3000,
        "channels"  : C
        }
 
@@ -215,10 +216,39 @@ dummy_x = torch.tensor(torch.randn(1, Par["channels"], Par["nx"], Par["ny"]),   
 dummy_input = (dummy_x, dummy_x)
 
 
-optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=0)
+#### set optimizer
+if args.opt == 'lamb':
+    optimizer = Lamb(model.parameters(), lr=args.lr, betas = (args.beta1, args.beta2), adam=True, debias=False,weight_decay=1e-4)
+elif args.opt == 'lion':
+    optimizer = Lion(model.parameters(), lr=args.lr, weight_decay = 0.01)
+else:
+    optimizer = Adam(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), weight_decay=1e-6)
 
-# Learning rate scheduler (Cosine Annealing)
-scheduler = CosineAnnealingLR(optimizer, T_max= Par['num_epochs'] * len(train_loader) )  # Adjust T_max as needed
+
+if args.lr_method == 'cycle':
+    print('Using cycle learning rate schedule')
+    scheduler = OneCycleLR(optimizer, max_lr=args.lr, div_factor=1e4, pct_start=(args.warmup_epochs / args.epochs), final_div_factor=1e4, steps_per_epoch=len(train_loader), epochs=args.epochs)
+elif args.lr_method == 'step':
+    print('Using step learning rate schedule')
+    scheduler = StepLR(optimizer, step_size=args.step_size * len(train_loader), gamma=args.step_gamma)
+elif args.lr_method == 'warmup':
+    print('Using warmup learning rate schedule')
+    scheduler = LambdaLR(optimizer, lambda steps: min((steps + 1) / (args.warmup_epochs * len(train_loader)), np.power(args.warmup_epochs * len(train_loader) / float(steps + 1), 0.5)))
+elif args.lr_method == 'linear':
+    print('Using warmup learning rate schedule')
+    scheduler = LambdaLR(optimizer, lambda steps: (1 - steps / (args.epochs * len(train_loader))))
+elif args.lr_method == 'restart':
+    print('Using cos anneal restart')
+    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=len(train_loader) * args.lr_step_size, eta_min=0.)
+elif args.lr_method == 'cyclic':
+    scheduler = CyclicLR(optimizer, base_lr=1e-5, max_lr=1e-3, step_size_up=args.lr_step_size * len(train_loader),mode='triangular2', cycle_momentum=False)
+elif args.lr_method == 'cossin':
+    scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs * len(train_loader)) 
+else:
+    raise NotImplementedError
+
+
+
 
 # Training loop
 num_epochs = Par['num_epochs']
@@ -246,7 +276,7 @@ for epoch in tqdm(range(num_epochs)):
         train_loss += loss.item()
 
         # Update learning rate
-        # scheduler.step()
+        scheduler.step()
 
     train_loss /= len(train_loader)
     train_time = time.time()-train_time
