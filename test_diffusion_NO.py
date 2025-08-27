@@ -91,6 +91,7 @@ def load_preprocessing_predictions(args, just_load_path=False):
     ntrain = 5200 if args.dataset == 'ns2d_pda' else 0
     comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
+    log_path = log_path + f'/diffusion'
     if os.path.exists(log_path):
         print(f"Loading data from {log_path}")
     else:
