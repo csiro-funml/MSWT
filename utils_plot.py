@@ -1233,13 +1233,14 @@ if __name__ == '__main__':
     comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
     log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
     # FNO/Wavelet/HFS test data
-    pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
-    plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
+    # pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    # plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
     
     
     # FNO-Diffusion test data
-    # pred_data = torch.load(f'{log_path}/test_data_diffusion_prediction.pth', map_location=device)
-    # plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO-Diffusion', log_path=log_path)
+    log_path = log_path + '/diffusion' 
+    pred_data = torch.load(f'{log_path}best_model_diffusion.pt', map_location=device)
+    plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO-Diffusion', log_path=log_path)
 
 
     
