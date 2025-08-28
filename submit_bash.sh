@@ -41,7 +41,7 @@ source $HOME/.venvs/pytorch/bin/activate
 
 # Train/Test the diffusion model
 # CUDA_VISIBLE_DEVICES=0 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --use_writer --batch_size=128 --epochs=3000
-CUDA_VISIBLE_DEVICES=0 python3 test_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --batch_size=128
+# CUDA_VISIBLE_DEVICES=0 python3 test_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --batch_size=128
 
 # Test the HFS model
 # CUDA_VISIBLE_DEVICES=0 python3 test_HFS_NO.py --dataset='ns2d_pda' --model='HFS' --T_in=7
