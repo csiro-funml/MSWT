@@ -154,7 +154,8 @@ if args.model == "PDERefiner":
         max_num_steps=args.T_ar,  # T_ar, just one step ahead
         n_spatial_dim=2,
         n_channels=train_dataset.n_channels,
-        trajlen=val_dataset[0][1].shape[-2] + args.T_in
+        trajlen=val_dataset[0][1].shape[-2] + args.T_in,
+        predict_difference=True,
     ).to(device)
 else:
     raise NotImplementedError
