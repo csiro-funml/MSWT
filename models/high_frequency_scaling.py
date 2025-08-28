@@ -1,3 +1,11 @@
+# ---------------------------------------------------------------------------------------------
+# Author: Xuesong
+# Date: 08/28/2025
+# This code is developed with reference to the following GitHub repo:
+#  https://github.com/SiaK4/HFS_ResUNet/blob/main/Models/ResUnet.py
+# ---------------------------------------------------------------------------------------------
+
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
