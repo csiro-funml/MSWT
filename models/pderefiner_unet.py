@@ -468,7 +468,7 @@ class Unet(nn.Module):
         # Number of resolutions
         n_resolutions = len(ch_mults)
 
-        insize = time_history * self.input_channels
+        insize = time_history * self.input_channels + time_future * self.input_channels
         n_channels = hidden_channels
         # Project image into feature map
         if use1x1:
@@ -514,15 +514,6 @@ class Unet(nn.Module):
             nn.Linear(time_embed_dim, time_embed_dim),
         )
 
-        # Conditional embedding
-        self.pde_emb = SimpleConvNet(
-            input_time_steps=1,
-            input_channels=input_channels,
-            output_dim=time_embed_dim,
-            hidden_channels=hidden_channels,
-            activation=activation,
-            norm=norm,
-        )
 
         # #### Second half of U-Net - increasing resolution
         up = []
@@ -577,11 +568,6 @@ class Unet(nn.Module):
             self.param_use_time = True
         else:
             assert not self.param_use_time, "Cannot pass time=None after using it in a previous forward pass"
-        if z is not None:
-            emb = emb + self.pde_emb(z)
-            self.param_use_cond = True
-        else:
-            assert not self.param_use_cond, "Cannot pass z=None after using it in a previous forward pass"
 
         x = self.image_proj(x)
     

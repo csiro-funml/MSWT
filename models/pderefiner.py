@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch
 import torch.nn as nn
 from diffusers.schedulers import DDPMScheduler
-from .pderefiner_unet import Unet
+from pderefiner_unet import Unet
 
 
 def custommse_loss(input: torch.Tensor, target: torch.Tensor, reduction: str = "mean"):
@@ -181,8 +181,8 @@ def get_model(time_history, time_future, n_channels):
         input_channels=n_channels,
         time_history=time_history,
         time_future=time_future,
-        # hidden_channels=64,
-        hidden_channels=32,
+        hidden_channels=64,
+        # hidden_channels=32,
         activation='gelu',
         norm=True,
     )
@@ -276,8 +276,9 @@ class PDERefiner(nn.Module):
         noise = torch.randn_like(u_t)
         u_t_noised = self.scheduler.add_noise(u_t, noise, k)
 
-        # print("input to the model: ", "u_t shape" ,u_t_noised.shape, "u_prev shape" ,u_prev.shape, "time" ,(k * self.time_multiplier).shape)
-        pred = self.model(x=u_prev, z=u_t_noised, time=k * self.time_multiplier)
+        print("input to the model: ", "u_t shape" ,u_t_noised.shape, "u_prev shape" ,u_prev.shape, "time" ,(k * self.time_multiplier).shape)
+        x_in = torch.cat([u_prev, u_t_noised], axis=1)
+        pred = self.model(x=x_in, time=k * self.time_multiplier)
         target = (noise_factor**0.5) * noise - (signal_factor**0.5) * u_t
         loss = self.train_criterion(pred, target)
         return loss, pred, target
@@ -292,9 +293,9 @@ class PDERefiner(nn.Module):
         )
         for k in self.scheduler.timesteps:
             time = torch.zeros(size=(u_prev.shape[0],), dtype=u_prev.dtype, device=u_prev.device) + k
-            pred = self.model(x=u_prev, time=time * self.time_multiplier, z=y_noised)
-            # y_noised = self.scheduler.step(pred, k, y_noised).prev_sample
-            y_noised = self.scheduler.step(y_noised, k, pred).prev_sample
+            x_in = torch.cat([u_prev, y_noised], axis=1)
+            pred = self.model(x=x_in, time=time * self.time_multiplier)
+            y_noised = self.scheduler.step(pred, k, y_noised).prev_sample
         y = y_noised
         if self.predict_difference:
             y = y * self.difference_weight + u_prev[:, -1:]
