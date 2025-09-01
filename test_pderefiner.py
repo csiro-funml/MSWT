@@ -229,6 +229,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
                     pred = pred_step
                 else:
                     pred = torch.cat((pred, pred_step), -2)
+                print("pred step shape", pred_step.shape, "xx_norm shape", xx_norm.shape, "pred shape", pred.shape)
                 xx_norm = torch.cat((xx_norm[..., args.T_bundle:], pred_step), dim=1)
             
             # permute the shape and denormalize the pred, (B, T, C, H, W) -> (B, H, W, T, C)
