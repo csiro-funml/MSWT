@@ -219,6 +219,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
             yy_norm = test_dataset.normalize_x(yy)
                 
             xx_norm = xx_norm.permute(0, 3, 4, 1, 2).contiguous() # (B, T_in, C, H, W)
+            
             # just take the first time step of yy_norm to append
             for t in range(0, yy_norm.shape[-2], args.T_bundle):
                 # print("t", t)
@@ -230,10 +231,9 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
                 else:
                     pred = torch.cat((pred, pred_step), -2)
                 print("pred step shape", pred_step.shape, "xx_norm shape", xx_norm.shape, "pred shape", pred.shape)
-                xx_norm = torch.cat((xx_norm[..., args.T_bundle:], pred_step), dim=1)
+                xx_norm = torch.cat((xx_norm[..., args.T_bundle:], pred_step.permute(0, 3, 4, 1, 2)), dim=1)
             
             # permute the shape and denormalize the pred, (B, T, C, H, W) -> (B, H, W, T, C)
-            pred = pred.permute(0, 3, 4, 1, 2)
             pred = test_dataset.denormalize_x(pred)    
         
             # # save the data to np_data
