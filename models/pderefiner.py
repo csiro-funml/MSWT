@@ -181,8 +181,8 @@ def get_model(time_history, time_future, n_channels):
         input_channels=n_channels,
         time_history=time_history,
         time_future=time_future,
-        hidden_channels=64,
-        # hidden_channels=32,
+        # hidden_channels=64,
+        hidden_channels=32,
         activation='gelu',
         norm=True,
     )
