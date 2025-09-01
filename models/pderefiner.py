@@ -276,7 +276,7 @@ class PDERefiner(nn.Module):
         noise = torch.randn_like(u_t)
         u_t_noised = self.scheduler.add_noise(u_t, noise, k)
 
-        print("input to the model: ", "u_t shape" ,u_t_noised.shape, "u_prev shape" ,u_prev.shape, "time" ,(k * self.time_multiplier).shape)
+        # print("input to the model: ", "u_t shape" ,u_t_noised.shape, "u_prev shape" ,u_prev.shape, "time" ,(k * self.time_multiplier).shape)
         x_in = torch.cat([u_prev, u_t_noised], axis=1)
         pred = self.model(x=x_in, time=k * self.time_multiplier)
         target = (noise_factor**0.5) * noise - (signal_factor**0.5) * u_t
