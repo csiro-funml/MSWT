@@ -154,9 +154,9 @@ if args.model == "PDERefiner":
         max_num_steps=args.T_ar,  # T_ar, just one step ahead
         n_spatial_dim=2,
         n_channels=train_dataset.n_channels,
-        trajlen=val_dataset[0][1].shape[-2] + args.T_in,
-        predict_difference=True,
-        difference_weight=0.3,
+        trajlen=val_dataset[0][1].shape[-2] + args.T_ar, # T_max
+        activation='gelu',
+        criterion='mse',
     ).to(device)
 else:
     raise NotImplementedError
@@ -258,7 +258,7 @@ for ep in pbar:
             # reshape x from (B, H, W, T_in, C) into (B, T_in, C, H, W)
             xx_norm = xx_norm.permute(0, 3, 4, 1, 2).contiguous()
             yy_norm = yy_norm.permute(0, 3, 4, 1, 2).contiguous()
-            loss = model.compute_loss(xx_norm, yy_norm)
+            loss = model.training_step((xx_norm, yy_norm))
 
         train_l2_norm += loss.item() * yy_norm.shape[0]
 
@@ -300,8 +300,7 @@ for ep in pbar:
                 yy_norm = yy_norm[..., 0:1, :]
                 for t in range(0, yy_norm.shape[-2], args.T_bundle):
                     # print("t", t)
-                    pred_step = model.predict_next_solution(xx_norm)
-               
+                    pred_step = model.validation_step(xx_norm)
                 # reshape pred_step from (B, T_ar, C, H, W) to (B, H, W, T_ar, C)
                 pred_step = pred_step.permute(0, 3, 4, 1, 2).contiguous()
                 pred.append(pred_step)
