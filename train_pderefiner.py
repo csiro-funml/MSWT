@@ -156,6 +156,7 @@ if args.model == "PDERefiner":
         n_channels=train_dataset.n_channels,
         trajlen=val_dataset[0][1].shape[-2] + args.T_in,
         predict_difference=True,
+        difference_weight=0.3,
     ).to(device)
 else:
     raise NotImplementedError
