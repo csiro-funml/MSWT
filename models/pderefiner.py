@@ -293,7 +293,8 @@ class PDERefiner(nn.Module):
         for k in self.scheduler.timesteps:
             time = torch.zeros(size=(u_prev.shape[0],), dtype=u_prev.dtype, device=u_prev.device) + k
             pred = self.model(x=u_prev, time=time * self.time_multiplier, z=y_noised)
-            y_noised = self.scheduler.step(pred, k, y_noised).prev_sample
+            # y_noised = self.scheduler.step(pred, k, y_noised).prev_sample
+            y_noised = self.scheduler.step(y_noised, k, pred).prev_sample
         y = y_noised
         if self.predict_difference:
             y = y * self.difference_weight + u_prev[:, -1:]
