@@ -316,7 +316,8 @@ DATASET_DICT[name]['downsample'] = (1, 1)
 
 name = 'sw2d_pda'
 if not torch.cuda.is_available():
-    DATASET_DICT[name] = {'train_path': './data/large/pdearena/sw2d_pda/train', 'test_path': './data/large/pdearena/sw2d_pda/test'}
+    DATASET_DICT[name] = {'train_path': './data/large/pdearena/sw2d_pda/train', 'test_path': './data/large/pdearena/sw2d_pda/test',
+                          'normalizer_path': './pdearena/sw2d_pda/normstats.pt'}
 else:
     DATASET_DICT[name] = {'train_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/train', 'test_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/test',
                           'normalizer_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/normstats.pt'}

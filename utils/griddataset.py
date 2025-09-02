@@ -884,7 +884,7 @@ class TemporalDataset2D(Dataset):
 class LocalTemporalDataset2D(Dataset):
     def __init__(self, data_name, n_train=None, t_in=10, t_ar = 1, n_channels = None, normalize=False, train=True, downsample=None):
         super().__init__()
-        data = self.load_data(train)
+        data = self.load_data(data_name, train)
         self.data = data
 
         self.data_name = data_name
@@ -925,11 +925,11 @@ class LocalTemporalDataset2D(Dataset):
                 print("min shape", inp_min.shape, self.norm_mean.numpy(), "max shape", inp_max.shape, self.norm_std.numpy())
 
     
-    def load_data(self, train_test_state):
+    def load_data(self, name, train_test_state):
         # load data from current directory/ns2d_pda/train/data_0.hdf5
         data_list = []
         # load all the data in the directory {current_dir}/pdearena/ns2d_pda/{train_test_state}/
-        data_dir = f'{current_dir}/pdearena/ns2d_pda/{train_test_state}/'
+        data_dir = f'{current_dir}/pdearena/{name}/{train_test_state}/'
         for file in os.listdir(data_dir):
             if file.endswith('.hdf5'):
                 data = h5py.File(f'{data_dir}/{file}', 'r')['data'][:]
