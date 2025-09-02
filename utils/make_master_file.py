@@ -323,8 +323,9 @@ else:
                           'test_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/test',
                           'val_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/val',
                           'normalizer_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/normstats.pt'}
-DATASET_DICT[name]['train_size'] = 7000
-DATASET_DICT[name]['test_size'] = 400       ### default 400, maximum 717
+DATASET_DICT[name]['train_size'] = 6900
+DATASET_DICT[name]['test_size'] = 1400       ### default 400, maximum 717
+DATASET_DICT[name]['val_size'] = 100       ### default 400, maximum 717
 DATASET_DICT[name]['scatter_storage'] = True
 DATASET_DICT[name]['t_test'] = 78   ## predict 10 timesteps for testing
 DATASET_DICT[name]['t_in'] = 10     ## use 10 as prefix steps, not necessary used
