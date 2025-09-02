@@ -46,9 +46,10 @@ source $HOME/.venvs/pytorch/bin/activate
 
 # Train the PDERefiner model
 # CUDA_VISIBLE_DEVICES=0 python3 train_pderefiner.py --dataset='ns2d_pda' --model='PDERefiner' --T_in=7 --T_ar=1 --epochs=3000  --use_writer
-CUDA_VISIBLE_DEVICES=0 python3 test_pderefiner.py --dataset='ns2d_pda' --model='PDERefiner' --T_in=7 --T_ar=1 --batch_size=128
+# CUDA_VISIBLE_DEVICES=0 python3 test_pderefiner.py --dataset='ns2d_pda' --model='PDERefiner' --T_in=7 --T_ar=1 --batch_size=128
 
 # Utile plotting in the server
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='HFS' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
+CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='PDERefiner' 
