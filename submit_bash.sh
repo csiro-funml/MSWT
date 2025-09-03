@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --account=OD-230881
-#SBATCH --cpus-per-task=8        # cpu-cores per task (>1 if multi-threaded tasks)
+#SBATCH --cpus-per-task=9        # cpu-cores per task (>1 if multi-threaded tasks)
 
 
 # module load numpy/2.0.0-py312
@@ -59,8 +59,8 @@ source $HOME/.venvs/pytorch/bin/activate
 
 ################################################################ SWE #################################################################
 
-CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=2000
-# CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer --resume_path
+CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer --resume_path
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer
 
 ################################################################ SWE #################################################################
