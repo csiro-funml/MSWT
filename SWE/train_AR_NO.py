@@ -146,7 +146,7 @@ else:
     writer = None
 
 print('args',args)
-print('Train num {} train len {} test num {}'.format(train_dataset.n_size, ntrain, ntest))
+print('Train num {} val num {} test num {}'.format(train_dataset.n_size, val_dataset.n_size, ntest))
 
 ################################################################
 # load model
