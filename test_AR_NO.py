@@ -24,7 +24,7 @@ from models.fno import FNO2d
 from models.uno import UNO
 from models.wavelet_transform import CrossWaveletTransformer
 from models.high_frequency_scaling import ResUNet
-from models.unet import UNet_withoutHFS, UNet_with_BottleneckHFS
+from models.unet import UNet
 import pickle
 from tqdm import tqdm
 import pandas as pd
@@ -176,14 +176,10 @@ def load_data_model(just_load_path=False):
         model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
                  bottleneck_feature=512, 
                  device=device).to(device)
-    elif args.model == 'UNet_withoutHFS':
-        model = UNet_withoutHFS(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
+    elif args.model == 'UNet':
+        model = UNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
                             bottleneck_feature=512, 
                             device=device).to(device)
-    elif args.model == 'UNet':
-        model = UNet_with_BottleneckHFS(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
-                                   bottleneck_feature=512, 
-                                   device=device).to(device)
     else:
         raise NotImplementedError
 

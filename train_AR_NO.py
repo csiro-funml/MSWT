@@ -27,7 +27,7 @@ from models.fno import FNO2d
 from models.uno import UNO
 from models.wavelet_transform import CrossWaveletTransformer
 from models.high_frequency_scaling import ResUNet
-from models.unet import UNet_with_BottleneckHFS, UNet_withoutHFS
+from models.unet import UNet
 from models.hano import HANO2d
 import pickle
 from tqdm import tqdm
@@ -41,7 +41,7 @@ from lion_pytorch import Lion
 
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
-parser.add_argument('--model', type=str, default='UNet_withoutHFS') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
+parser.add_argument('--model', type=str, default='UNet') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
 parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
@@ -165,14 +165,10 @@ elif args.model == 'HFS':
     model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
                      bottleneck_feature=512, 
                      device=device).to(device)
-elif args.model == 'UNet_withoutHFS':
-    model = UNet_withoutHFS(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
-                            bottleneck_feature=512, 
-                            device=device).to(device)
 elif args.model == 'UNet':
-    model = UNet_with_BottleneckHFS(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
-                                   bottleneck_feature=512, 
-                                   device=device).to(device)
+    model = UNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
+                    bottleneck_feature=512, 
+                    device=device).to(device)
 elif args.model == 'HANO':
     model = HANO2d(T_in=args.T_in, T_out=args.T_ar, res_output=train_dataset.res[0],  res_att=train_dataset.res[0],
                    in_dim=train_dataset.n_channels, out_dim=train_dataset.n_channels, feature_dim=256).to(device)

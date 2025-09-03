@@ -49,33 +49,6 @@ def get_activation(activation_name):
     if activation_name =='GELU':
         return nn.GELU(approximate='tanh')
 
-class featscale(nn.Module):
-    def __init__(self, patch_size,channels):
-        super(featscale, self).__init__()
-        self.patch_size = patch_size
-        self.lambda1 = nn.Parameter(1.0*torch.ones(1,channels,1,1,1))
-        self.lambda2 = nn.Parameter(1.0*torch.ones(1,channels,1,1,1))
-
-    def forward(self, x):
-        batch_size, channels, height, width = x.shape
-        
-        # Reshape into patches of shape (batch_size, channels, num_patches, patch_size, patch_size)
-        X_patches = x.unfold(2, self.patch_size, self.patch_size).unfold(3, self.patch_size, self.patch_size)
-        num_patches = (height//self.patch_size)* (width//self.patch_size)
-        X_patches = X_patches.reshape(batch_size, channels, num_patches, self.patch_size, self.patch_size)
-        X_mean_patch = X_patches.mean(dim=2)
-        X_mean_expanded = X_mean_patch.unsqueeze(2).expand(-1, -1, num_patches, -1, -1)
-        
-        #Generate X_d and X_h
-        X_d = X_mean_expanded
-        X_h = X_patches - X_d
-
-        # #Combine X_d and X_h
-        X = X_patches + self.lambda1*X_d + self.lambda2*X_h
-        X = X.reshape(batch_size, channels, height//self.patch_size, width//self.patch_size, self.patch_size, self.patch_size)
-        X = X.permute(0,1,2,4,3,5).reshape(batch_size, channels, height, width)
-        return X
-
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, activation):
         super(ResidualBlock, self).__init__()
@@ -126,92 +99,10 @@ class ResidualBlock2(nn.Module):
         out = self.residual(x)
         return out+shortcut
 
-class UNet_with_BottleneckHFS(nn.Module):
+class UNet(nn.Module):
     def __init__(self, in_c,out_c, features = [64,128,256,512,512],bottleneck_feature=1024, patch_size_enc = [16,8,4,2,1], patch_size_dec=[16,8,4,2,1],activation_name='GELU'
                  ,device=torch.device('cpu')):
-        super(UNet_with_BottleneckHFS, self).__init__()
-        self.in_c = in_c
-        self.out_c = out_c
-        self.lamb1_history = []
-        self.lamb2_history = []
-        self.activation = get_activation(activation_name)
-        self.device = device
-        #Encoder and featscale
-        self.encoder = nn.ModuleList()
-
-        num_layers = len(features)  # Assuming featscale lists match encoder layers
-
-        for i,feature in enumerate(features):
-            self.encoder.append(ResidualBlock2(in_c,feature,self.activation))
-            in_c = feature
-
-        # Bottleneck layer
-        self.bottleneck = ResidualBlock2(features[-1], bottleneck_feature,self.activation)
-        self.fs_bottleneck = featscale(patch_size=1, channels=bottleneck_feature)
-
-        #Upsample and Decoder and featscale
-        self.upsample = nn.ModuleList()
-        self.decoder = nn.ModuleList()
-
-
-        for i, feature in enumerate(reversed(features)):
-            self.upsample.append(
-                nn.ConvTranspose2d(bottleneck_feature, bottleneck_feature, kernel_size=2, stride=2)
-            )
-            self.decoder.append(ResidualBlock(bottleneck_feature+feature, feature,self.activation))
-            bottleneck_feature = feature
-        
-        self.final_conv = nn.Conv2d(features[0],self.out_c,kernel_size=1)
-
-    def save_lambdas(self):
-        self.lamb1_history.append(self.lamb1.item())
-        self.lamb2_history.append(self.lamb2.item())
-
-
-    def get_grid(self, x):
-        batchsize, size_x, size_y = x.shape[0], x.shape[1], x.shape[2]
-        gridx = torch.tensor(np.linspace(0, 1, size_x), dtype=torch.float)
-        gridx = gridx.reshape(1, size_x, 1, 1).repeat([batchsize, 1, size_y, 1])
-        gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
-        gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
-        grid = torch.cat((gridx, gridy), dim=-1).to(x.device)
-        return grid
-    
-    def forward(self, x):
-        # absort the time dimension into the channel dimensionx = x.view(*x.shape[:-2], -1)           #### B, X, Y, T*C
-        B, H, W, T, C = x.shape
-        x = x.view(*x.shape[:-2], -1)           #### B, H, W, T*C
-        grid = self.get_grid(x)
-        x = torch.cat((x, grid), dim=-1)        #### B, H, W, T*C +2
-        x = x.permute(0, 3, 1, 2).contiguous() # (B, T*C+2, H, W)
-        
-        #Downsampling path
-        skip_connections = []
-        for i, down in enumerate(self.encoder):
-            x = down(x)
-            skip_connections.append(x)
-            x = F.max_pool2d(x, kernel_size=2)
-        
-        x = self.bottleneck(x)
-        x = self.fs_bottleneck(x)
-
-        #Upsampling path
-        skip_connections = skip_connections[::-1]
-        for up in range(len(self.decoder)):
-            x = self.upsample[up](x)
-            x = torch.cat((x, skip_connections[up]),dim=1)
-            x = self.decoder[up](x)
-        out = self.final_conv(x)
-
-        # reshape back to (B, C_out, H, W) -> (B, H, W, T, C)
-        out = out.permute(0, 2, 3, 1).contiguous()
-        out = out.view(B, H, W, -1, C)
-        return out
-
-class UNet_withoutHFS(nn.Module):
-    def __init__(self, in_c,out_c, features = [64,128,256,512,512],bottleneck_feature=1024, patch_size_enc = [16,8,4,2,1], patch_size_dec=[16,8,4,2,1],activation_name='GELU'
-                 ,device=torch.device('cpu')):
-        super(UNet_withoutHFS, self).__init__()
+        super(UNet, self).__init__()
         self.in_c = in_c
         self.out_c = out_c
         self.lamb1_history = []
