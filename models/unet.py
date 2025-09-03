@@ -178,3 +178,17 @@ class UNet(nn.Module):
         out = out.permute(0, 2, 3, 1).contiguous()
         out = out.view(B, H, W, -1, C)
         return out
+    
+
+
+if __name__ == "__main__":
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    n_channels = 3
+    T_in = 7
+    T_ar = 1
+    model = UNet(in_c = n_channels * T_in + 2 ,out_c = n_channels, 
+                 bottleneck_feature=512, 
+                 device=device).to(device)
+    x = torch.rand(2, 96, 192, T_in, n_channels)
+    y = model(x)
+    print(y.shape)

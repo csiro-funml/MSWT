@@ -24,8 +24,6 @@ from utils.utilities import count_parameters, get_grid, load_model_from_checkpoi
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, TemporalDataset2D_multiscale
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
-from models.uno import UNO
-
 from models.wavelet_transform import CrossWaveletTransformer
 import pickle
 from tqdm import tqdm
@@ -193,8 +191,6 @@ def load_data_model():
                     n_channels=train_dataset.n_channels,
                     in_timesteps = args.T_in, out_timesteps=1, 
                     n_layers = args.n_layers).to(device)
-    elif args.model == 'UNO':
-        model = UNO( width=args.width, n_channels=train_dataset.n_channels, in_timesteps = args.T_in,  out_timesteps=1).to(device)
     elif args.model == 'wavelet_transformer':
         model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512).to(device)
     else:
