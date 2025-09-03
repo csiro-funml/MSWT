@@ -22,7 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
 from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
-from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D
+from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, CachedTemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.wavelet_transform import CrossWaveletTransformer
@@ -111,15 +111,15 @@ if not torch.cuda.is_available():
     val_dataset= test_dataset
 else:
     # load data and dataloader
-    train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
-    val_dataset =  TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar =-1, train='val', normalize=args.normalize)
-    test_dataset = TemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
+    train_dataset = CachedTemporalDataset2D(data_name=args.dataset,  t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize,  cache_size=50)
+    val_dataset = CachedTemporalDataset2D(data_name=args.dataset,  t_in = args.T_in, t_ar =-1, train='val', normalize=args.normalize,  cache_size=50)
+    test_dataset = CachedTemporalDataset2D(data_name=args.dataset,  t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize,  cache_size=50)
 
 
 
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0 if not torch.cuda.is_available() else 8)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8)
-val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8)
+train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0 if not torch.cuda.is_available() else 8, pin_memory=torch.cuda.is_available())
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8, pin_memory=torch.cuda.is_available())
+val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8, pin_memory=torch.cuda.is_available())
 
 ntrain, ntest = len(train_dataset), len(test_dataset)
 if not args.pad:

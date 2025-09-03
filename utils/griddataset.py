@@ -881,6 +881,41 @@ class TemporalDataset2D(Dataset):
         return self.n_size
 
 
+class CachedTemporalDataset2D(TemporalDataset2D):
+    """
+    Drop-in replacement for TemporalDataset2D with file caching.
+    
+    ONLY CHANGE: Cache HDF5 files in memory instead of opening/closing repeatedly.
+    Everything else stays exactly the same.
+    """
+    
+    def __init__(self, *args, cache_size=20, **kwargs):
+        self.cache_size = cache_size
+        super().__init__(*args, **kwargs)
+        
+        # Replace the data_files function with cached version if using scatter storage
+        if DATASET_DICT[self.data_name]['scatter_storage']:
+            self._file_cache = {}
+            self._original_data_files = self.data_files
+            self.data_files = self._cached_data_files
+    
+    def _cached_data_files(self, idx):
+        """Cached version of file loading."""
+        if idx not in self._file_cache:
+            # Load file
+            data = self._original_data_files(idx)
+            
+            # Add to cache
+            self._file_cache[idx] = data
+            
+            # Simple LRU: remove oldest if cache is full
+            if len(self._file_cache) > self.cache_size:
+                oldest_key = next(iter(self._file_cache))
+                del self._file_cache[oldest_key]
+        
+        return self._file_cache[idx]
+
+
 class LocalTemporalDataset2D(Dataset):
     def __init__(self, data_name, n_train=None, t_in=10, t_ar = 1, n_channels = None, normalize=False, train=True, downsample=None):
         super().__init__()
