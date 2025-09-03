@@ -113,8 +113,8 @@ if not torch.cuda.is_available():
 else:
     # load data and dataloader
     train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
-    val_dataset =  TemporalDataset2D(args.dataset, n_train=260, t_in = args.T_in, t_ar =-1, train='val', normalize=args.normalize)
-    test_dataset = TemporalDataset2D(args.dataset, n_train=260, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
+    val_dataset =  TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar =-1, train='val', normalize=args.normalize)
+    test_dataset = TemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
 
 
 
@@ -255,20 +255,21 @@ for ep in pbar:
         loss = 0.
         xx = xx.to(device)  ## B, n, n, T_in, C
         yy = yy.to(device)  ## B, n, n, T_ar, C
-        # range check
+        
+        # normalize it before the autoregressive predicting
+        xx_norm = train_dataset.normalize_x(xx)
+        yy_norm = train_dataset.normalize_x(yy)
+         # range check
         if ep == 0 and batch_id == 0:
             C = xx.shape[-1]
             x_temp = xx.reshape((-1, C))
             for c_i in range(C):
                 print("channel: %s range before normalization "%c_i, x_temp[:, c_i].max().item(), x_temp[:, c_i].min().item())
-        
-        # normalize it before the autoregressive predicting
-        xx = train_dataset.normalize_x(xx)
-        yy_norm = train_dataset.normalize_x(yy)
+                print("channel: %s range after normalization "%c_i, xx_norm[:, c_i].max().item(), xx_norm[:, c_i].min().item())
         for t in range(0, yy_norm.shape[-2], args.T_bundle):
             y = yy_norm[..., t:t + args.T_bundle, :]
             # print('input shape', xx.shape)
-            pred = model(xx)  # give the normalized output to the autoregressive predicting
+            pred = model(xx_norm)  # give the normalized output to the autoregressive predicting
             loss += myloss(pred, y)
 
         train_l2_norm += loss.item() * y.shape[0]
