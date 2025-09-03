@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=00:10:00
+#SBATCH --time=00:30:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -19,7 +19,7 @@ module load parallel python
 source $HOME/.venvs/pytorch/bin/activate
 
 
-
+################################################################ NSE #################################################################
 ## Train the model
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='HFS' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='FNO' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
@@ -27,36 +27,38 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='UNet' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='HANO' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='UNet_withoutHFS' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
-# CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000
-
-
 
 ## resume training
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py  --use_writer --dataset='ns2d_pda' --model='wavelet_transformer' --lr_method='cossin' --resume_path=True
-
-## Train the HFS model
-# CUDA_VISIBLE_DEVICES=0 python3 train_HFS_NO.py --dataset='ns2d_pda' --model='HFS' --use_writer --T_in=7 --use_writer
 
 
 ## Test the model
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='sw2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000
-CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='UNet_withoutHFS'
-CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='UNet'
+# CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='UNet_withoutHFS'
+# CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='UNet'
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer' --lr_method='cossin' --T_in=7 --epochs=3000
-
 
 # Train/Test the diffusion model
 # CUDA_VISIBLE_DEVICES=0 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --use_writer --batch_size=128 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 test_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --batch_size=128
 
-
 # Train the PDERefiner model
 # CUDA_VISIBLE_DEVICES=0 python3 train_pderefiner.py --dataset='ns2d_pda' --model='PDERefiner' --T_in=7 --T_ar=1 --epochs=3000  --use_writer
 # CUDA_VISIBLE_DEVICES=0 python3 test_pderefiner.py --dataset='ns2d_pda' --model='PDERefiner' --T_in=7 --T_ar=1 --batch_size=128
+
 
 # Utile plotting in the server
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='HFS' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='PDERefiner' 
+#################################################################################################################################
+
+
+
+################################################################ SWE #################################################################
+
+CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000
+
+################################################################ SWE #################################################################
