@@ -24,6 +24,7 @@ from models.fno import FNO2d
 from models.uno import UNO
 from models.wavelet_transform import CrossWaveletTransformer
 from models.high_frequency_scaling import ResUNet
+from models.unet import UNet_withoutHFS, UNet_with_BottleneckHFS
 import pickle
 from tqdm import tqdm
 import pandas as pd
@@ -175,6 +176,14 @@ def load_data_model(just_load_path=False):
         model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
                  bottleneck_feature=512, 
                  device=device).to(device)
+    elif args.model == 'UNet_withoutHFS':
+        model = UNet_withoutHFS(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
+                            bottleneck_feature=512, 
+                            device=device).to(device)
+    elif args.model == 'UNet':
+        model = UNet_with_BottleneckHFS(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
+                                   bottleneck_feature=512, 
+                                   device=device).to(device)
     else:
         raise NotImplementedError
 
@@ -402,11 +411,11 @@ def no_postprocessing_pred_save_data(args):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=True)
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=False)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
-    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
