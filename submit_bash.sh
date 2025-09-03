@@ -59,8 +59,8 @@ source $HOME/.venvs/pytorch/bin/activate
 
 ################################################################ SWE #################################################################
 
-CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=2000 --user_writer --epochs=2000 --batch_size=128  --resume_path=True
-# CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer' --lr_method='cossin' --T_in=7 --user_writer --resume_path --epochs=2000 --batch_size=128
+CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer --epochs=2000 --batch_size=128  --resume_path=True
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer' --lr_method='cossin' --T_in=7 --use_writer --resume_path --epochs=2000 --batch_size=128
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer
 
 ################################################################ SWE #################################################################
