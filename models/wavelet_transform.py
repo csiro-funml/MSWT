@@ -637,7 +637,8 @@ if __name__ == "__main__":
     # Normal model usage
     model = CrossWaveletTransformer(wave='haar', dim=512)
     print("# parameters:", model.count_parameters())
-    x = torch.rand(2, 128, 128, 4, 3)
+    # x = torch.rand(2, 128, 128, 4, 3)
+    x = torch.rand(2, 96, 192, 4, 3)
     output = model(x)
     
     # validate gradient of the model
