@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=04:50:00
+#SBATCH --time=00:05:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -27,9 +27,6 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='UNet' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='HANO' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='UNet_withoutHFS' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
-
-## resume training
-# CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py  --use_writer --dataset='ns2d_pda' --model='wavelet_transformer' --lr_method='cossin' --resume_path=True
 
 
 ## Test the model
@@ -58,9 +55,14 @@ source $HOME/.venvs/pytorch/bin/activate
 
 
 ################################################################ SWE #################################################################
-
+# Train the model (including resume training)
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --use_writer --resume_path=True --epochs=2000 --batch_size=128
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer' --lr_method='cossin' --T_in=7 --use_writer --resume_path=True --epochs=2000 --batch_size=128
-CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer --resume_path=True --batch_size=128
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer --resume_path=True --batch_size=128
+
+# Test the model
+CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='FNO' --T_in=7
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer'
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='HFS'
 
 ################################################################ SWE #################################################################
