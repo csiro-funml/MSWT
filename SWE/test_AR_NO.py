@@ -110,12 +110,12 @@ def load_data_model(just_load_path=False):
     else:
         # load data and dataloader
         train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
-        test_dataset = TemporalDataset2D(args.dataset, n_train=260, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
+        test_dataset = TemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
 
 
     
     ntrain, ntest = len(train_dataset), len(test_dataset)
-    ntrain = 5200 if args.dataset == 'ns2d_pda' else ntrain # for testing
+    ntrain = 5200 if args.dataset == 'ns2d_pda' else ntrain # for testing (with my local folder)
     print(args.dataset)
     print('Train num {}, Test num {}'.format(ntrain, ntest))
 
@@ -400,11 +400,11 @@ def no_postprocessing_pred_save_data(args):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=True)
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=False)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
-    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
