@@ -286,6 +286,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     save_df = pd.DataFrame(columns=["step", "channel", "metric", f"{model_name}"])
     
     for step in step_dict.keys(): # first step and last step
+        print("evaluating step .....", step)
         for c in range(pred.shape[-1]):
             # evaluate different metrics per channel
             for key, loss_func in loss_dict.items():

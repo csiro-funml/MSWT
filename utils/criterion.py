@@ -172,12 +172,16 @@ class SpectralError(_WeightedLoss):
 
         if save_plot:
             # increase the font size
-            plt.loglog(k_freq, E_bins_target, 'X-',markersize=2, label='target', fontsize=16, linewidth=2)
-            plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred', fontsize=16, linewidth=2)
-            plt.legend(fontsize=16)
+            plt.loglog(k_freq, E_bins_target, 'X-',markersize=2, label='target', linewidth=2)
+            plt.loglog(k_freq, E_bins_pred, 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
+            font_size = 16
+            plt.legend(fontsize=font_size)
             # draw the dotted line at two points line 1: (self.k_low,0) to (self.k_low, k_freq[self.k_low]), line 2: (self.k_high,0) to (self.k_high, k_freq[self.k_high])
             plt.axvline(x=self.k_low, color='black', linestyle='--', linewidth=1, ymin=0, ymax=k_freq[self.k_low])
             plt.axvline(x=self.k_high, color='black', linestyle='--', linewidth=1, ymin=0, ymax=k_freq[self.k_high])
+            # set the font size for x tick and y tick labels
+            plt.xticks(fontsize=font_size)
+            plt.yticks(fontsize=font_size)
             if not os.path.exists(f'{self.save_path}/spectral_error'):
                 os.makedirs(f'{self.save_path}/spectral_error')
             plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{self.model_name}_c{channel}_t{time_step}.png')
