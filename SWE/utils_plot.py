@@ -1131,7 +1131,7 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     vmin = -vmax
 
     # cuz I want to text the different baseliens, I need to fix the threshol for the error
-    error_vmin = -0.1*vmin
+    error_vmin = 0.1*vmin
     error_vmax = 0.1*vmax
         
     
@@ -1160,13 +1160,13 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
         axes[2*row_idx, 1].set_ylabel('Pred T'+f'{time_idx+1}')
         axes[2*row_idx, 1].set_xticks([])
         axes[2*row_idx, 1].set_yticks([])
-        fig.colorbar(cm0, ax=axes[2*row_idx, 1], location='right', anchor=(0, 0.3), shrink=0.5) # add colorbar
+        fig.colorbar(cm0, ax=axes[2*row_idx, 1], location='right', anchor=(0, 0.), shrink=0.5) # add colorbar
         
         cm1 = axes[2*row_idx+1, 1].imshow(error[..., 0], cmap=cmap, vmin=error_vmin, vmax=error_vmax)
         axes[2*row_idx+1, 1].set_ylabel('Error T'+f'{time_idx+1}')
         axes[2*row_idx+1, 1].set_xticks([])
         axes[2*row_idx+1, 1].set_yticks([])
-        fig.colorbar(cm1, ax=axes[2*row_idx+1, 1], location='right', anchor=(0, 0.3), shrink=0.5)
+        fig.colorbar(cm1, ax=axes[2*row_idx+1, 1], location='right', anchor=(0, 0.), shrink=0.5)
     
     # tight layout
     fig.tight_layout()
