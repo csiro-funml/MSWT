@@ -1137,8 +1137,9 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     total_steps_to_plot = 3 
     fig, axes = plt.subplots(2*total_steps_to_plot, 2, figsize=(12, 5*total_steps_to_plot)) if model_name == 'FNO' else plt.subplots(2*total_steps_to_plot, 2, figsize=(12, 4*total_steps_to_plot))
     
-    max_total_steps = 15
-    for row_idx, time_idx in enumerate(range(0, max_total_steps, max_total_steps//total_steps_to_plot)):
+    max_total_steps = [0, 6, 12]
+    assert len(max_total_steps) == total_steps_to_plot, "max_total_steps must be the same as total_steps_to_plot"
+    for row_idx, time_idx in enumerate(max_total_steps):
         if 2*row_idx >= axes.shape[0]:
             break
         # DRAW THE FIRST COLUMN
