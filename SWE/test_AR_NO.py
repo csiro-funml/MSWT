@@ -277,7 +277,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     loss_dict['max_global'] = GlobalMaxAbsError()
     loss_dict['spectral_error'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97)
     
-    if 'ns' in log_path:
+    if 'ns2d' in log_path: # NS equation
         step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
     else:
         total_steps_to_compute = 5
