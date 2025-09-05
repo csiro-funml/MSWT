@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=00:05:00
+#SBATCH --time=00:10:00
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -61,7 +61,7 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/train_AR_NO.py --dataset='sw2d_pda' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=2000 --use_writer --resume_path=True --batch_size=128
 
 # Test the model
-# CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='FNO' --T_in=7 --epochs=2000
+CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='FNO' --T_in=7 --epochs=2000
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer' --T_in=7 --epochs=2000
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='HFS' --T_in=7 --epochs=2000
 
