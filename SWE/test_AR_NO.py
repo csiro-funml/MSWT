@@ -194,7 +194,7 @@ def load_data_model(just_load_path=False):
 ################################################################
 # Function 1 Report Average step, step-wise, and full prediction relative l2 norm
 ################################################################
-def predict_and_save(model, test_loader, save=False, log_path=None):
+def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=None):
     """
     test_error(model, test_loader, save=False)
     Args:
@@ -207,7 +207,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
     with torch.no_grad():
         model.eval()
         test_dataset = test_loader.dataset
-        max_steps = test_dataset[0][1].shape[-2]
+        max_steps = test_dataset[0][1].shape[-2] if max_steps is None else max_steps
 
         save_data = {'input': [], 'output': [], 'pred': []}
         # autoregressive computing  
@@ -226,6 +226,8 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
 
                 # preint 
             for t in range(0, yy.shape[-2], args.T_bundle):
+                if t > 30:
+                    break
                 im = model(xx)
                 if t == 0:
                     pred = im
@@ -237,7 +239,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
         
             # # save the data to np_data
             # # print("save input and output shape", xx.shape, yy.shape)
-            save_data['output'].append(yy)
+            save_data['output'].append(yy[..., :pred.shape[-2], :]) # I didn't save the entire trajectory
             save_data['pred'].append(pred)
 
         # organzie np_data
@@ -416,7 +418,7 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, max_steps=30)
     
     #### 2. load the save_data
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
