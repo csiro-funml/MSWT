@@ -1219,7 +1219,8 @@ if __name__ == '__main__':
     log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
     # FNO/Wavelet/HFS/PDERefiner test data
     pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
-    plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
+    for channel_id in range(pred_data['pred'].shape[-1]):
+        plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=channel_id, model_name=args.model, log_path=log_path)
     
     
     # FNO-Diffusion test data
