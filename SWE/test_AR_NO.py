@@ -211,11 +211,20 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
 
         save_data = {'input': [], 'output': [], 'pred': []}
         # autoregressive computing  
-        for xx, yy in test_loader:
+        for i, (xx, yy) in enumerate(test_loader):
             save_data['input'].append(xx)
-            xx = xx.to(device)
+            xx_raw = xx.to(device)
             yy = yy.to(device)
-            xx = test_dataset.normalize_x(xx) # normalize the input before the autoregressive predicting
+            xx = test_dataset.normalize_x(xx_raw) # normalize the input before the autoregressive predicting
+            if i == 0:
+                # print the range of the xx_raw
+                for c in range(xx_raw.shape[-1]):
+                    print("xx range before normalization", c, xx_raw[:, :, :, :, c].max().item(), xx_raw[:, :, :, :, c].min().item())
+                    print("xx range after normalization", c, xx[:, :, :, :, c].max().item(), xx[:, :, :, :, c].min().item())
+                # print the total number of steps in dataset
+                print("total number of steps in dataset", yy.shape[-2])
+                
+                # preint 
             for t in range(0, yy.shape[-2], args.T_bundle):
                 im = model(xx)
                 if t == 0:
