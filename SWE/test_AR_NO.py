@@ -211,7 +211,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
 
         save_data = {'input': [], 'output': [], 'pred': []}
         # autoregressive computing  
-        for i, (xx, yy) in enumerate(test_loader):
+        for i, (xx, yy) in tqdm(enumerate(test_loader)):
             save_data['input'].append(xx)
             xx_raw = xx.to(device)
             yy = yy.to(device)
