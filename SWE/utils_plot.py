@@ -1135,7 +1135,8 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     
 
     for row_idx, time_idx in enumerate(range(0, pred.shape[-1], pred.shape[-1]//total_steps_to_plot)):
-        
+        if 2*row_idx >= axes.shape[0]:
+            break
         # DRAW THE FIRST COLUMN
         # axes[0, 0] is the target at the first time step,
         axes[2*row_idx, 0].imshow(target[..., time_idx], vmin=vmin, vmax=vmax, cmap=cmap)
@@ -1150,13 +1151,13 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
         # DRAW THE SECOND COLUMN
         # axes[0, 1] to axes[1, 1] is the prediction and the abs error at the first time step
         cm0 = axes[2*row_idx, 1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
-        axes[2*row_idx, 1].set_ylabel('Pred T+1')
+        axes[2*row_idx, 1].set_ylabel('Pred T+{time_idx+1}')
         axes[2*row_idx, 1].set_xticks([])
         axes[2*row_idx, 1].set_yticks([])
         fig.colorbar(cm0, ax=axes[2*row_idx, 1], location='right', anchor=(0, 0.3), shrink=0.7) # add colorbar
         
         cm1 = axes[2*row_idx+1, 1].imshow(error[..., 0], cmap=cmap, vmin=error_vmin, vmax=error_vmax)
-        axes[2*row_idx+1, 1].set_ylabel('Error T+1')
+        axes[2*row_idx+1, 1].set_ylabel('Error T+{time_idx+1}')
         axes[2*row_idx+1, 1].set_xticks([])
         axes[2*row_idx+1, 1].set_yticks([])
         fig.colorbar(cm1, ax=axes[2*row_idx+1, 1], location='right', anchor=(0, 0.3), shrink=0.7)
