@@ -302,8 +302,10 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
                         if band_key == 'k_low' or band_key == 'k_high':
                             continue
                         print(f"Channel {c} {step_dict[step]} {band_key}: {val:.6f}")
-                        new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": band_key, f"{model_name}": val}).to_frame().T
+                        new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": band_key, f"{model_name}": val,
+                                             "k_low": loss_metric['k_low'], "k_high": loss_metric['k_high']}).to_frame().T
                         save_df = pd.concat([save_df, new_row], ignore_index=True)
+                    
                 else:
                     
                     loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
