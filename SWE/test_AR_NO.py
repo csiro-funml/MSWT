@@ -223,7 +223,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None):
                     print("xx range after normalization", c, xx[:, :, :, :, c].max().item(), xx[:, :, :, :, c].min().item())
                 # print the total number of steps in dataset
                 print("total number of steps in dataset", yy.shape[-2])
-                
+
                 # preint 
             for t in range(0, yy.shape[-2], args.T_bundle):
                 im = model(xx)
@@ -275,12 +275,17 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     loss_dict['max_global'] = GlobalMaxAbsError()
     loss_dict['spectral_error'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97)
     
-    step_dict = {0: "t=1", -1: "t=T"}
-
+    if 'ns' in log_path:
+        step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
+    else:
+        total_steps_to_compute = 5
+        step_dict = {t: f"t={t+1}" for t in range(0, pred.shape[-2], pred.shape[-2]//total_steps_to_compute)}
+        print("steps to compute",step_dict.keys())
     # Standard error metrics
     print("\n=== Channel-wise Error Metrics ===")
     save_df = pd.DataFrame(columns=["step", "channel", "metric", f"{model_name}"])
-    for step in [0, -1]: # first step and last step
+    
+    for step in step_dict.keys(): # first step and last step
         for c in range(pred.shape[-1]):
             # evaluate different metrics per channel
             for key, loss_func in loss_dict.items():
