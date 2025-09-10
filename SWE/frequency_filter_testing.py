@@ -61,7 +61,7 @@ parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3'
 parser.add_argument('--resume_path',type=int, default=1) # use random weights if not cuda available
 parser.add_argument('--use_writer', action='store_true',default=False)
 
-
+parser.add_argument('--n_autorepressive_steps',type=int, default=50)
 
 # ### dataset details
 parser.add_argument('--T_in', type=int, default=7)
@@ -468,7 +468,7 @@ def pass_filter_simluation_testing(filter_type='lowpass', filter_params=None):
     return E_freq_time
     
 
-def pass_filter_testing(test_loader=None, model=None, start_block_index=None):
+def pass_filter_testing(test_loader=None, model=None, start_block_index=None, n_autorepressive_steps=None):
     """
     Test the filter passing on the test loader
     """
@@ -492,7 +492,7 @@ def pass_filter_testing(test_loader=None, model=None, start_block_index=None):
         filter_func = model.get_testing_block_by_index
             
         # Run iterative filtering
-        total_steps = 50
+        total_steps = n_autorepressive_steps
         E_freq_time = np.zeros((total_steps, len(E_freq_raw)))
         E_freq_time[0] = 0
 
@@ -604,6 +604,6 @@ if __name__ == "__main__":
    model, test_loader, log_path = load_data_model()
    for start_block_index in range(args.n_layers):
        print(f"Testing block index {start_block_index}")
-       E_freq_time, start_block_index = pass_filter_testing(test_loader=test_loader, model=model, start_block_index=start_block_index)
+       E_freq_time, start_block_index = pass_filter_testing(test_loader=test_loader, model=model, start_block_index=start_block_index, n_autorepressive_steps=args.n_autorepressive_steps)
        plot_filter_passing(E_freq_time, simulation=False, start_block_index=start_block_index)
     
