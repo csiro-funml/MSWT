@@ -516,8 +516,10 @@ def plot_filter_passing(E_freq_time, simulation=True, start_block_index=None):
     # Apply smoothing if requested
 
     E_freq_smoothed = E_freq_time
-    
-    fig, axes = plt.subplots(1, 1, figsize=(12, 8))
+    if n_frequencies < 15:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 8)) # two one for smaller scale and one for larger scale
+    else:
+        fig, axes = plt.subplots(1, 1, figsize=(12, 8))
     
     # Create a colormap with different shades of blue
     from matplotlib.colors import LinearSegmentedColormap
@@ -549,23 +551,41 @@ def plot_filter_passing(E_freq_time, simulation=True, start_block_index=None):
                     axes.plot(time_steps, E_freq_smoothed[:, freq_idx], color='orange', linewidth=2, label=label, zorder=2, linestyle='--')
 
         # Add label only for every 5th frequency (or important frequencies)
-        if freq_idx % 5 == 0 or n_frequencies < 15:
-            axes.plot(time_steps, E_freq_smoothed[:, freq_idx], color=color, linewidth=1, alpha=0.6 if simulation else 1, label=label, zorder=1)
-        # else:
-        #     # Plot without label for cleaner legend
-        #     axes.plot(time_steps, E_freq_smoothed[:, freq_idx], color=color, linewidth=1, alpha=0.6, zorder=1)
-    
-    # Customize the plot
-    # axes.set_xlim(-1, n_steps)
-    axes.set_xlabel('Rollout time k', fontsize=12)
-    axes.set_ylabel('Log Energy', fontsize=12)
-    axes.set_title(f'Block Index {start_block_index}', fontsize=12)
-    axes.grid(True, alpha=0.3)
+        if n_frequencies < 15: # 12 frequencies in total
+            # split the frequencies into 2 groups [7, 5]
+            idx = 0 if freq_idx < 7 else 1
+            ax = axes[idx]
+            ax.plot(time_steps, E_freq_smoothed[: freq_idx], color=color, linewidth=1, alpha=0.6 if simulation else 1, label=label, zorder=1)
+            # Customize the plot
+            # axes.set_xlim(-1, n_steps)
+            ax.set_xlabel('Rollout time k', fontsize=12)
+            ax.set_ylabel('Log Energy', fontsize=12)
+            ax.set_title(f'Block Index {start_block_index}', fontsize=12)
+            ax.grid(True, alpha=0.3)
 
     
-    # Create a more organized legend
-    legend = axes.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
-    legend.set_title("Frequency Bins", prop={'size': 11, 'weight': 'bold'})
+            # Create a more organized legend
+            legend = ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
+            legend.set_title("Frequency Bins", prop={'size': 11, 'weight': 'bold'})
+
+        else:
+            if freq_idx % 5 == 0:
+                axes.plot(time_steps, E_freq_smoothed[:, freq_idx], color=color, linewidth=1, alpha=0.6 if simulation else 1, label=label, zorder=1)
+            # else:
+            #     # Plot without label for cleaner legend
+            #     axes.plot(time_steps, E_freq_smoothed[:, freq_idx], color=color, linewidth=1, alpha=0.6, zorder=1)
+    
+            # Customize the plot
+            # axes.set_xlim(-1, n_steps)
+            axes.set_xlabel('Rollout time k', fontsize=12)
+            axes.set_ylabel('Log Energy', fontsize=12)
+            axes.set_title(f'Block Index {start_block_index}', fontsize=12)
+            axes.grid(True, alpha=0.3)
+
+    
+            # Create a more organized legend
+            legend = axes.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
+            legend.set_title("Frequency Bins", prop={'size': 11, 'weight': 'bold'})
     
     plt.tight_layout()
     if not os.path.exists(f'{log_path}/filter_passing'):
