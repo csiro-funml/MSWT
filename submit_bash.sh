@@ -52,6 +52,11 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='PDERefiner' 
+
+
+# Frequency filter testing
+CUDA_VISIBLE_DEVICES=0 python3 SWE/frequency_filter_testing.py --dataset='ns2d_pda' --model='FNO' 
+
 #################################################################################################################################
 
 
@@ -65,7 +70,10 @@ source $HOME/.venvs/pytorch/bin/activate
 # Test the model
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='FNO' --T_in=7 --epochs=2000
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer' --T_in=7 --epochs=2000
-CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='HFS' --T_in=7 --epochs=2000
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='HFS' --T_in=7 --epochs=2000
 
-CUDA_VISIBLE_DEVICES=0 python3 SWE/utils_plot.py --dataset='sw2d_pda' --model='HFS' 
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/utils_plot.py --dataset='sw2d_pda' --model='HFS' 
 ################################################################ SWE #################################################################
+
+
+
