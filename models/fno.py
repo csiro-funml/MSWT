@@ -110,8 +110,7 @@ class FNO2d(nn.Module):
         else:
             self.fc2 = nn.Linear(self.width, n_channels * out_timesteps)
 
-
-    def forward(self, x):
+    def input_proj(self, x):
         T, C = x.shape[-2], x.shape[-1]
         if self.normalize:
             mu, sigma = x.mean(dim=(1,2,3),keepdim=True), x.std(dim=(1,2,3),keepdim=True) + 1e-6    # B,1,1,1,C
@@ -124,6 +123,16 @@ class FNO2d(nn.Module):
         x = torch.cat((x, grid), dim=-1)        #### B, X, Y, T*C +2
         x = self.fc0(x) + scale_feats
         x = x.permute(0, 3, 1, 2).contiguous()
+        if self.normalize:
+            return x, (mu, sigma)
+        else:
+            return x, (None, None)
+
+    def forward(self, x):
+        """
+        x: (B, H, W, T, C)
+        """
+        x, (mu, sigma) = self.input_proj(x)
 
         # print(x.shape, scale_feats.shape, self.normalize)
         # x = self.patch_embed(x) + scale_feats
@@ -168,6 +177,34 @@ class FNO2d(nn.Module):
         grid = torch.cat((gridx, gridy), dim=-1).to(x.device)
         return grid
 
+
+    def get_latent_by_index(self, x, start_block_index=0):
+        x, (mu, sigma) = self.input_proj(x)  # encoder
+        if start_block_index == 0:
+            # (B, C, H, W) -> (B, H, W, 1, C)
+            x = x.permute(0, 2, 3, 1).unsqueeze(-2)
+            return x
+        for i in range(start_block_index):
+            x = self.spectral_convs[i](x)
+            x = self.convs[i](x)
+            x = F.gelu(x)
+            if self.use_ln:
+                x = self.ln_layers[i](x) # (B, C, H, W)
+        # (B, C, H, W) -> (B, H, W, 1, C)
+        x = x.permute(0, 2, 3, 1).unsqueeze(-2)
+        return x
+    
+    def run_fno_block_by_index(self, index, x):
+        # the input comes in shape (B, H, W, 1, C), change it to (B, C, H, W)
+        x = x.squeeze(-2).permute(0, 3, 1, 2).contiguous()
+        x = self.spectral_convs[index](x)
+        x = self.convs[index](x)
+        x = F.gelu(x)
+        if self.use_ln:
+            x = self.ln_layers[index](x)
+        # (B, C, H, W) -> (B, H, W, 1, C)
+        x = x.permute(0, 2, 3, 1).unsqueeze(-2)
+        return x
 
 if __name__ == "__main__":
     # x = torch.rand(1, 128, 128, 10, 1)
