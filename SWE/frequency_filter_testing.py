@@ -468,7 +468,7 @@ def pass_filter_simluation_testing(filter_type='lowpass', filter_params=None):
     return E_freq_time
     
 
-def pass_filter_testing(test_loader=None, model=None, start_block_index=None, n_autorepressive_steps=None):
+def pass_filter_testing(test_loader=None, model=None, start_block_index=None, n_autorepressive_steps=None, residule=False):
     """
     Test the filter passing on the test loader
     """
@@ -500,8 +500,10 @@ def pass_filter_testing(test_loader=None, model=None, start_block_index=None, n_
             z = filter_func(start_block_index, z)
             E_freq_t, _ = compute_energy_spectrum(z, f_low, f_mid, f_high) 
             # Store relative energy change 
-            # E_freq_time[t+1] = np.log(E_freq_t) - np.log(E_freq_raw)
-            E_freq_time[t] = np.log(E_freq_t)
+            if residule:
+                E_freq_time[t] = np.log(E_freq_t) - np.log(E_freq_raw)
+            else:
+                E_freq_time[t] = np.log(E_freq_t)
 
     return E_freq_time, start_block_index
 
@@ -583,6 +585,6 @@ if __name__ == "__main__":
    model, test_loader, log_path = load_data_model()
    for start_block_index in range(args.n_layers):
        print(f"Testing block index {start_block_index}")
-       E_freq_time, start_block_index = pass_filter_testing(test_loader=test_loader, model=model, start_block_index=start_block_index, n_autorepressive_steps=args.n_autorepressive_steps)
+       E_freq_time, start_block_index = pass_filter_testing(test_loader=test_loader, model=model, start_block_index=start_block_index, n_autorepressive_steps=args.n_autorepressive_steps, residule=True)
        plot_filter_passing(E_freq_time, simulation=False, start_block_index=start_block_index)
     
