@@ -56,7 +56,7 @@ warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
-parser.add_argument('--model', type=str, default='FNO') # FNO, ViT, UNO, CNO, Oformer, Transolver, DPOT, Crossformer, wavelet_transformer
+parser.add_argument('--model', type=str, default='wavelet_transformer') # FNO, ViT, UNO, CNO, Oformer, Transolver, DPOT, Crossformer, wavelet_transformer
 parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=int, default=1) # use random weights if not cuda available
 parser.add_argument('--use_writer', action='store_true',default=False)
@@ -217,17 +217,35 @@ def compute_energy_spectrum(z, f_low=None, f_mid=None, f_high=None):
     if f_low/mid/high is None, use the quantile to find the frequency bands,and return the normalized energy spetrum and the frequency bands
     else, compute the normalized energy of the frequency using the frequency bands
     """
-    if z.shape[1] == z.shape[2]:
-        # run 2D FFT and then bin the frequencies from 2D to 1D
-        k_low, k_high, k_freq, E_freq = get_frequency_bands_from_cumulative_energy(z, low_percentile=0.7, high_percentile=0.97)
+    if len(z.shape) == 3: # a list of (B, N, D) transformer block from wavelet transformer
+        E_freq_list = []
+        img_size_list = [16**2, 8**2, 4**2, 2**2]
+        total_img_size = sum(img_size_list)
+        assert z.shape[1] == total_img_size, "the number of pixels in the input should be the sum of the pixels in the image at each scale"
+        
+        # split z into a list of (B, sqrt(img_size_list[i]), sqrt(img_size_list[i]), D)
+        z_list = torch.split(z, img_size_list, dim=1)
+        for z_i in z_list:
+            H, W = int(np.sqrt(z_i.shape[1])), int(np.sqrt(z_i.shape[1]))
+            # reshape z_i to (B, sqrt(img_size_list[i]), sqrt(img_size_list[i]), D)
+            z_i = z_i.reshape(z_i.shape[0], H, W, 1, z_i.shape[2])
+            #
+            # run 2D FFT and then bin the frequencies from 2D to 1D
+            k_low, k_high, k_freq, E_freq = get_frequency_bands_from_cumulative_energy(z_i, low_percentile=0.7, high_percentile=0.97)
+            E_freq_list.append(E_freq)
+        E_freq = np.concatenate(E_freq_list, axis=0) #(7+3+1+1)
     else:
-        k_low, k_high, k_freq, E_freq = get_frequency_bands_from_cumulative_energy_1D(z,low_percentile=0.7, high_percentile=0.97)
+        if z.shape[1] == z.shape[2]:
+            # run 2D FFT and then bin the frequencies from 2D to 1D
+            k_low, k_high, k_freq, E_freq = get_frequency_bands_from_cumulative_energy(z, low_percentile=0.7, high_percentile=0.97)
+        else:
+            k_low, k_high, k_freq, E_freq = get_frequency_bands_from_cumulative_energy_1D(z,low_percentile=0.7, high_percentile=0.97)
 
-    # aggregate the energy with the frequency bands (normalized by the band width), k_freq is np.ndarry need to cast to int
-    if f_low is None or f_mid is None or f_high is None:
-        f_low = (k_freq[:k_low] -1).astype(int) # -1 because the frequency is 0-indexed
-        f_mid = (k_freq[k_low:k_high] -1).astype(int)
-        f_high = (k_freq[k_high:] - 1).astype(int)
+        # aggregate the energy with the frequency bands (normalized by the band width), k_freq is np.ndarry need to cast to int
+        if f_low is None or f_mid is None or f_high is None:
+            f_low = (k_freq[:k_low] -1).astype(int) # -1 because the frequency is 0-indexed
+            f_mid = (k_freq[k_low:k_high] -1).astype(int)
+            f_high = (k_freq[k_high:] - 1).astype(int)
     
     # E_low_raw = E_freq[f_low].mean()
     # E_mid_raw = E_freq[f_mid].mean()
@@ -471,7 +489,7 @@ def pass_filter_testing(test_loader=None, model=None, start_block_index=None):
         E_freq_raw, (f_low, f_mid, f_high) = compute_energy_spectrum(z)
         
         
-        filter_func = model.run_fno_block_by_index
+        filter_func = model.get_testing_block_by_index
             
         # Run iterative filtering
         total_steps = 50
@@ -531,7 +549,7 @@ def plot_filter_passing(E_freq_time, simulation=True, start_block_index=None):
                     axes.plot(time_steps, E_freq_smoothed[:, freq_idx], color='orange', linewidth=2, label=label, zorder=2, linestyle='--')
 
         # Add label only for every 5th frequency (or important frequencies)
-        if freq_idx % 5 == 0:
+        if freq_idx % 5 == 0 or n_frequencies < 15:
             axes.plot(time_steps, E_freq_smoothed[:, freq_idx], color=color, linewidth=1, alpha=0.6 if simulation else 1, label=label, zorder=1)
         # else:
         #     # Plot without label for cleaner legend

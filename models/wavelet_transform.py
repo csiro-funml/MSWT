@@ -384,8 +384,89 @@ class CrossWaveletTransformer(nn.Module):
             self.output_proj =  nn.ConvTranspose2d(dim, 3, kernel_size=patch_size, stride=patch_size, padding=0)
         self.normalize = normalize
         
-
+    def get_latent_by_index(self, x, index):
+        """ 
+        Get the latent representation from the input to the (index -1)-th block of Transformer
+        """
+        x, img_size = self.get_dwt_representation(x) # (B, N, D)
+        if index == 0:
+            return x
+        for attn, ff in self.transformer.layers[:index]:
+            x = attn(x) + x
+            x = ff(x) + x
+        return x
     
+    def get_testing_block_by_index(self, index, x):
+        """
+        Get the latent representation from the input to the index-th block of Transformer
+        """
+        attn, ff = self.transformer.layers[index]
+        x = attn(x) + x
+        x = ff(x) + x
+        return x
+
+
+    def get_dwt_representation(self, x):
+         # Store original spatial dimensions
+        orig_h, orig_w = x.shape[1], x.shape[2]
+        
+        # get grid and concat
+        if self.normalize:
+            mu, sigma = x.mean(dim=(1,2,3),keepdim=True), x.std(dim=(1,2,3),keepdim=True) + 1e-6    # B,1,1,1,C
+            x = (x - mu)/ sigma
+
+        grid = self.get_grid(x.size(), x.device)
+        x = x.view(*x.shape[:-2], -1)           #### B, X, Y, T*C
+        x = torch.cat((x, grid), dim=-1)
+        x = x.permute(0, 3, 1, 2).contiguous() 
+
+        # Calculate padding needed for patch_size
+        patch_h, patch_w = self.patch_size
+        pad_h = (patch_h - (orig_h % patch_h)) % patch_h
+        pad_w = (patch_w - (orig_w % patch_w)) % patch_w
+        
+        # Apply padding if needed
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+
+        # input shape: (B, C, H, W)
+        # projecting to a higher dimension, 2d convolution with kernel size 1
+        x = self.input_proj(x) # (B, D, H, W)
+        
+        # Store the projected dimensions (after patch embedding)
+        proj_h, proj_w = x.shape[-2], x.shape[-1]
+        
+        # run several blocks of DWT to obtain the wavelet coefficients
+        x_scale = []
+        img_size = []
+        img_dims = []  # Store actual (height, width) dimensions
+        break_idx = 0
+        for i in range(self.num_dwt_blocks):
+            x = self.dwt_project[i](x)  # (B, D//4, H, W)
+            if min(x.shape[-1], x.shape[-2]) ==1: # too small for wavelet transform
+                break_idx = i
+                break
+            # Store original dimensions before DWT
+            orig_h_dwt, orig_w_dwt = x.shape[-2], x.shape[-1]
+            img_dims.append((orig_h_dwt, orig_w_dwt))
+            
+            # apply DWT
+            x = self.dwt(x) # (B, 4*D//4, H//2, W//2)
+            img_size.append((x.shape[2]*x.shape[3]))
+            x_scale_input = rearrange(x, 'b d h w -> b (h w) d')  # (B, D, H//2 * W//2)
+            # generate relative position embeddings for every position in the [H//2, W//2] grid
+            pos_embed = self.relative_position_embeddings(x.shape[2], x.shape[3], x.device) # shape (B, D, H//2 * W//2)
+            # scale embeddings for each scale
+            scale_embed = self.scale_embeddings[i]  # (B, D, 1)
+            
+            x_scale_input = x_scale_input + pos_embed + scale_embed # (B, D, H//2 * W//2)
+            x_scale.append(x_scale_input)
+
+        # concatenate the wavelet coefficients from all scales
+        x = torch.cat(x_scale, dim=1) # (B, N, D)
+
+        return x, img_size
+
     def get_grid(self, shape, device):
         batchsize, size_x, size_y = shape[0], shape[1], shape[2]
         gridx = torch.tensor(np.linspace(0, 2 * np.pi, size_x), dtype=torch.float)
@@ -632,13 +713,13 @@ def test_comprehensive_gradients():
 if __name__ == "__main__":
     # Quick validation test
     print("Running quick validation...")
-    test_gradient_error()  # Test the specific case that was problematic
+    # test_gradient_error()  # Test the specific case that was problematic
     
     # Normal model usage
     model = CrossWaveletTransformer(wave='haar', dim=512)
     print("# parameters:", model.count_parameters())
-    # x = torch.rand(2, 128, 128, 4, 3)
-    x = torch.rand(2, 96, 192, 4, 3)
+    x = torch.rand(2, 128, 128, 4, 3)
+    # x = torch.rand(2, 48, 96, 4, 3)
     output = model(x)
     
     # validate gradient of the model

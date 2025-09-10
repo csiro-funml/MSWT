@@ -194,7 +194,7 @@ class FNO2d(nn.Module):
         x = x.permute(0, 2, 3, 1).unsqueeze(-2)
         return x
     
-    def run_fno_block_by_index(self, index, x):
+    def get_testing_block_by_index(self, index, x):
         # the input comes in shape (B, H, W, 1, C), change it to (B, C, H, W)
         x = x.squeeze(-2).permute(0, 3, 1, 2).contiguous()
         x = self.spectral_convs[index](x)
