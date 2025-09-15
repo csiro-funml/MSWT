@@ -1189,8 +1189,13 @@ def plot_prediction_gt_logscale_abserror(pred_data, sample_id=0, channel_id=0, m
     target = pred_data['output'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
     print("sample_id", sample_id, "channel_id", channel_id, "pred shape", pred.shape, "target shape", target.shape)
     
-    pred = np.log(pred)
-    target = np.log(target)
+    #
+    pred = np.log(np.abs(pred))
+    target = np.log(np.abs(target))
+
+    # truncate the very small values
+    pred = np.where(pred < -10, -10, pred)
+    target = np.where(target < -10, -10, target)
     
     error = pred - target # (H, W, T_out)    
 
