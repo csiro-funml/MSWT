@@ -1180,6 +1180,80 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     # plt.tight_layout()
 
 
+
+def plot_prediction_gt_logscale_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_path=None):
+    print("saved_data shape", pred_data['pred'].shape, "pred_data.keys()", pred_data.keys())
+    # keys are (input, output, pred), shape of  (B, H, W, T_in/out, C)
+    
+    pred = pred_data['pred'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
+    target = pred_data['output'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
+    print("sample_id", sample_id, "channel_id", channel_id, "pred shape", pred.shape, "target shape", target.shape)
+    
+    pred = np.log(pred)
+    target = np.log(target)
+    
+    error = pred - target # (H, W, T_out)    
+
+    # axes has two columns and four rows: 
+   
+    # use target min and max as vmin and vmax
+    vmin = np.min(target)
+    vmax = np.max(target)
+    # make them symmetrical around zero
+    vmax = max(abs(vmin), abs(vmax))
+    vmin = -vmax
+    # cuz I want to text the different baseliens, I need to fix the threshol for the error (5% of the output)
+    error_vmin = 0.1*vmin
+    error_vmax = 0.1*vmax
+    
+    cmap = 'RdBu_r'
+    total_steps_to_plot = 3 
+    fig, axes = plt.subplots(2*total_steps_to_plot, 2, figsize=(12, 5*total_steps_to_plot)) if model_name == 'FNO' else plt.subplots(2*total_steps_to_plot, 2, figsize=(12, 4*total_steps_to_plot))
+    
+    max_total_steps = [0, 6, 12]
+    assert len(max_total_steps) == total_steps_to_plot, "max_total_steps must be the same as total_steps_to_plot"
+    for row_idx, time_idx in enumerate(max_total_steps):
+        if 2*row_idx >= axes.shape[0]:
+            break
+        # DRAW THE FIRST COLUMN
+        # axes[0, 0] is the target at the first time step,
+        axes[2*row_idx, 0].imshow(target[..., time_idx], vmin=vmin, vmax=vmax, cmap=cmap)
+        axes[2*row_idx, 0].set_ylabel('GT T'+f'{time_idx+1}')
+        # just turn off the ticks but not lables
+        axes[2*row_idx, 0].set_xticks([])
+        axes[2*row_idx, 0].set_yticks([])
+
+        # turn off axes  for axes[2*row_idx+1, 0]
+        axes[2*row_idx+1, 0].axis('off')
+    
+        # DRAW THE SECOND COLUMN
+        # axes[0, 1] to axes[1, 1] is the prediction and the abs error at the first time step
+        cm0 = axes[2*row_idx, 1].imshow(pred[..., time_idx], vmin=vmin, vmax=vmax, cmap=cmap)
+        axes[2*row_idx, 1].set_ylabel('Pred T'+f'{time_idx+1}')
+        axes[2*row_idx, 1].set_xticks([])
+        axes[2*row_idx, 1].set_yticks([])
+        fig.colorbar(cm0, ax=axes[2*row_idx, 1], location='right', anchor=(0, 0.5), shrink=0.6) # add colorbar
+        
+        cm1 = axes[2*row_idx+1, 1].imshow(error[..., time_idx], cmap=cmap, vmin=error_vmin, vmax=error_vmax)
+        axes[2*row_idx+1, 1].set_ylabel('Error T'+f'{time_idx+1}')
+        axes[2*row_idx+1, 1].set_xticks([])
+        axes[2*row_idx+1, 1].set_yticks([])
+        fig.colorbar(cm1, ax=axes[2*row_idx+1, 1], location='right', anchor=(0, 0.5), shrink=0.6)
+    
+    # tight layout
+    fig.tight_layout()
+    plt.savefig(f'{log_path}/{model_name}_prediction_gt_logscale_error_channel_{channel_id}.png')
+    plt.show()
+    
+    return pred, target, error
+    # plot the prediction and ground truth and abs error
+    # plt.imshow(pred[0, 0, ...], vmin=vmin, vmax=vmax, cmap=custom_cmap)
+    # plt.axis('off')
+    # plt.title('Prediction')
+    # plt.tight_layout()
+
+
+
 if __name__ == '__main__':
     
     """
@@ -1226,7 +1300,8 @@ if __name__ == '__main__':
     # FNO/Wavelet/HFS/PDERefiner test data
     pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     for channel_id in range(pred_data['pred'].shape[-1]):
-        plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=channel_id, model_name=args.model, log_path=log_path)
+        # plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=channel_id, model_name=args.model, log_path=log_path)
+        plot_prediction_gt_logscale_abserror(pred_data, sample_id=0, channel_id=channel_id, model_name=args.model, log_path=log_path)
     
     
     # FNO-Diffusion test data
