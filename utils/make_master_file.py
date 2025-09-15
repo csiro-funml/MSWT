@@ -305,6 +305,7 @@ else:
                           }
 DATASET_DICT[name]['train_size'] = 5200
 DATASET_DICT[name]['test_size'] = 260       ### default 650, maximum 1300
+DATASET_DICT[name]['test_long_size'] = 2       ### default 650, maximum 1300
 DATASET_DICT[name]['val_size'] = 260       ### default 650, maximum 1300
 DATASET_DICT[name]['scatter_storage'] = True
 DATASET_DICT[name]['t_test'] = 10   ## predict 10 timesteps for testing
