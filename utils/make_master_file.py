@@ -300,7 +300,8 @@ if not torch.cuda.is_available():
 else:
     DATASET_DICT[name] = {'train_path': '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda/train', 
                           'test_path': '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda/test',
-                           'val_path': '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda/val'
+                           'val_path': '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda/val',
+                           'test_long_path': '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda/test_long'
                           }
 DATASET_DICT[name]['train_size'] = 5200
 DATASET_DICT[name]['test_size'] = 260       ### default 650, maximum 1300

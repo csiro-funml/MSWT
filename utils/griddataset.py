@@ -669,7 +669,16 @@ class TemporalDataset2D(Dataset):
             path = DATASET_DICT[self.data_name]['%s_path'%train]
             self.data_files = partial(open_hdf5_file, path)
         else:
-            self.data_files = h5py.File(DATASET_DICT[self.data_name]['train_path'] if train else DATASET_DICT[self.data_name]['test_path'], 'r')
+            if train == 'train': 
+                self.data_files = h5py.File(DATASET_DICT[self.data_name]['train_path'], 'r')
+            elif train == 'test':
+                self.data_files = h5py.File(DATASET_DICT[self.data_name]['test_path'], 'r')
+            elif train == 'var':
+                self.data_files = h5py.File(DATASET_DICT[self.data_name]['val_path'], 'r')
+            elif train == 'test_long':
+                self.data_files = h5py.File(DATASET_DICT[self.data_name]['test_long_path'], 'r')
+            else:
+                raise ValueError(f"Invalid train type: {train}")
 
         
         # if normalize
