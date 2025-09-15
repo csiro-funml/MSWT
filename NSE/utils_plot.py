@@ -25,7 +25,6 @@ from utils.utilities import count_parameters, get_grid, load_model_from_checkpoi
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, TemporalDataset2D_multiscale
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
-from models.uno import UNO
 
 from models.wavelet_transform import CrossWaveletTransformer
 import pickle
@@ -1179,7 +1178,8 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     
     # tight layout
     fig.tight_layout()
-    plt.savefig(f'{log_path}/{model_name}_prediction_gt_error.png')
+    # plt.savefig(f'{log_path}/{model_name}_prediction_gt_error.png')
+    plt.savefig(f'{log_path}/{model_name}_prediction_gt_long_error.png', dpi=300)
     plt.show()
     
     return pred, target, error
