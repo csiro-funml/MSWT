@@ -1234,7 +1234,8 @@ if __name__ == '__main__':
     comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
     log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
     # FNO/Wavelet/HFS/PDERefiner test data
-    pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    # pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    pred_data = torch.load(f'{log_path}/test_long_data_prediction.pth', map_location=device)
     plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
     
     
