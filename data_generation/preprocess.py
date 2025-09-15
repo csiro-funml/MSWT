@@ -339,6 +339,67 @@ def preprocess_ns2d(load_path='data/large/pdearena/NavierStokes-2D',
                 continue
 
 
+
+def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
+                    save_path='data/large/pdearena/ns2d_pda'):
+    """
+    Preprocess the Navier-Stokes 2D dataset from PDEArena
+
+    there are 3 channels in the dataset:
+        u, vx, vy
+    data shape: (N, 128, 128, 14, 3)
+    """
+    load_path = '/Users/wan410/Documents/VSCode/pdearena/pdearena_data/navierstokes/'
+    path = 'pdearena/ns2d_pda/test_long/'
+    file = 'NavierStokes2D_test_300_0.50000.h5'
+    # SAVE_PATH_VAL = save_path + 'test_long/'
+
+    # Create new folders if SAVE_PATH does not exist
+    # os.makedirs(SAVE_PATH_VAL, exist_ok=True)
+    test_tot = 0
+    train_tot = 0
+    val_tot = 0
+    # Traverse the file in LOAD_PATH
+
+    # for file in tqdm([load_path]):
+        # Skip the file if it is not a HDF5 file
+        # if not file.endswith('.h5'):
+            # continue
+    # Open the file
+    try:
+        with h5py.File(os.path.join(load_path, file), 'r') as f:
+            key = 'test' 
+
+            u = f[key]['u'][:]
+            vx = f[key]['vx'][:]
+            vy = f[key]['vy'][:]
+
+            out = np.stack([u, vx, vy], axis=-1)
+            out = np.transpose(out, (0, 2, 3, 1, 4))
+
+            # Create the destination file
+            for data in out:
+                if key == 'test':
+                    idx = test_tot
+                    test_tot += 1
+                elif key == 'valid':
+                    idx = val_tot
+                    val_tot += 1
+                else:
+                    idx = train_tot
+                    train_tot += 1
+                dst_file = 'data_{}.hdf5'.format(idx)
+                save_path = os.path.join(path, dst_file)
+                with h5py.File(save_path, 'w') as g:
+                    # Write data as a hdf5 dataset
+                    # with key 'data'
+                    g.create_dataset('data', data=data)
+    except Exception as e:
+        print('Error in file {}: {}'.format(file, e))
+        # continue
+
+
+
 def preprocess_ns2d_cond():
     """
     Preprocess the Navier-Stokes 2D conditioned
@@ -548,8 +609,9 @@ if __name__ == '__main__':
     #### PDEArena datasets
     load_path = '/scratch3/wan410/operator_learning_data/pdearena/NavierStokes-2D'
     save_path = '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda'
-    preprocess_ns2d(load_path=load_path,
-                    save_path=save_path)
+    # preprocess_ns2d(load_path=load_path,
+                    # save_path=save_path)
+    preprocess_ns2d_longrollout()
     
     # preprocess_ns2d()
     # preprocess_ns2d_cond()
