@@ -30,7 +30,7 @@ class FourierTransformer(Transformer):
     
     def get_pos_emb(self, x):
         pos_emb = self.pos_emb(x.shape[-2], x.shape[-1]//2 +1, x.device)
-        pos_emb = torch.cat((pos_emb, pos_emb), dim=0) # include the real and imaginary parts with the same position embedding
+        # pos_emb = torch.cat((pos_emb, pos_emb), dim=0) # include the real and imaginary parts with the same position embedding
         return pos_emb.unsqueeze(0)
     
     def forward(self, x):
@@ -42,7 +42,8 @@ class FourierTransformer(Transformer):
         for layer_idx, (attn, ff) in enumerate(self.layers):
             # fourier transform
             x = torch.fft.rfft2(x) # (B, D, H, W//2+1)
-            x = torch.cat((x.real, x.imag), dim=-1) # include the real and imaginary parts
+            # x = torch.cat((x.real, x.imag), dim=-1) # include the real and imaginary parts
+            x = x.real
             h, w= x.shape[-2], x.shape[-1]
             x = rearrange(x, 'b d h w -> b (h w) d')
             # attention block in the fourier domain
@@ -51,7 +52,7 @@ class FourierTransformer(Transformer):
             x = attn(x) + x
             x = ff(x) + x
             x = rearrange(x, 'b (h w) d -> b d h w', h=h, w=w)
-            x = torch.complex(x[..., :x.shape[-1]//2], x[..., x.shape[-1]//2:]).to(x_raw.device)
+            # x = torch.complex(x[..., :x.shape[-1]//2], x[..., x.shape[-1]//2:]).to(x_raw.device)
             # inverse fourier transform
             x = torch.fft.irfft2(x) # (B, D, H, W)
             # only modelling the residual, i.e., the velocity
