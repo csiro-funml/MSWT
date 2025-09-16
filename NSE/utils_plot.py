@@ -1218,13 +1218,13 @@ def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_
 
     gif_path = f'{log_path}/{model_name}_target.gif'
     try:
-        anim.save(gif_path, writer=PillowWriter(fps=5))
+        anim.save(gif_path, writer=PillowWriter(fps=2))
     except Exception as e:
         print(f'Failed to save GIF due to: {e}')
 
     # Try MP4 as well if ffmpeg is available
     try:
-        anim.save(f'{log_path}/{model_name}_target.mp4', writer='ffmpeg', fps=10)
+        anim.save(f'{log_path}/{model_name}_target.mp4', writer='ffmpeg', fps=5)
     except Exception as e:
         print(f'FFmpeg not available or failed to save MP4: {e}')
 
