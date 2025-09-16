@@ -10,12 +10,13 @@ FFormerBlocl(x):    IFT(Transformer(FFT(x)))
 import torch
 import torch.nn as nn
 import numpy as np
-from .wavelet_transform import Transformer
+from .wavelet_transform import Transformer, RelativePositionBias
 from einops import rearrange
 
 class FourierTransformer(Transformer):
     def __init__(self, dim, depth, heads, dim_head, mlp_dim):
         super(FourierTransformer, self).__init__(dim, depth, heads, dim_head, mlp_dim)
+        self.pos_emb = RelativePositionBias(dim=dim)
 
     def norm_with_reshape(self, x):
         x = rearrange(x, 'b d h w -> b h w d')
@@ -25,6 +26,8 @@ class FourierTransformer(Transformer):
 
     def forward(self, x):
         x_raw = x
+        # maybe add position embedding here
+        x = x + self.pos_emb(x.shape[-2], x.shape[-1], x.device)
         # only learn attention in the attention block but not in the skip connection
         for attn, ff in self.layers:
             # fourier transform
