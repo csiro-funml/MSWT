@@ -7,7 +7,6 @@ import sys
 import os
 # Add parent directory to Python path to access utils and models
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-# os.environ['OMP_NUM_THREADS'] = '16'
 
 import json
 import time
@@ -25,10 +24,10 @@ from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, Ma
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
-from models.uno import UNO
+from models.fformer import FFormer
 from models.wavelet_transform import CrossWaveletTransformer
 from models.high_frequency_scaling import ResUNet
-from models.unet import UNet_with_BottleneckHFS, UNet_withoutHFS
+# from models.unet import UNet_with_BottleneckHFS, UNet_withoutHFS
 from models.hano import HANO2d
 import pickle
 from tqdm import tqdm
@@ -42,7 +41,7 @@ from lion_pytorch import Lion
 
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
-parser.add_argument('--model', type=str, default='UNet_withoutHFS') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
+parser.add_argument('--model', type=str, default='FFormer') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
 parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
@@ -158,8 +157,8 @@ if args.model == "FNO":
                   n_layers = args.n_layers, 
                 # normalize=args.normalize, 
                  ).to(device)
-elif args.model == 'UNO':
-    model = UNO( width=args.width, n_channels=train_dataset.n_channels, in_timesteps = args.T_in,  out_timesteps=1).to(device)
+elif args.model == 'FFormer':
+    model = FFormer(in_channels=train_dataset.n_channels, out_channels=train_dataset.n_channels, in_timesteps=args.T_in, out_timesteps=1, n_layers=3, dim=1024, patch_size=(4, 4)).to(device)
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'HFS':
