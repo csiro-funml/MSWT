@@ -1195,18 +1195,22 @@ def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_
     # keys are (input, output, pred), shape of  (B, H, W, T_in/out, C)
     cmap = 'RdBu_r'
     target = pred_data['output'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
-    # pred = pred_data['pred'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
+    pred = pred_data['pred'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
     vmin = np.min(target)
     vmax = np.max(target)
     
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     ax.axis('off')
-    img = ax.imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
-    title_text = ax.set_title('Target T+1')
+    img = ax[0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    img = ax[1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    title_text = ax[0].set_title('Target T+1')
+    title_text = ax[1].set_title('Pred T+1')
 
     def update(frame_idx):
         img.set_data(target[..., frame_idx])
-        title_text.set_text(f'Target T+{frame_idx+1}')
+        title_text[0].set_text(f'Target T+{frame_idx+1}')
+        img.set_data(pred[..., frame_idx])
+        title_text[1].set_text(f'Pred T+{frame_idx+1}')
         return img, title_text
 
     anim = FuncAnimation(fig, update, frames=target.shape[2], interval=200, blit=False)
