@@ -356,7 +356,8 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
         load_path = '/home/wan410/pdearena/pdearena_data/navierstokes'
         save_data_path = '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda/test_long/'
  
-    file = 'NavierStokes2D_test_300_0.50000.h5'
+    # file = 'NavierStokes2D_test_300_0.50000.h5'
+    file = 'NavierStokes2D_test_198210_0.50000.h5'
     # SAVE_PATH_VAL = save_path + 'test_long/'
 
     # Create new folders if SAVE_PATH does not exist
