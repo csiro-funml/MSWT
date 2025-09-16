@@ -349,8 +349,13 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
         u, vx, vy
     data shape: (N, 128, 128, 14, 3)
     """
-    load_path = '/Users/wan410/Documents/VSCode/pdearena/pdearena_data/navierstokes/'
-    path = 'pdearena/ns2d_pda/test_long/'
+    if not torch.cuda.is_available():
+        load_path = '/Users/wan410/Documents/VSCode/pdearena/pdearena_data/navierstokes/'
+        save_data_path = 'pdearena/ns2d_pda/test_long/'
+    else:
+        load_path = '/home/wan410/pdearena/pdearena_data/navierstokes'
+        save_data_path = '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda/test_long/'
+ 
     file = 'NavierStokes2D_test_300_0.50000.h5'
     # SAVE_PATH_VAL = save_path + 'test_long/'
 
@@ -389,7 +394,7 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
                     idx = train_tot
                     train_tot += 1
                 dst_file = 'data_{}.hdf5'.format(idx)
-                save_path = os.path.join(path, dst_file)
+                save_path = os.path.join(save_data_path, dst_file)
                 with h5py.File(save_path, 'w') as g:
                     # Write data as a hdf5 dataset
                     # with key 'data'
