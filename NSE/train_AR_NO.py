@@ -129,7 +129,7 @@ comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrai
 log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
 # model_path = log_path + '/model.pth'
 # model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
-model_path = log_path + f'/model_epochs_{args.epochs}.pth'
+model_path = log_path + f'/model_epochs_{args.epochs}_patchsize_{args.patch_size}.pth'
 print(model_path)
 if args.use_writer:
     writer = SummaryWriter(log_dir=log_path)
@@ -158,7 +158,10 @@ if args.model == "FNO":
                 # normalize=args.normalize, 
                  ).to(device)
 elif args.model == 'FFormer':
-    model = FFormer(in_channels=train_dataset.n_channels, out_channels=train_dataset.n_channels, in_timesteps=args.T_in, out_timesteps=1, n_layers=3, dim=1024, patch_size=(4, 4)).to(device)
+    model = FFormer(in_channels=train_dataset.n_channels, out_channels=train_dataset.n_channels, in_timesteps=args.T_in, out_timesteps=1,
+      patch_size=(args.patch_size, args.patch_size),
+      n_layers=3, dim=1024,
+     ).to(device)
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'HFS':

@@ -472,7 +472,7 @@ class FFormer(nn.Module):
 
 if __name__ == "__main__":
     x = torch.randn(2, 128, 128, 7, 3)
-    model = FFormer(in_channels=3, out_channels=3, in_timesteps=7, out_timesteps=1, n_layers=3, dim=1024, patch_size=(4, 4))
+    model = FFormer(in_channels=3, out_channels=3, in_timesteps=7, out_timesteps=1, n_layers=3, dim=1024, patch_size=(8, 8))
     print(model.count_parameters())
     y = model(x)
     print(y.shape)
