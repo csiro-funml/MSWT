@@ -1200,19 +1200,19 @@ def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_
     vmax = np.max(target)
     
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    img = ax[0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
-    img = ax[1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    img0 = ax[0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    img1 = ax[1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
     ax[0].axis('off')
     ax[1].axis('off')
-    title_text = ax[0].set_title('Target T+1')
-    title_text = ax[1].set_title('Pred T+1')
+    title1 =ax[0].set_title('Target T+1')
+    title2 = ax[1].set_title('Pred T+1')
 
     def update(frame_idx):
-        img.set_data(target[..., frame_idx])
-        title_text[0].set_text(f'Target T+{frame_idx+1}')
-        img.set_data(pred[..., frame_idx])
-        title_text[1].set_text(f'Pred T+{frame_idx+1}')
-        return img, title_text
+        img0.set_data(target[..., frame_idx])
+        title1.set_text(f'Target T+{frame_idx+1}')
+        img1.set_data(pred[..., frame_idx])
+        title2.set_text(f'Pred T+{frame_idx+1}')
+        return img0, img1, title1, title2
 
     anim = FuncAnimation(fig, update, frames=target.shape[2], interval=200, blit=False)
 
