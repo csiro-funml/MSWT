@@ -344,7 +344,10 @@ for ep in pbar:
                     else:
                         for band_key in list(loss_metric.keys()): # only save  spec_low, spec_mid, spec_high
                             writer.add_scalar(f"test_{key}_{band_key}", loss_metric[band_key], ep)
-
+                # write the pred and target as an image
+                #pred_denorm # (B,H,W,T,C)
+                writer.add_image("model pred", pred_denorm[[0],:,:,0,0], ep)
+                writer.add_image("ground truth", target_denorm[[0],:,:,0,0])
         if test_rel_l2_loss < best_loss:
             best_loss = test_rel_l2_loss
             best_loss_epoch = ep
