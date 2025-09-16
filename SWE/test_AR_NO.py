@@ -226,7 +226,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
 
                 # preint 
             for t in range(0, yy.shape[-2], args.T_bundle):
-                if t > 30:
+                if t > 30 and max_steps is not None:
                     break
                 im = model(xx)
                 if t == 0:
