@@ -10,6 +10,10 @@ FFormerBlocl(x):    IFT(Transformer(FFT(x)))
 import torch
 import torch.nn as nn
 import numpy as np
+import sys
+import os
+# Add parent directory to Python path to access utils and models
+sys.path.append(os.path.join(os.path.dirname(__file__)))
 from wavelet_transform import Transformer, RelativePositionBias
 from einops import rearrange
 
