@@ -1200,9 +1200,10 @@ def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_
     vmax = np.max(target)
     
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    ax.axis('off')
     img = ax[0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
     img = ax[1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    ax[0].axis('off')
+    ax[1].axis('off')
     title_text = ax[0].set_title('Target T+1')
     title_text = ax[1].set_title('Pred T+1')
 
