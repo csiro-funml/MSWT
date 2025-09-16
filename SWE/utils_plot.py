@@ -33,6 +33,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap, TwoSlopeNorm
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 
 class SimpleLpLoss(nn.Module):
@@ -1181,6 +1182,47 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
 
 
 
+def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_path=None):
+    print("saved_data shape", pred_data['pred'].shape, "pred_data.keys()", pred_data.keys())
+    # keys are (input, output, pred), shape of  (B, H, W, T_in/out, C)
+    cmap = 'RdBu_r'
+    target = pred_data['output'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
+    pred = pred_data['pred'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
+    vmin = np.min(target)
+    vmax = np.max(target)
+    
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    img0 = ax[0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    img1 = ax[1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
+    ax[0].axis('off')
+    ax[1].axis('off')
+    title1 =ax[0].set_title('Target T+1')
+    title2 = ax[1].set_title('Pred T+1')
+
+    def update(frame_idx):
+        img0.set_data(target[..., frame_idx])
+        title1.set_text(f'Target T+{frame_idx+1}')
+        img1.set_data(pred[..., frame_idx])
+        title2.set_text(f'Pred T+{frame_idx+1}')
+        return img0, img1, title1, title2
+
+    anim = FuncAnimation(fig, update, frames=target.shape[2], interval=200, blit=False)
+
+    gif_path = f'{log_path}/{model_name}_target.gif'
+    try:
+        anim.save(gif_path, writer=PillowWriter(fps=2))
+    except Exception as e:
+        print(f'Failed to save GIF due to: {e}')
+
+    # Try MP4 as well if ffmpeg is available
+    try:
+        anim.save(f'{log_path}/{model_name}_target.mp4', writer='ffmpeg', fps=5)
+    except Exception as e:
+        print(f'FFmpeg not available or failed to save MP4: {e}')
+
+    plt.close(fig)
+
+
 if __name__ == '__main__':
     
     """
@@ -1226,9 +1268,10 @@ if __name__ == '__main__':
     log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
     # FNO/Wavelet/HFS/PDERefiner test data
     pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
-    for channel_id in range(pred_data['pred'].shape[-1]):
-        plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=channel_id, model_name=args.model, log_path=log_path)
-
+    # for channel_id in range(pred_data['pred'].shape[-1]):
+    #     plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=channel_id, model_name=args.model, log_path=log_path)
+    
+    generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
     # FNO-Diffusion test data
     # log_path = log_path + '/diffusion' 
     # pred_data = torch.load(f'{log_path}/test_data_diffusion_prediction.pth', map_location=device)
