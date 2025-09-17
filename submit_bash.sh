@@ -24,6 +24,7 @@ source $HOME/.venvs/pytorch/bin/activate
 ################################################################ NSE #################################################################
 ## Train the model
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='FFormer' --use_write --lr_method='cossin' --T_in=7 --epochs=3000 --patch_size=8
+CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='HFS' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='FNO' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
@@ -70,9 +71,9 @@ source $HOME/.venvs/pytorch/bin/activate
 # Test the model
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='FNO' --T_in=7 --epochs=2000
 # CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='wavelet_transformer' --T_in=7 --epochs=2000
-CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='HFS' --T_in=7 --epochs=2000
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/test_AR_NO.py --dataset='sw2d_pda' --model='HFS' --T_in=7 --epochs=2000
 
-CUDA_VISIBLE_DEVICES=0 python3 SWE/utils_plot.py --dataset='sw2d_pda' --model='HFS' 
+# CUDA_VISIBLE_DEVICES=0 python3 SWE/utils_plot.py --dataset='sw2d_pda' --model='HFS' 
 ################################################################ SWE #################################################################
 
 

@@ -615,9 +615,9 @@ if __name__ == '__main__':
     #### PDEArena datasets
     load_path = '/scratch3/wan410/operator_learning_data/pdearena/NavierStokes-2D'
     save_path = '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda'
-    # preprocess_ns2d(load_path=load_path,
-                    # save_path=save_path)
-    preprocess_ns2d_longrollout()
+    preprocess_ns2d(load_path=load_path,
+                    save_path=save_path)
+    # preprocess_ns2d_longrollout()
     
     # preprocess_ns2d()
     # preprocess_ns2d_cond()
