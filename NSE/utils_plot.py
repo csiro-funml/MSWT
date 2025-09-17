@@ -1196,7 +1196,7 @@ def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_
     cmap = 'RdBu_r'
     target = pred_data['output'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
     pred = pred_data['pred'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
-    
+    print("target shape", target.shape, "pred shape", pred.shape)
     vmax = np.max(np.abs(target))
     vmin = -vmax if np.min(target) <0 else np.min(target)
     
@@ -1276,8 +1276,8 @@ if __name__ == '__main__':
     comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
     log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
     # FNO/Wavelet/HFS/PDERefiner test data
-    pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
-    # pred_data = torch.load(f'{log_path}/test_long_data_prediction.pth', map_location=device)
+    # pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    pred_data = torch.load(f'{log_path}/test_long_data_prediction.pth', map_location=device)
     # plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
     generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
     
