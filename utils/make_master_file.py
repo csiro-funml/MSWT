@@ -37,7 +37,9 @@ DATASET_DICT[name]['downsample'] = (1, 1)
 
 
 name = 'ns2d_fno_1e-3'
-DATASET_DICT[name] = {'train_path': '/scratch3/wan410/operator_learning_data/ns2d_fno/ns2d_1e-3_train.hdf5', 'test_path': '/scratch3/wan410/operator_learning_data/ns2d_fno/ns2d_1e-3_test.hdf5'}
+DATASET_DICT[name] = {'train_path': '/scratch3/wan410/operator_learning_data/ns2d_fno/ns2d_1e-3_train.hdf5',
+                        'test_path': '/scratch3/wan410/operator_learning_data/ns2d_fno/ns2d_1e-3_test.hdf5',
+                        'val_path': '/scratch3/wan410/operator_learning_data/ns2d_fno/ns2d_1e-3_val.hdf5'}
 DATASET_DICT[name]['train_size'] = 1000
 DATASET_DICT[name]['test_size'] = 200
 DATASET_DICT[name]['scatter_storage'] = False
