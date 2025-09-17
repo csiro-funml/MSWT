@@ -1196,8 +1196,9 @@ def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_
     cmap = 'RdBu_r'
     target = pred_data['output'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
     pred = pred_data['pred'][sample_id, ... , channel_id].detach().cpu().numpy() # (H, W, T_out)
-    vmin = np.min(target)
-    vmax = np.max(target)
+    
+    vmax = np.max(np.abs(target))
+    vmin = -vmax if np.min(target) <0 else np.min(target)
     
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     img0 = ax[0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
@@ -1208,13 +1209,14 @@ def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_
     title2 = ax[1].set_title('Pred T+1')
 
     def update(frame_idx):
-        img0.set_data(target[..., frame_idx])
-        title1.set_text(f'Target T+{frame_idx+1}')
+        if frame_idx < target.shape[2]:
+            img0.set_data(target[..., frame_idx])
+            title1.set_text(f'Target T+{frame_idx+1}')
         img1.set_data(pred[..., frame_idx])
         title2.set_text(f'Pred T+{frame_idx+1}')
         return img0, img1, title1, title2
 
-    anim = FuncAnimation(fig, update, frames=target.shape[2], interval=200, blit=False)
+    anim = FuncAnimation(fig, update, frames=pred.shape[2], interval=200, blit=False)
 
     gif_path = f'{log_path}/{model_name}_target.gif'
     try:
