@@ -24,7 +24,7 @@ source $HOME/.venvs/pytorch/bin/activate
 ################################################################ NSE #################################################################
 ## Train the model
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='FFormer' --use_write --lr_method='cossin' --T_in=7 --epochs=3000 --patch_size=8
-CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='HFS' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='FNO' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
@@ -38,7 +38,7 @@ CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --mo
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='UNet_withoutHFS'
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='UNet'
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_pda' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
+CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_pda' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
 
 # Train/Test the diffusion model
 # CUDA_VISIBLE_DEVICES=0 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --use_writer --batch_size=128 --epochs=3000
@@ -50,7 +50,7 @@ CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --mo
 
 
 # Utile plotting in the server
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_pda' --model='HFS' 
+CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_pda' --model='HFS' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='PDERefiner' 
