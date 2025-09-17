@@ -668,7 +668,6 @@ class TemporalDataset2D(Dataset):
 
             path = DATASET_DICT[self.data_name]['%s_path'%train]
             self.data_files = partial(open_hdf5_file, path)
-            print("shape of data_files", self.data_files().shape)
         else:
             if train == 'train': 
                 self.data_files = h5py.File(DATASET_DICT[self.data_name]['train_path'], 'r')
