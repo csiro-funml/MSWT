@@ -248,7 +248,7 @@ class ResUNet(nn.Module):
             x = torch.cat((x, grid), dim=-1)        #### B, H, W, T*C +2
             x = x.permute(0, 3, 1, 2).contiguous() # (B, T*C+2, H, W)
             if index == 0:
-                return x
+                return x.permute(0, 2, 3, 1).contiguous()
             #Downsampling path
             skip_connections = []
             for i, down in enumerate(self.encoder[:index-1]):
@@ -259,7 +259,7 @@ class ResUNet(nn.Module):
                 x = self.w1[i]*x1 + self.w2[i]*x2 + self.w3[i]*x3
                 skip_connections.append(x)
                 x = F.max_pool2d(x, kernel_size=2)
-            return x
+            return x.permute(0, 2, 3, 1).contiguous()
         else:
             pass
 
