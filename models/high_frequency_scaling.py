@@ -235,6 +235,45 @@ class ResUNet(nn.Module):
         y = y.to(self.device)
         return x, y
 
+
+    def get_latent_by_index(self, x, index):
+        """ 
+        Get the latent representation from the input to the (index -1)-th block of UNet
+        """
+        if index < 5: # convolution blocks
+             # absort the time dimension into the channel dimensionx = x.view(*x.shape[:-2], -1)           #### B, X, Y, T*C
+            B, H, W, T, C = x.shape
+            x = x.view(*x.shape[:-2], -1)           #### B, H, W, T*C
+            grid = self.get_grid(x)
+            x = torch.cat((x, grid), dim=-1)        #### B, H, W, T*C +2
+            x = x.permute(0, 3, 1, 2).contiguous() # (B, T*C+2, H, W)
+            if index == 0:
+                return x
+            #Downsampling path
+            skip_connections = []
+            for i, down in enumerate(self.encoder[:index-1]):
+                x = down(x)
+                x1 = self.featscale[i](x)
+                x2 = self.featscale2[i](x)
+                x3 = self.featscale3[i](x)
+                x = self.w1[i]*x1 + self.w2[i]*x2 + self.w3[i]*x3
+                skip_connections.append(x)
+                x = F.max_pool2d(x, kernel_size=2)
+            return x
+        else:
+            pass
+
+    def get_testing_block_by_index(self, index, x):
+        i = index # index or (index -1)
+        down = self.encoder[i]
+        x = down(x)
+        featscale = self.featscale[i]
+        featscale2 = self.featscale2[i]
+        featscale3 = self.featscale3[i]
+        x = self.w1[i]*featscale(x) + self.w2[i]*featscale2(x) + self.w3[i]*featscale3(x)
+        return x
+
+    
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     n_channels = 3
@@ -244,6 +283,7 @@ if __name__ == "__main__":
                      bottleneck_feature=512, 
                      device=device).to(device)
     
-    x = torch.rand(2, 96, 192, T_in, n_channels)
+    # x = torch.rand(2, 96, 192, T_in, n_channels)
+    x = torch.rand(2, 128, 128, T_in, n_channels)
     y = model(x)
     print(y.shape)

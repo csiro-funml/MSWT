@@ -57,7 +57,7 @@ source $HOME/.venvs/pytorch/bin/activate
 
 # Frequency filter testing
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/frequency_filter_testing.py --dataset='ns2d_pda' --model='wavelet_transformer' --n_layers=5 --n_autorepressive_steps=100 
-CUDA_VISIBLE_DEVICES=0 python3 NSE/frequency_filter_testing.py --dataset='ns2d_pda' --model='HFS' --n_autorepressive_steps=100 
+CUDA_VISIBLE_DEVICES=0 python3 NSE/frequency_filter_testing.py --dataset='ns2d_pda' --model='HFS' --n_layers=5 --n_autorepressive_steps=100 
 
 #################################################################################################################################
 
