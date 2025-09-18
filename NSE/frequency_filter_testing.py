@@ -583,7 +583,7 @@ if __name__ == "__main__":
     # plot_filter_passing(E_freq_time)
 
    model, test_loader, log_path = load_data_model()
-   for start_block_index in range(args.n_layers):
+   for start_block_index in range(1, args.n_layers):
        print(f"Testing block index {start_block_index}")
        E_freq_time, start_block_index = pass_filter_testing(test_loader=test_loader, model=model, start_block_index=start_block_index, n_autorepressive_steps=args.n_autorepressive_steps, residule=True)
        plot_filter_passing(E_freq_time, simulation=False, start_block_index=start_block_index)

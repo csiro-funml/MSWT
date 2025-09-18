@@ -103,7 +103,6 @@ class ResidualBlock2(nn.Module):
     def __init__(self, in_channels, out_channels, activation):
         super(ResidualBlock2, self).__init__()
         self.in_channels = in_channels
-        self.out_channels = out_channels
 
         self.residual = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
@@ -253,7 +252,7 @@ class ResUNet(nn.Module):
                 return x.permute(0, 2, 3, 1).unsqueeze(-2)
             #Downsampling path
             skip_connections = []
-            for i, down in enumerate(self.encoder[:index-1]):
+            for i, down in enumerate(self.encoder[:index]): # :index because the index is the (index -1)
                 x = down(x)
                 x1 = self.featscale[i](x)
                 x2 = self.featscale2[i](x)
@@ -266,7 +265,7 @@ class ResUNet(nn.Module):
             pass
 
     def get_testing_block_by_index(self, index, x):
-        i = index # index or (index -1)
+        i = index # (index -1) because the 
         down = self.encoder[i]
         # preprocess in the input
         x = x.squeeze(-2) # (B, H, W, T, C) -> (B, H, W, C)
