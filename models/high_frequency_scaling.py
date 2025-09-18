@@ -102,6 +102,8 @@ class ResidualBlock(nn.Module):
 class ResidualBlock2(nn.Module):
     def __init__(self, in_channels, out_channels, activation):
         super(ResidualBlock2, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
 
         self.residual = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
@@ -248,7 +250,7 @@ class ResUNet(nn.Module):
             x = torch.cat((x, grid), dim=-1)        #### B, H, W, T*C +2
             x = x.permute(0, 3, 1, 2).contiguous() # (B, T*C+2, H, W)
             if index == 0:
-                return x.permute(0, 2, 3, 1).contiguous()
+                return x.permute(0, 2, 3, 1).unsqueeze(-2)
             #Downsampling path
             skip_connections = []
             for i, down in enumerate(self.encoder[:index-1]):
@@ -259,18 +261,24 @@ class ResUNet(nn.Module):
                 x = self.w1[i]*x1 + self.w2[i]*x2 + self.w3[i]*x3
                 skip_connections.append(x)
                 x = F.max_pool2d(x, kernel_size=2)
-            return x.permute(0, 2, 3, 1).contiguous()
+            return x.permute(0, 2, 3, 1).unsqueeze(-2)
         else:
             pass
 
     def get_testing_block_by_index(self, index, x):
         i = index # index or (index -1)
         down = self.encoder[i]
+        # preprocess in the input
+        x = x.squeeze(-2) # (B, H, W, T, C) -> (B, H, W, C)
+        x = x.permute(0, 3, 1, 2) # (B, H, W, C) -> (B, C, H, W)
+        if x.shape[1] > down.in_channels: # very naive way to handle different channels
+            x = x[:, :down.in_channels, :, :]
         x = down(x)
         featscale = self.featscale[i]
         featscale2 = self.featscale2[i]
         featscale3 = self.featscale3[i]
         x = self.w1[i]*featscale(x) + self.w2[i]*featscale2(x) + self.w3[i]*featscale3(x)
+        x = x.permute(0, 2, 3, 1).unsqueeze(-2) # (B, C, H, W) -> (B, H, W, 1, C) 
         return x
 
     

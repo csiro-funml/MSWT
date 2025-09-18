@@ -316,7 +316,7 @@ class EfficientMultiScaleComplexTransformer(nn.Module):
         return output_real, output_imag
 
 
-class EfficientFourierTransformer(nn.Module):
+class fEfficientFourierTransformer(nn.Module):
     """Parameter-efficient Fourier Transformer with complex attention and multi-scale processing"""
     def __init__(self, dim, depth, heads, dim_head, mlp_dim, num_scales=3):
         super().__init__()
