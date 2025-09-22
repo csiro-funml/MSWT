@@ -408,8 +408,66 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
 def preprocess_torchcfd_ns2d(load_path, save_path):
     """
     Preprocess the Navier-Stokes 2D dataset from torch-cfd
+    there are 3 channels in the dataset:
+        u, vx, vy
+    data shape: (N, 128, 128, 14, 3)
     """
-    pass
+    LOAD_PATH = load_path
+    SAVE_PATH_TEST = save_path + '/test'
+    SAVE_PATH_TRAIN = save_path + '/train'
+    SAVE_PATH_VAL = save_path + '/val'
+
+    # Create new folders if SAVE_PATH does not exist
+    os.makedirs(SAVE_PATH_TEST, exist_ok=True)
+    os.makedirs(SAVE_PATH_TRAIN, exist_ok=True)
+    os.makedirs(SAVE_PATH_VAL, exist_ok=True)
+    test_tot = 0
+    train_tot = 0
+    val_tot = 0
+    # load path for train, test, val
+    train_path  = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_Re1000_T100.pt')
+    test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N500_Re1000_T100.pt')
+    val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_Re1000_T100.pt')
+    
+    try:
+        for path in [train_path, test_path, val_path]:
+            data = torch.load(path)
+        
+            vorticity = data['vorticity']
+            stream = data['stream']
+
+            out = np.stack([vorticity, stream], axis=-1)
+            print("out.shape", out.shape)
+            # out = np.transpose(out, (0, 2, 3, 1, 4))
+
+            # Create the destination file
+            key = 'train'
+            if path == train_path:
+                key = 'train'
+            elif path == test_path:
+                key = 'test'
+            elif path == val_path:
+                key = 'valid'
+
+            for idx, data in enumerate(out):
+                if key == 'test':
+                    test_tot += 1
+                    path = SAVE_PATH_TEST
+                elif key == 'valid':
+                    val_tot += 1
+                    path = SAVE_PATH_VAL
+                else:
+                    path = SAVE_PATH_TRAIN
+                    train_tot += 1
+                dst_file = 'data_{}.hdf5'.format(idx)
+                save_path = os.path.join(path, dst_file)
+                with h5py.File(save_path, 'w') as g:
+                    # Write data as a hdf5 dataset
+                    # with key 'data'
+                    g.create_dataset('data', data=data)
+    except Exception as e:
+        print('Error in file {}: {}'.format(path, e))
+    print('file saved')
 
 
 
@@ -620,10 +678,10 @@ if __name__ == '__main__':
     # process_pdebench3d_data(path='./../data/164694',save_name='./../data/pdebench/ns3d_pdb_M1_turb',n_train=540, n_test=60)
 
     #### PDEArena datasets
-    load_path = '/scratch3/wan410/operator_learning_data/pdearena/NavierStokes-2D'
-    save_path = '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda'
-    preprocess_ns2d(load_path=load_path,
-                    save_path=save_path)
+    # load_path = '/scratch3/wan410/operator_learning_data/pdearena/NavierStokes-2D'
+    # save_path = '/scratch3/wan410/operator_learning_data/pdearena/ns2d_pda'
+    # preprocess_ns2d(load_path=load_path,
+    #                 save_path=save_path)
     # preprocess_ns2d_longrollout()
     
     # preprocess_ns2d()
@@ -638,6 +696,6 @@ if __name__ == '__main__':
 
 
     #### torch-cfd datasets
-    load_path = ''
-    save_path = ''
+    load_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data'
+    save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re1000'
     preprocess_torchcfd_ns2d(load_path=load_path, save_path=save_path)
