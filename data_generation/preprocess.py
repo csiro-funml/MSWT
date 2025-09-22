@@ -405,6 +405,13 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
         # continue
 
 
+def preprocess_torchcfd_ns2d(load_path, save_path):
+    """
+    Preprocess the Navier-Stokes 2D dataset from torch-cfd
+    """
+    pass
+
+
 
 def preprocess_ns2d_cond():
     """
@@ -628,3 +635,9 @@ if __name__ == '__main__':
 
     #### CFDBench datasets
     # preprocess_cfdbench_data()
+
+
+    #### torch-cfd datasets
+    load_path = ''
+    save_path = ''
+    preprocess_torchcfd_ns2d(load_path=load_path, save_path=save_path)
