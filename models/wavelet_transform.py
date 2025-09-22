@@ -420,7 +420,7 @@ class RelativePositionScaleEmbedding(nn.Module):
         grid[1] = 1.0/width*(grid[1] - width//2) 
         # print(grid[0, :, 0], grid[1, :, 0])
         grid = rearrange(grid, 'c i j -> (i j) c')
-        scale = torch.ones(grid.shape[0], 1) * (scale +1)
+        scale = torch.ones(grid.shape[0], 1).to(device) * (scale +1)
         grid = torch.cat((grid, scale), dim=-1)
         # Compute the relative position embeddings
         pos_embed = self.dpb(grid)
@@ -849,7 +849,7 @@ class WaveletTransV2(CrossWaveletTransformer):
                 nn.ELU(inplace=True)
             ) for i in range(self.num_dwt_blocks)
         ])
-        
+
         self.relative_position_embeddings = RelativePositionScaleEmbedding(dim=dim)
         if self.meanstd:
             self.output_proj =  nn.ConvTranspose2d(dim*2, 3*2, kernel_size=patch_size, stride=patch_size, padding=0)
