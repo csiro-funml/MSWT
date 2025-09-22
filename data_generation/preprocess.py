@@ -408,9 +408,9 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
 def preprocess_torchcfd_ns2d(load_path, save_path):
     """
     Preprocess the Navier-Stokes 2D dataset from torch-cfd
-    there are 3 channels in the dataset:
-        u, vx, vy
-    data shape: (N, 128, 128, 14, 3)
+    there are 2 channels in the dataset:
+        vorticity, stream
+    data shape: (N, 128, 128, 100, 2)
     """
     LOAD_PATH = load_path
     SAVE_PATH_TEST = save_path + '/test'
@@ -437,9 +437,9 @@ def preprocess_torchcfd_ns2d(load_path, save_path):
             vorticity = data['vorticity']
             stream = data['stream']
 
-            out = np.stack([vorticity, stream], axis=-1)
+            out = np.stack([vorticity, stream], axis=-1).squeeze(1) # (N, T, H, W, 2)
             print("out.shape", out.shape)
-            # out = np.transpose(out, (0, 2, 3, 1, 4))
+            out = np.transpose(out, (0, 2, 3, 1, 4)) # (N, H, W, T, 2)
 
             # Create the destination file
             key = 'train'
