@@ -425,9 +425,10 @@ def preprocess_torchcfd_ns2d(load_path, save_path):
     train_tot = 0
     val_tot = 0
     # load path for train, test, val
-    train_path  = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_Re1000_T100.pt')
-    test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N500_Re1000_T100.pt')
-    val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_Re1000_T100.pt')
+    Re = 'Re1000' if 'Re1000' in LOAD_PATH else 'Re5000'
+    train_path  = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_{}_T100.pt'.format(Re))
+    test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N500_{}_T100.pt'.format(Re))
+    val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_{}_T100.pt'.format(Re))
     
     try:
         for path in [train_path, test_path, val_path]:
