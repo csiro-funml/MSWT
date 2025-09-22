@@ -450,7 +450,7 @@ def preprocess_torchcfd_ns2d(load_path, save_path):
             elif path == val_path:
                 key = 'valid'
 
-            for idx, data in enumerate(out):
+            for idx, data in tqdm(enumerate(out)):
                 if key == 'test':
                     test_tot += 1
                     path = SAVE_PATH_TEST
