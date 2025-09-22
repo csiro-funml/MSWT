@@ -25,7 +25,7 @@ from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemp
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.fformer import FFormer
-from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
+from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection, WaveletTransV2
 from models.high_frequency_scaling import ResUNet
 # from models.unet import UNet_with_BottleneckHFS, UNet_withoutHFS
 from models.hano import HANO2d
@@ -41,7 +41,7 @@ from lion_pytorch import Lion
 
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
-parser.add_argument('--model', type=str, default='wavelet_transformer_skip') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
+parser.add_argument('--model', type=str, default='WaveletTransV2') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
 parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
@@ -170,6 +170,8 @@ elif args.model == 'HFS':
                      device=device).to(device)
 elif args.model == 'wavelet_transformer_skip':
     model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+elif args.model == 'WaveletTransV2':
+    model = WaveletTransV2(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'HANO':
     model = HANO2d(T_in=args.T_in, T_out=args.T_ar, res_output=train_dataset.res[0],  res_att=train_dataset.res[0],
                    in_dim=train_dataset.n_channels, out_dim=train_dataset.n_channels, feature_dim=256).to(device)

@@ -64,6 +64,65 @@ class DWT_Function(Function):
 
         return dx, None, None, None, None
 
+class IDWT_Function_v2(Function):
+    @staticmethod
+    def forward(ctx, x, filters, target_size=None):
+        ctx.save_for_backward(filters)
+        ctx.shape = x.shape
+        ctx.target_size = target_size
+
+        B, H, W = x.shape[0], x.shape[-2], x.shape[-1]
+
+        # x = x.transpose(1, 2)  # (B, D//4, 4, H, W)
+        x = x.view(B, 4, -1, H, W).transpose(1, 2)
+        C = x.shape[1]
+        x = x.reshape(B, -1, H, W)
+        filters = filters.repeat(C, 1, 1, 1)
+        x = torch.nn.functional.conv_transpose2d(x, filters, stride=2, groups=C)
+        
+        # Store the uncropped size for backward pass
+        ctx.uncropped_size = (x.shape[-2], x.shape[-1])
+        
+        # If target size is provided, crop to match it
+        if target_size is not None:
+            target_h, target_w = target_size
+            current_h, current_w = x.shape[-2], x.shape[-1]
+            if current_h > target_h or current_w > target_w:
+                x = x[:, :, :target_h, :target_w]
+        
+        return x
+
+    @staticmethod
+    def backward(ctx, dx):
+        if ctx.needs_input_grad[0]:
+            filters = ctx.saved_tensors
+            filters = filters[0]
+            C = ctx.shape[1] // 4
+            
+            # If we cropped in forward pass, we need to pad dx back to uncropped size
+            if ctx.target_size is not None:
+                uncropped_h, uncropped_w = ctx.uncropped_size
+                current_h, current_w = dx.shape[-2], dx.shape[-1]
+                
+                if uncropped_h > current_h or uncropped_w > current_w:
+                    pad_h = uncropped_h - current_h
+                    pad_w = uncropped_w - current_w
+                    dx = F.pad(dx, (0, pad_w, 0, pad_h), mode='constant', value=0)
+            
+            dx = dx.contiguous()
+
+            w_ll, w_lh, w_hl, w_hh = torch.unbind(filters, dim=0)
+            x_ll = torch.nn.functional.conv2d(dx, w_ll.unsqueeze(1).expand(C, -1, -1, -1), stride = 2, groups = C)
+            x_lh = torch.nn.functional.conv2d(dx, w_lh.unsqueeze(1).expand(C, -1, -1, -1), stride = 2, groups = C)
+            x_hl = torch.nn.functional.conv2d(dx, w_hl.unsqueeze(1).expand(C, -1, -1, -1), stride = 2, groups = C)
+            x_hh = torch.nn.functional.conv2d(dx, w_hh.unsqueeze(1).expand(C, -1, -1, -1), stride = 2, groups = C)
+            # Stack back into [B, 4*C, H, W] to match the input to IDWT forward
+            dx = torch.stack([x_ll, x_lh, x_hl, x_hh], dim=1)  # [B, 4, C, H, W]
+            B, _, _, H, W = dx.shape
+            dx = dx.transpose(1, 2).reshape(B, 4*C, H, W)
+        return dx, None, None
+
+
 class IDWT_Function(Function):
     @staticmethod
     def forward(ctx, x, filters, target_size=None):
@@ -139,8 +198,11 @@ class IDWT_2D(nn.Module):
         self.register_buffer('filters', filters)
         # self.filters = self.filters.to(dtype=torch.float16)
 
-    def forward(self, x, target_size=None):
-        return IDWT_Function.apply(x, self.filters, target_size)
+    def forward(self, x, target_size=None, use_v2=False):
+        if use_v2:
+            return IDWT_Function_v2.apply(x, self.filters, target_size)
+        else:
+            return IDWT_Function.apply(x, self.filters, target_size)
 
 class DWT_2D(nn.Module):
     def __init__(self, wave):
@@ -334,6 +396,35 @@ class RelativePositionBias(nn.Module):
         pos_embed = self.dpb(grid)
         return pos_embed
 
+
+
+class RelativePositionScaleEmbedding(nn.Module):
+    def __init__(self, dim=64):
+        super().__init__()
+        self.dpb = nn.Sequential(
+            nn.Linear(3, dim),
+            nn.LayerNorm(dim),
+            nn.ReLU(),
+            nn.Linear(dim, dim),
+            )
+
+
+    def forward(self, height, width, scale, device='cpu'):
+        
+        # create grid indices for relative positions
+        pos_idx = torch.arange(height)
+        pos_idy = torch.arange(width)
+        grid = torch.stack(torch.meshgrid(pos_idx, pos_idy, indexing = 'ij')).float().to(device)
+        
+        grid[0] = 1.0/height*(grid[0] - height//2)
+        grid[1] = 1.0/width*(grid[1] - width//2) 
+        # print(grid[0, :, 0], grid[1, :, 0])
+        grid = rearrange(grid, 'c i j -> (i j) c')
+        scale = torch.ones(grid.shape[0], 1) * (scale +1)
+        grid = torch.cat((grid, scale), dim=-1)
+        # Compute the relative position embeddings
+        pos_embed = self.dpb(grid)
+        return pos_embed
 
 
 
@@ -597,7 +688,6 @@ class CrossWaveletTransformer(nn.Module):
 
 
 
-
 class CrossWaveletTransSkipConnection(CrossWaveletTransformer):
     def __init__(self, wave='haar',n_channels=3, in_timesteps = 4,  dim=64, depth=5,patch_size=(4, 4), normalize=False, meanstd=False):
         super(CrossWaveletTransSkipConnection, self).__init__(
@@ -610,146 +700,7 @@ class CrossWaveletTransSkipConnection(CrossWaveletTransformer):
             normalize=normalize,
             meanstd=meanstd,
         )
-        self.meanstd = meanstd
-        self.patch_size = patch_size
-        self.input_proj = nn.Sequential(
-            nn.Conv2d(4+in_timesteps*n_channels, dim, kernel_size=patch_size, stride=patch_size, padding=0),
-            nn.BatchNorm2d(dim),
-            nn.ELU(inplace=True),
-            )  # (B, D, H, W)
-    
-
-        # DWT modules
-        self.num_dwt_blocks = 4
-        self.dwt_project = nn.ModuleList([
-            nn.Sequential(nn.Conv2d(in_channels=dim, out_channels=dim // 4, kernel_size=1, stride=1, padding=0),
-                           nn.BatchNorm2d(dim // 4),
-                           nn.ELU(inplace=True)
-                          ) for i in range(self.num_dwt_blocks)
-        ])
-
-        self.idwt_project = nn.ModuleList([
-            nn.Sequential(nn.Conv2d(in_channels=dim//4, out_channels=dim, kernel_size=1, stride=1, padding=0),
-                           nn.BatchNorm2d(dim),
-                           nn.ELU(inplace=True)
-                          ) for i in range(self.num_dwt_blocks)
-        ])
-        self.dwt = DWT_2D(wave)
-        self.idwt = IDWT_2D(wave)
-
-        # position and scale embeddings
-        self.scale_embeddings = nn.ParameterList([
-            nn.Parameter(torch.rand(1, 1, dim)) for _ in range(self.num_dwt_blocks)
-        ])
-        self.relative_position_embeddings = RelativePositionBias(dim=dim)
-
-        # transformer for cross scale attention
-        self.transformer =Transformer(dim=dim, depth=depth, heads=8, dim_head=64, mlp_dim=dim*4)
-
-        # final output layer
-        if self.meanstd:
-            self.output_proj =  nn.ConvTranspose2d(dim, 3*2, kernel_size=patch_size, stride=patch_size, padding=0)
-        else:
-            self.output_proj =  nn.ConvTranspose2d(dim, 3, kernel_size=patch_size, stride=patch_size, padding=0)
-        self.normalize = normalize
-        
-    def get_latent_by_index(self, x, index):
-        """ 
-        Get the latent representation from the input to the (index -1)-th block of Transformer
-        """
-        x, img_size = self.get_dwt_representation(x) # (B, N, D)
-        if index == 0:
-            return x
-        for attn, ff in self.transformer.layers[:index]:
-            x = attn(x) + x
-            x = ff(x) + x
-        return x
-    
-    def get_testing_block_by_index(self, index, x):
-        """
-        Get the latent representation from the input to the index-th block of Transformer
-        """
-        attn, ff = self.transformer.layers[index]
-        x = attn(x) + x
-        x = ff(x) + x
-        return x
-
-
-    def get_dwt_representation(self, x):
-         # Store original spatial dimensions
-        orig_h, orig_w = x.shape[1], x.shape[2]
-        
-        # get grid and concat
-        if self.normalize:
-            mu, sigma = x.mean(dim=(1,2,3),keepdim=True), x.std(dim=(1,2,3),keepdim=True) + 1e-6    # B,1,1,1,C
-            x = (x - mu)/ sigma
-
-        grid = self.get_grid(x.size(), x.device)
-        x = x.view(*x.shape[:-2], -1)           #### B, X, Y, T*C
-        x = torch.cat((x, grid), dim=-1)
-        x = x.permute(0, 3, 1, 2).contiguous() 
-
-        # Calculate padding needed for patch_size
-        patch_h, patch_w = self.patch_size
-        pad_h = (patch_h - (orig_h % patch_h)) % patch_h
-        pad_w = (patch_w - (orig_w % patch_w)) % patch_w
-        
-        # Apply padding if needed
-        if pad_h > 0 or pad_w > 0:
-            x = F.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
-
-        # input shape: (B, C, H, W)
-        # projecting to a higher dimension, 2d convolution with kernel size 1
-        x = self.input_proj(x) # (B, D, H, W)
-        
-        # Store the projected dimensions (after patch embedding)
-        proj_h, proj_w = x.shape[-2], x.shape[-1]
-        
-        # run several blocks of DWT to obtain the wavelet coefficients
-        x_scale = []
-        img_size = []
-        img_dims = []  # Store actual (height, width) dimensions
-        break_idx = 0
-        for i in range(self.num_dwt_blocks):
-            x = self.dwt_project[i](x)  # (B, D//4, H, W)
-            if min(x.shape[-1], x.shape[-2]) ==1: # too small for wavelet transform
-                break_idx = i
-                break
-            # Store original dimensions before DWT
-            orig_h_dwt, orig_w_dwt = x.shape[-2], x.shape[-1]
-            img_dims.append((orig_h_dwt, orig_w_dwt))
-            
-            # apply DWT
-            x = self.dwt(x) # (B, 4*D//4, H//2, W//2)
-            img_size.append((x.shape[2]*x.shape[3]))
-            x_scale_input = rearrange(x, 'b d h w -> b (h w) d')  # (B, D, H//2 * W//2)
-            # generate relative position embeddings for every position in the [H//2, W//2] grid
-            pos_embed = self.relative_position_embeddings(x.shape[2], x.shape[3], x.device) # shape (B, D, H//2 * W//2)
-            # scale embeddings for each scale
-            scale_embed = self.scale_embeddings[i]  # (B, D, 1)
-            
-            x_scale_input = x_scale_input + pos_embed + scale_embed # (B, D, H//2 * W//2)
-            x_scale.append(x_scale_input)
-
-        # concatenate the wavelet coefficients from all scales
-        x_skip = torch.cat(x_scale, dim=1) # (B, N, D) for skip connection
-        x = x_skip
-
-        return x, img_size
-
-    def get_grid(self, shape, device):
-        batchsize, size_x, size_y = shape[0], shape[1], shape[2]
-        gridx = torch.tensor(np.linspace(0, 2 * np.pi, size_x), dtype=torch.float)
-        gridx = gridx.reshape(1, size_x, 1, 1).repeat([batchsize, 1, size_y, 1])
-        gridy = torch.tensor(np.linspace(0, 2 * np.pi, size_y), dtype=torch.float)
-        gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
-        grid = torch.cat(
-            (torch.sin(gridx), torch.sin(gridy), torch.cos(gridx), torch.cos(gridy)),
-            dim=-1,
-        ).to(device)  # (bs, H, W, 4)
-        return grid
-
-
+       
     def forward(self, x):
         # Store original spatial dimensions
         orig_h, orig_w = x.shape[1], x.shape[2]
@@ -859,19 +810,143 @@ class CrossWaveletTransSkipConnection(CrossWaveletTransformer):
             x = x * sigma  + mu
         return x
 
-    def count_parameters(self):
 
-        # count the parameters  of dwt_project and idwt_project
-        dwt_params = sum(p.numel() for p in self.dwt_project.parameters() if p.requires_grad)
-        idwt_params = sum(p.numel() for p in self.idwt_project.parameters() if p.requires_grad)
-        transformer_params = sum(p.numel() for p in self.transformer.parameters() if p.requires_grad)
-        input_proj_params = sum(p.numel() for p in self.input_proj.parameters() if p.requires_grad)
-        print("DWT parameters:", dwt_params)
-        print("IDWT parameters:", idwt_params)
-        print("Transformer parameters:", transformer_params)
-        print("Input projection parameters:", input_proj_params)
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+class WaveletTransV2(CrossWaveletTransformer):
+    def __init__(self, wave='haar',n_channels=3, in_timesteps = 4,  dim=64, depth=5,patch_size=(4, 4), normalize=False, meanstd=False):
+        super(WaveletTransV2, self).__init__(
+            wave=wave,
+            n_channels=n_channels,
+            in_timesteps=in_timesteps,
+            dim=dim,
+            depth=depth,
+            patch_size=patch_size,
+            normalize=normalize,
+            meanstd=meanstd,
+        )
+
+        # DWT modules
+        self.num_dwt_blocks = 4
+        self.dwt_project = nn.ModuleList([
+            nn.Sequential(nn.Conv2d(in_channels=dim, out_channels=dim // 4, kernel_size=1, stride=1, padding=0),
+                           nn.BatchNorm2d(dim // 4),
+                           nn.ELU(inplace=True)
+                          ) for i in range(self.num_dwt_blocks)
+        ])
+
+        self.idwt_project = nn.ModuleList([
+            nn.Sequential(nn.Conv2d(in_channels=dim//4, out_channels=dim, kernel_size=1, stride=1, padding=0),
+                           nn.BatchNorm2d(dim),
+                           nn.ELU(inplace=True)
+                          ) for i in range(self.num_dwt_blocks)
+        ])
+
+         # Pre-IDWT projection to map concatenated (skip, post) from 2*dim -> dim while preserving 4-subband groups
+        self.idwt_preproject = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(in_channels=dim*2, out_channels=dim, kernel_size=1, stride=1, padding=0, groups=4),
+                nn.BatchNorm2d(dim),
+                nn.ELU(inplace=True)
+            ) for i in range(self.num_dwt_blocks)
+        ])
+        
+        self.relative_position_embeddings = RelativePositionScaleEmbedding(dim=dim)
+        if self.meanstd:
+            self.output_proj =  nn.ConvTranspose2d(dim*2, 3*2, kernel_size=patch_size, stride=patch_size, padding=0)
+        else:
+            self.output_proj =  nn.ConvTranspose2d(dim*2, 3, kernel_size=patch_size, stride=patch_size, padding=0)
+        
+    def pad_input(self, x):
+        orig_h, orig_w = x.shape[1], x.shape[2]
+         # Calculate padding needed for patch_size
+        patch_h, patch_w = self.patch_size
+        pad_h = (patch_h - (orig_h % patch_h)) % patch_h
+        pad_w = (patch_w - (orig_w % patch_w)) % patch_w
+        
+        # Apply padding if needed
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+        return x
+     
+    def input_preprocess(self, x):
+        # get grid and concat
+        if self.normalize:
+            mu, sigma = x.mean(dim=(1,2,3),keepdim=True), x.std(dim=(1,2,3),keepdim=True) + 1e-6    # B,1,1,1,C
+            x = (x - mu)/ sigma
+        else:
+            mu, sigma = None, None
+
+        grid = self.get_grid(x.size(), x.device)
+        x = x.view(*x.shape[:-2], -1)           #### B, X, Y, T*C
+        x = torch.cat((x, grid), dim=-1)
+        x = x.permute(0, 3, 1, 2).contiguous() 
+        return x, (mu, sigma)
+    
+
+    def transformer_preprocess(self, x_list, pos_embeds):
+        x = []
+        for x_skip, pos_embed in zip(x_list, pos_embeds):
+            x.append(rearrange(x_skip, 'b d h w -> b (h w) d') + pos_embed.unsqueeze(0))
+        x = torch.cat(x, dim=1)
+        return x
+    
+    def transformer_postprocess(self, x, skip_connections):
+        x_list = []
+        for i, x_skip in enumerate(skip_connections):
+            h, w = x_skip.shape[-2], x_skip.shape[-1]
+            x_scale = x[:, :h*w]
+            x_scale = rearrange(x_scale, 'b (h w) d -> b d h w', h=h, w=w)
+            x = x[:, h*w:]
+            x_list.append(x_scale)
+        return x_list
+    
+    def forward(self, x):    
+        x, (mu, sigma) = self.input_preprocess(x)
+        x = self.pad_input(x)
+        x_patch = self.input_proj(x) # (B, D, H, W), # input shape: (B, C, H, W), projecting to a higher dimension, 2d convolution with kernel size 1
+        x = x_patch
+        # Downsampling: run several blocks of DWT to obtain the wavelet coefficients
+        skip_connections = []
+        pos_embeds = []
+        for i in range(self.num_dwt_blocks):
+            x = self.dwt_project[i](x)  # (B, D, H, W) -> (B, D//4, H, W)
+            if min(x.shape[-1], x.shape[-2]) ==1: # too small for wavelet transform
+                break
+            # apply DWT, half the input, 4 times the channel
+            x = self.dwt(x) # (B, 4*D//4, H//2, W//2)
+            skip_connections.append(x)
+            # generate relative position embeddings for every position in the [H//2, W//2] grid and scale
+            pos_embed = self.relative_position_embeddings(x.shape[2], x.shape[3], i, x.device) # shape (B, D, H//2 * W//2)
+            pos_embeds.append(pos_embed)
+
+        x = self.transformer_preprocess(skip_connections, pos_embeds) # concatenate and add position embeddings
+        # bottleneck is the transformer
+        x = self.transformer(x)
+        post_inputs = self.transformer_postprocess(x, skip_connections)
+        
+        # Upsampling: recover the original image with IDWT
+        x_prev = torch.zeros_like(post_inputs[-1])
+        for i, (x_post, x_skip) in enumerate(zip(post_inputs[::-1], skip_connections[::-1])):
+            # Concatenate skip and transformer features, then reduce back to dim channels per scale
+            x_cat = torch.cat((x_skip, x_post), dim=1)  # (B, 2*dim, H, W)
+            x_idwt_in = self.idwt_preproject[i](x_cat)  # (B, dim, H, W), grouped to preserve subbands
+            x_recov = self.idwt(x_idwt_in, use_v2=True)  # (B, dim//4, 2H, 2W)
+            x_recov = self.idwt_project[i](x_recov)  # (B, dim, 2H, 2W)
+            # Progressive reconstruction: carry information upward with 2x spatial scaling each step
+            if i == 0:
+                x_prev = x_recov
+            else:
+                x_prev = F.interpolate(x_prev, scale_factor=2, mode='bilinear', align_corners=False) + x_recov
+        
+        
+        x = torch.cat((x_prev, x_patch), dim=1) # concat the recovered image and the original image
+        x = self.output_proj(x) # (B, 3, H, W)
+        
+        # reshape to (B, C, H, W)
+        x = rearrange(x, 'b c h w -> b h w 1 c')
+        if self.normalize:
+            x = x * sigma  + mu
+        return x
 
 
 
@@ -998,15 +1073,15 @@ if __name__ == "__main__":
     x = torch.rand(2, 128, 128, 4, 3)
     
     # Base transformer
-    model_base = CrossWaveletTransformer(wave='haar', dim=512)
-    print("# parameters (base):", model_base.count_parameters())
-    output_base = model_base(x)
-    pred_base = torch.mean(output_base)
-    pred_base.backward()
-    print("Base Output shape:", output_base.shape)
+    # model_base = CrossWaveletTransformer(wave='haar', dim=512)
+    # print("# parameters (base):", model_base.count_parameters())
+    # output_base = model_base(x)
+    # pred_base = torch.mean(output_base)
+    # pred_base.backward()
+    # print("Base Output shape:", output_base.shape)
     
     # Skip-connection variant
-    model_skip = CrossWaveletTransSkipConnection(wave='haar', dim=512)
+    model_skip = WaveletTransV2(wave='haar', dim=512)
     print("# parameters (skip):", model_skip.count_parameters())
     output_skip = model_skip(x)
     pred_skip = torch.mean(output_skip)
