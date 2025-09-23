@@ -268,12 +268,18 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     loss_dict['max_global'] = GlobalMaxAbsError()
     loss_dict['spectral_error'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97)
     
-    step_dict = {0: "t=1", -1: "t=T"}
-
+    if 'ns2d' in log_path and 'torchcf' not in log_path: # NS equation
+        step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
+    else:
+        total_steps_to_compute = 5
+        step_dict = {t: f"t={t+1}" for t in range(0, pred.shape[-2], pred.shape[-2]//total_steps_to_compute)}
+        print("steps to compute",step_dict.keys())
     # Standard error metrics
     print("\n=== Channel-wise Error Metrics ===")
     save_df = pd.DataFrame(columns=["step", "channel", "metric", f"{model_name}"])
-    for step in [0, -1]: # first step and last step
+    
+    for step in step_dict.keys(): # first step and last step
+        print("evaluating step .....", step)
         for c in range(pred.shape[-1]):
             # evaluate different metrics per channel
             for key, loss_func in loss_dict.items():
@@ -287,8 +293,10 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
                         if band_key == 'k_low' or band_key == 'k_high':
                             continue
                         print(f"Channel {c} {step_dict[step]} {band_key}: {val:.6f}")
-                        new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": band_key, f"{model_name}": val}).to_frame().T
+                        new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": band_key, f"{model_name}": val,
+                                             "k_low": loss_metric['k_low'], "k_high": loss_metric['k_high']}).to_frame().T
                         save_df = pd.concat([save_df, new_row], ignore_index=True)
+                    
                 else:
                     
                     loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
@@ -402,14 +410,14 @@ def no_postprocessing_pred_save_data(args):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
-    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
-    # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
+    compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
     #### 4. postprocessing save the data for diffusion training
     # no_postprocessing_pred_save_data(args)
