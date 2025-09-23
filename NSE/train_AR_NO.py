@@ -272,7 +272,7 @@ for ep in pbar:
             y = yy_norm[..., t:t + args.T_bundle, :]
             # print('input shape', xx.shape)
             pred = model(xx)  # give the normalized output to the autoregressive predicting
-            print("pred shape", pred.shape, "y shape", y.shape)
+            # print("pred shape", pred.shape, "y shape", y.shape)
             loss += myloss(pred, y)
 
         train_l2_norm += loss.item() * y.shape[0]
