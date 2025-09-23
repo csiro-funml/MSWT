@@ -25,7 +25,8 @@ from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemp
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.fformer import FFormer
-from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection, WaveletTransV2
+from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
+from models.wavelet_transform_exploration import WaveletTransV2
 from models.high_frequency_scaling import ResUNet
 # from models.unet import UNet_with_BottleneckHFS, UNet_withoutHFS
 from models.hano import HANO2d
