@@ -640,21 +640,17 @@ class CrossWaveletTransSkipConnection(CrossWaveletTransformer):
     def downsampling(self, x):
         # run several blocks of DWT to obtain the wavelet coefficients
         x_scale = []
-        img_size = []
-        img_dims = []  # Store actual (height, width) dimensions
+        skip_connection = []
         
         for i in range(self.num_dwt_blocks):
             x = self.dwt_project[i](x)  # (B, D//4, H, W)
             if min(x.shape[-1], x.shape[-2]) ==1: # too small for wavelet transform
                 break_idx = i
                 break
-            # Store original dimensions before DWT
-            orig_h_dwt, orig_w_dwt = x.shape[-2], x.shape[-1]
-            img_dims.append((orig_h_dwt, orig_w_dwt))
-            
+
             # apply DWT
             x = self.dwt(x) # (B, 4*D//4, H//2, W//2)
-            img_size.append((x.shape[2]*x.shape[3]))
+            skip_connection.append(x) # append x before adding the positional embedding
             x_scale_input = rearrange(x, 'b d h w -> b (h w) d')  # (B, D, H//2 * W//2)
             # generate relative position embeddings for every position in the [H//2, W//2] grid
             pos_embed = self.relative_position_embeddings(x.shape[2], x.shape[3], x.device) # shape (B, D, H//2 * W//2)
@@ -666,36 +662,25 @@ class CrossWaveletTransSkipConnection(CrossWaveletTransformer):
 
         # concatenate the wavelet coefficients from all scales
         x = torch.cat(x_scale, dim=1) # (B, N, D)
-        return x, img_size, img_dims
+        return x, skip_connection
     
     
-    def upsampling(self, x, img_size, img_dims, proj_h, proj_w):
+    def upsampling(self, x, skip_connection, proj_h, proj_w):
          # recover the original image with IDWT
         # first split x based on image size to get the wavelet coefficients for each scale
+        img_size = [x.shape[-1]*x.shape[-2] for x in skip_connection]
         x_splits = torch.split(x, img_size, dim=-1)
         
-        x_recov = torch.zeros_like(x_splits[-1])  # initialize the recovered image
-        for i, x_split in enumerate(x_splits[::-1]):  # reverse the order to match the DWT order
-            x_recov = x_recov + x_split # combine the wavelet from the current scale (x_split) with the previous recovered image (x_recov)
-            # get the scale size and dimensions
-            scale_idx = len(x_splits) - 1 - i
-            scale_size = img_size[scale_idx]
-            orig_h_dwt, orig_w_dwt = img_dims[scale_idx]
-            
-            # Calculate the DWT output dimensions (after stride=2 with padding)
-            dwt_h = (orig_h_dwt + 1) // 2  # This accounts for padding in DWT
-            dwt_w = (orig_w_dwt + 1) // 2
-            
-            # start with the last scale, which has the smallest size
-            x_recov = rearrange(x_recov, 'b (p d) (h w) -> b p d h w', p = self.num_dwt_blocks, h=dwt_h, w=dwt_w)
+        x_recov = torch.zeros_like(x_splits[-1]).reshape(skip_connection[-1].shape)  # initialize the recovered image
+        for i, (x_split, x_skip) in enumerate(zip(x_splits[::-1], skip_connection[::-1])):  # reverse the order to match the DWT order
+            x_recov = x_recov + x_split.reshape(x_skip.shape) + x_skip # combine the wavelet from the current scale (x_split) with the previous recovered image (x_recov)
+            # 4 coeffecients required by IDWT, LL, LH, HL, HH
+            x_recov = rearrange(x_recov, 'b (p d) h w -> b p d h w', p = 4)
             # apply IDWT to the wavelet coefficients with target size
-            x_recov = self.idwt(x_recov, target_size=(orig_h_dwt, orig_w_dwt)) # (b d h w)
-            x_recov = self.idwt_project[i](x_recov)  # (B, 4*d, H, W))
-            x_recov = rearrange(x_recov, 'b d h w -> b d (h w)') # (b d H*W)
-        # the final output is the recovered image from the last scale
-        # Get the final dimensions from the first scale (which is the original projected size)
-        final_h, final_w = img_dims[0] if img_dims else (proj_h, proj_w)
-        x = rearrange(x_recov, 'b d (h w) -> b d h w', h=final_h, w=final_w)  # (B, D, H, W)
+            x_recov = self.idwt(x_recov) # (b d h w)
+            x_recov = self.idwt_project[i](x_recov)  # lift dimension, (B, 4*d, H, W))
+        
+        x = x_recov
         return x
 
     def output_postprocessing(self, x, mu, sigma, pad_h, pad_w, orig_h, orig_w):
@@ -718,14 +703,14 @@ class CrossWaveletTransSkipConnection(CrossWaveletTransformer):
         proj_h, proj_w = x.shape[-2], x.shape[-1]
         
         ######### Downsampling Blocks #########################################################
-        x, img_size, img_dims = self.downsampling(x)
+        x, skip_connection = self.downsampling(x)
 
         ####### Transformer Blocks #########################################################
         x = self.transformer(x)
         x = rearrange(x, 'b n d -> b d n')
 
         ####### Recovering Blocks #########################################################
-        x = self.upsampling(x, img_size, img_dims, proj_h, proj_w)
+        x = self.upsampling(x, skip_connection, proj_h, proj_w)
         x = self.output_proj(x) # (B, C, H, W)
         x = self.output_postprocessing(x, mu, sigma, pad_h, pad_w, orig_h, orig_w)
         return x
