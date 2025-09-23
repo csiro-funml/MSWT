@@ -379,9 +379,9 @@ class CrossWaveletTransformer(nn.Module):
 
         # final output layer
         if self.meanstd:
-            self.output_proj =  nn.ConvTranspose2d(dim, 3*2, kernel_size=patch_size, stride=patch_size, padding=0)
+            self.output_proj =  nn.ConvTranspose2d(dim, n_channels*2, kernel_size=patch_size, stride=patch_size, padding=0)
         else:
-            self.output_proj =  nn.ConvTranspose2d(dim, 3, kernel_size=patch_size, stride=patch_size, padding=0)
+            self.output_proj =  nn.ConvTranspose2d(dim, n_channels, kernel_size=patch_size, stride=patch_size, padding=0)
         self.normalize = normalize
         
     def get_latent_by_index(self, x, index):
