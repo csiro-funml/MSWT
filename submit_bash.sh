@@ -26,9 +26,6 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer_skip' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='WaveletTransV2' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='FNO' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='HFS' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
-CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='wavelet_transformer' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 
 
 # CUDA_VISIBLE_DEVICES=0 python3 train_AR_NO.py --dataset='ns2d_pda' --model='HFS' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
@@ -64,6 +61,22 @@ CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_torchcf_re1000
 # Frequency filter testing
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/frequency_filter_testing.py --dataset='ns2d_pda' --model='wavelet_transformer' --n_layers=5 --n_autorepressive_steps=100 
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/frequency_filter_testing.py --dataset='ns2d_pda' --model='HFS' --n_layers=5 --n_autorepressive_steps=100 
+
+#################################################################################################################################
+
+
+
+###############################################################NSE TORCHCFD ############################################################
+# Training
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='FNO' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='HFS' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='wavelet_transformer' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
+
+# Testing
+CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='FNO' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='HFS' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='wavelet_transformer' --T_in=7 --epochs=3000
+
 
 #################################################################################################################################
 
