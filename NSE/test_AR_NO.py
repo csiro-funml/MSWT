@@ -243,8 +243,8 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
 
         # save to npz
         if save:
-            # torch.save(save_data, f'{log_path}/test_data_prediction.pth')
-            torch.save(save_data, f'{log_path}/test_long_data_prediction.pth')
+            torch.save(save_data, f'{log_path}/test_data_prediction.pth')
+            # torch.save(save_data, f'{log_path}/test_long_data_prediction.pth')
         return save_data
 
 
