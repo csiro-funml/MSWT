@@ -68,7 +68,7 @@ source $HOME/.venvs/pytorch/bin/activate
 
 # Testing
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='FNO' --T_in=7 --epochs=3000
-CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='HFS' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='HFS' --T_in=7 --epochs=3000
 CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='wavelet_transformer' --T_in=7 --epochs=3000
 
 
