@@ -13,9 +13,8 @@
 
 # module load numpy/2.0.0-py312
 
-module load pytorch/2.3.1-py312-cu122
-module load cuda/12.2.2
 
+module load pytorch/2.5.1-py312-cu122-mpi
 # source /scratch3/wan410/venvs/testing/bin/activate
 source $HOME/.venvs/pytorch/bin/activate
 
