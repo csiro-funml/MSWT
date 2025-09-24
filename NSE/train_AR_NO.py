@@ -26,7 +26,7 @@ from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.fformer import FFormer
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
-from models.wavelet_transform_exploration import WaveletTransV2
+from models.wavelet_transform_exploration import WaveletTransformer
 from models.high_frequency_scaling import ResUNet
 # from models.unet import UNet_with_BottleneckHFS, UNet_withoutHFS
 from models.hano import HANO2d
@@ -172,7 +172,7 @@ elif args.model == 'HFS':
 elif args.model == 'wavelet_transformer_skip':
     model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'WaveletTransV2':
-    model = WaveletTransV2(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+    model = WaveletTransformer(in_timesteps = args.T_in, in_chans=train_dataset.n_channels, out_chans=train_dataset.n_channels).to(device)
 elif args.model == 'HANO':
     model = HANO2d(T_in=args.T_in, T_out=args.T_ar, res_output=train_dataset.res[0],  res_att=train_dataset.res[0],
                    in_dim=train_dataset.n_channels, out_dim=train_dataset.n_channels, feature_dim=256).to(device)
