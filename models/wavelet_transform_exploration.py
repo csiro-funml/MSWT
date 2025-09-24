@@ -421,7 +421,7 @@ class WaveletTransformer(nn.Module):
                         pool_scales=(1, 1, 2, 3, 6),
                         channels=256,
                         dropout_ratio=0.1,
-                        output_channels=3,
+                        output_channels=out_chans,
                         output_size=(128, 128),
                             )
 
