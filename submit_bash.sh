@@ -12,14 +12,10 @@
 
 
 # module load numpy/2.0.0-py312
-module load pytorch/2.5.1-py312-cu122-mpi
 
-# module load pytorch/2.1.0-py312-cu122-mpi
-# module load opencv/4.8.1
-# module load pytorch/2.5.1-py312-cu124-mpi-sota
-# module load pytorch/2.1.0-py312-cu122-mpi
-module load tensorflow/2.16.1-pip-py312-cuda122
-module load parallel python
+module load pytorch/2.3.1-py312-cu122
+module load cuda/12.2.2
+
 # source /scratch3/wan410/venvs/testing/bin/activate
 source $HOME/.venvs/pytorch/bin/activate
 
@@ -27,7 +23,7 @@ source $HOME/.venvs/pytorch/bin/activate
 ################################################################ NSE #################################################################
 ## Train the model
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer_skip' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
-CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000
+CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='WaveletTransV2' --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
 
 
