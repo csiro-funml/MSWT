@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from mmcv.cnn import ConvModule
+from mmcv_replacement import ConvModule
 from torch.nn import functional as F
 # from mmseg.ops import resize
 # from mmseg.core import build_pixel_sampler
@@ -15,11 +15,10 @@ from abc import ABCMeta, abstractmethod
 
 import torch
 import torch.nn as nn
-from mmcv.cnn import normal_init
-from mmcv.runner import auto_fp16, force_fp32
+from mmcv_replacement import normal_init, auto_fp16, force_fp32
 
 
-from mmcv.utils import Registry, build_from_cfg
+from mmcv_replacement import Registry, build_from_cfg
 from torch import nn
 
 
@@ -32,7 +31,7 @@ def build_loss(cfg):
 
 import warnings
 
-from mmcv.utils import Registry, build_from_cfg
+from mmcv_replacement import Registry, build_from_cfg
 from torch import nn
 
 BACKBONES = Registry('backbone')
