@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=15:00:00
+#SBATCH --time=00:30:00
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -23,8 +23,8 @@ source $HOME/.venvs/pytorch/bin/activate
 
 ################################################################ NSE #################################################################
 ## Train the model
-CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer_skip' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='WaveletTransV2' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer_skip' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
+CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='WaveletTransV2' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
 
 
