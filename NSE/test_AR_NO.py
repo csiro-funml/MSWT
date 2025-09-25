@@ -22,7 +22,8 @@ from utils.utilities import count_parameters, get_grid, load_model_from_checkpoi
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, TemporalDataset2D_multiscale, LocalTemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
-from models.wavelet_transform import CrossWaveletTransformer
+from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
+from models.wavelet_transform_exploration import WaveletTransformer
 from models.high_frequency_scaling import ResUNet
 import pickle
 from tqdm import tqdm
@@ -175,7 +176,12 @@ def load_data_model(just_load_path=False):
         model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
                  bottleneck_feature=512, 
                  device=device).to(device)
+    elif args.model == 'wavelet_transformer_skip':
+        model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+    elif args.model == 'WaveletTransV2':
+        model = WaveletTransformer(in_timesteps = args.T_in, in_chans=train_dataset.n_channels, out_chans=train_dataset.n_channels).to(device)
     else:
+        print("model not implemented", args.model)
         raise NotImplementedError
 
 
