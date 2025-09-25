@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=00:10:00
+#SBATCH --time=2:00:00
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -18,7 +18,7 @@ source $HOME/.venvs/pytorch/bin/activate
 ################################################################ NSE #################################################################
 ## Train the model
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer_skip' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='WaveletTransV2' --use_write --lr_method='cossin' --T_in=7 --epochs=3000
+CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_pda' --model='WaveletTransV2' --use_write --lr_method='cossin' --T_in=7 --epochs=3000 --resume_path=True
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_fno_1e-3' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
 
 
@@ -35,7 +35,7 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='UNet_withoutHFS'
 # CUDA_VISIBLE_DEVICES=0 python3 test_AR_NO.py --dataset='ns2d_pda' --model='UNet'
-CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer_skip' --lr_method='cossin' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_pda' --model='wavelet_transformer_skip' --lr_method='cossin' --T_in=7 --epochs=3000
 
 # Train/Test the diffusion model
 # CUDA_VISIBLE_DEVICES=0 python3 train_diffusion_NO.py --dataset='ns2d_pda' --model='FNO' --use_writer --batch_size=128 --epochs=3000
