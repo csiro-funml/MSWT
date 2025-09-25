@@ -426,7 +426,7 @@ if __name__ == '__main__':
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
-    # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
+    compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
     #### 4. postprocessing save the data for diffusion training
     # no_postprocessing_pred_save_data(args)
