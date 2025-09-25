@@ -9,6 +9,9 @@ from einops.layers.torch import Rearrange
 from functools import partial
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import math
+import sys
+import os
+sys.path.append(os.path.dirname(__file__))
 from wavelet_utils import UPerHead
 
 def build_bn(num_features, requires_grad=False):
