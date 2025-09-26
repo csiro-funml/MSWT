@@ -24,7 +24,6 @@ from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, Ma
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
-from models.fformer import FFormer
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
 from models.wavelet_transform_exploration import WaveletTransformer
 from models.high_frequency_scaling import ResUNet
@@ -157,11 +156,6 @@ if args.model == "FNO":
                   n_layers = args.n_layers, 
                 # normalize=args.normalize, 
                  ).to(device)
-elif args.model == 'FFormer':
-    model = FFormer(in_channels=train_dataset.n_channels, out_channels=train_dataset.n_channels, in_timesteps=args.T_in, out_timesteps=1,
-      patch_size=(args.patch_size, args.patch_size),
-      n_layers=3, dim=1024,
-     ).to(device)
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'HFS':
