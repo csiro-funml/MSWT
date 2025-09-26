@@ -21,64 +21,6 @@ def build_bn(num_features, requires_grad=False):
             param.requires_grad = False
     return bn
 
-class DWT_Function(Function):
-    @staticmethod
-    def forward(ctx, x, w_ll, w_lh, w_hl, w_hh):
-        x = x.contiguous()
-        ctx.save_for_backward(w_ll, w_lh, w_hl, w_hh)
-        ctx.shape = x.shape
-
-        dim = x.shape[1]
-        x_ll = torch.nn.functional.conv2d(x, w_ll.expand(dim, -1, -1, -1), stride = 2, groups = dim)
-        x_lh = torch.nn.functional.conv2d(x, w_lh.expand(dim, -1, -1, -1), stride = 2, groups = dim)
-        x_hl = torch.nn.functional.conv2d(x, w_hl.expand(dim, -1, -1, -1), stride = 2, groups = dim)
-        x_hh = torch.nn.functional.conv2d(x, w_hh.expand(dim, -1, -1, -1), stride = 2, groups = dim)
-        x = torch.cat([x_ll, x_lh, x_hl, x_hh], dim=1)
-        return x
-
-    @staticmethod
-    def backward(ctx, dx):
-        if ctx.needs_input_grad[0]:
-            w_ll, w_lh, w_hl, w_hh = ctx.saved_tensors
-            B, C, H, W = ctx.shape
-            dx = dx.view(B, 4, -1, H//2, W//2)
-
-            dx = dx.transpose(1,2).reshape(B, -1, H//2, W//2)
-            filters = torch.cat([w_ll, w_lh, w_hl, w_hh], dim=0).repeat(C, 1, 1, 1)
-            dx = torch.nn.functional.conv_transpose2d(dx, filters, stride=2, groups=C)
-
-        return dx, None, None, None, None
-
-class IDWT_Function(Function):
-    @staticmethod
-    def forward(ctx, x, filters):
-        ctx.save_for_backward(filters)
-        ctx.shape = x.shape
-
-        B, _, H, W = x.shape
-        x = x.view(B, 4, -1, H, W).transpose(1, 2)
-        C = x.shape[1]
-        x = x.reshape(B, -1, H, W)
-        filters = filters.repeat(C, 1, 1, 1)
-        x = torch.nn.functional.conv_transpose2d(x, filters, stride=2, groups=C)
-        return x
-
-    @staticmethod
-    def backward(ctx, dx):
-        if ctx.needs_input_grad[0]:
-            filters = ctx.saved_tensors
-            filters = filters[0]
-            B, C, H, W = ctx.shape
-            C = C // 4
-            dx = dx.contiguous()
-
-            w_ll, w_lh, w_hl, w_hh = torch.unbind(filters, dim=0)
-            x_ll = torch.nn.functional.conv2d(dx, w_ll.unsqueeze(1).expand(C, -1, -1, -1), stride = 2, groups = C)
-            x_lh = torch.nn.functional.conv2d(dx, w_lh.unsqueeze(1).expand(C, -1, -1, -1), stride = 2, groups = C)
-            x_hl = torch.nn.functional.conv2d(dx, w_hl.unsqueeze(1).expand(C, -1, -1, -1), stride = 2, groups = C)
-            x_hh = torch.nn.functional.conv2d(dx, w_hh.unsqueeze(1).expand(C, -1, -1, -1), stride = 2, groups = C)
-            dx = torch.cat([x_ll, x_lh, x_hl, x_hh], dim=1)
-        return dx, None
 
 class IDWT_2D(nn.Module):
     def __init__(self, wave):
@@ -104,7 +46,12 @@ class IDWT_2D(nn.Module):
         x: (B, 4*C, H//2, W//2)
         return: (B, C, H, W)
         """
-        return IDWT_Function.apply(x, self.filters)
+        B, _, H, W = x.shape
+        x = x.view(B, 4, -1, H, W).transpose(1, 2)
+        C = x.shape[1]
+        x = x.reshape(B, -1, H, W)
+        filters = self.filters.repeat(C, 1, 1, 1)
+        return F.conv_transpose2d(x, filters, stride=2, groups=C)
 
 class DWT_2D(nn.Module):
     def __init__(self, wave):
@@ -128,7 +75,22 @@ class DWT_2D(nn.Module):
         x: (B, C, H, W)
         return: (B, 4*C, H//2, W//2)
         """
-        return DWT_Function.apply(x, self.w_ll, self.w_lh, self.w_hl, self.w_hh)
+        B, C, H, W = x.shape
+        
+        # Ensure input dimensions are even
+        pad_h = (2 - H % 2) % 2
+        pad_w = (2 - W % 2) % 2
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h))
+        
+        # Use simple conv2d instead of custom function for better autograd
+        dim = x.shape[1]
+        x_ll = F.conv2d(x, self.w_ll.expand(dim, -1, -1, -1), stride=2, groups=dim)
+        x_lh = F.conv2d(x, self.w_lh.expand(dim, -1, -1, -1), stride=2, groups=dim)
+        x_hl = F.conv2d(x, self.w_hl.expand(dim, -1, -1, -1), stride=2, groups=dim)
+        x_hh = F.conv2d(x, self.w_hh.expand(dim, -1, -1, -1), stride=2, groups=dim)
+        
+        return torch.cat([x_ll, x_lh, x_hl, x_hh], dim=1)
 
 
 class Attention(nn.Module):
@@ -372,7 +334,7 @@ class DownSamples(nn.Module):
         return x, H, W
 
 class WaveletTransformer(nn.Module):
-    def __init__(self, in_chans=3, out_chans=3, in_timesteps=7):
+    def __init__(self, in_chans=3, out_chans=3, in_timesteps=7, output_size=(128, 128)):
         super(WaveletTransformer, self).__init__()
         self.num_stages = 4
         stem_hidden_dim = 32 
@@ -425,7 +387,7 @@ class WaveletTransformer(nn.Module):
                         channels=256,
                         dropout_ratio=0.1,
                         output_channels=out_chans,
-                        output_size=(128, 128),
+                        output_size=output_size,
                             )
 
     def get_grid(self, x):
@@ -479,6 +441,7 @@ class WaveletTransformer(nn.Module):
 
 if __name__ == "__main__":
     x = torch.randn(2, 128, 128, 7, 3)
+    # x = torch.randn(2, 96, 192, 7, 3)
     print("x shape:", x.shape)
     # dwt = DWT_2D('haar')
     # idwt = IDWT_2D('haar')
@@ -487,7 +450,7 @@ if __name__ == "__main__":
     # x = idwt(x)
     # print("after inverse wavelet transform", x.shape)
 
-    model = WaveletTransformer()
+    model = WaveletTransformer(output_size=(x.shape[1], x.shape[2]))
     model.count_parameters()
     with torch.autograd.set_detect_anomaly(True):
         output = model(x)
