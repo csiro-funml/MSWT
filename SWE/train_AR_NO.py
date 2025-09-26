@@ -31,7 +31,6 @@ from models.unet import UNet
 from models.hano import HANO2d
 import pickle
 from tqdm import tqdm
-from lion_pytorch import Lion
 
 
 ################################################################
