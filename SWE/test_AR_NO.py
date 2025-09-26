@@ -177,7 +177,8 @@ def load_data_model(just_load_path=False):
     elif args.model == 'wavelet_transformer_skip':
         model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
     elif args.model == 'WaveletTransV2':
-        model = WaveletTransformer(in_timesteps = args.T_in, in_chans=train_dataset.n_channels, out_chans=train_dataset.n_channels).to(device)
+        model = WaveletTransformer(in_timesteps = args.T_in, in_chans=train_dataset.n_channels, out_chans=train_dataset.n_channels,
+         output_size=(train_dataset.res[0], train_dataset.res[1])).to(device)
     else:
         print("model not implemented", args.model)
         raise NotImplementedError
