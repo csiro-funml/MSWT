@@ -25,7 +25,8 @@ from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, Ma
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, CachedTemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
-from models.wavelet_transform import CrossWaveletTransformer
+from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
+from models.wavelet_transform_exploration import WaveletTransformer
 from models.high_frequency_scaling import ResUNet
 from models.unet import UNet
 from models.hano import HANO2d
@@ -158,6 +159,10 @@ if args.model == "FNO":
                  ).to(device)
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+elif args.model == 'wavelet_transformer_skip':
+    model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+elif args.model == 'WaveletTransV2':
+    model = WaveletTransformer(in_timesteps = args.T_in, in_chans=train_dataset.n_channels, out_chans=train_dataset.n_channels).to(device)
 elif args.model == 'HFS':
     model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
                      bottleneck_feature=512, 
