@@ -441,8 +441,8 @@ def plot_spectral_error(save_data, model_name='', log_path=''):
             #     log_path=log_path,
             #     model_name=model_name
             # )
-            E_spectrum_fno = spectrum_2d(target[idx, ..., step, channel_id].cpu(), n_test)
-            E_spectrum_pred = spectrum_2d(pred[idx, ..., step, channel_id].cpu(), n_test)
+            E_spectrum_fno = spectrum_2d(target[...,step, channel_id].cpu(), n_test)
+            E_spectrum_pred = spectrum_2d(pred[..., step, channel_id].cpu(), n_test)
             plt.loglog(E_spectrum_fno, label = 'FNO Spectrum')
             plt.loglog(E_spectrum_pred, label = 'Prediction Spectrum')
             plt.legend()
