@@ -427,20 +427,20 @@ def plot_spectral_error(save_data, model_name='', log_path=''):
         step_dict = {t: f"t={t+1}" for t in range(0, pred.shape[-2], pred.shape[-2]//total_steps_to_compute)}
         print("steps to compute",step_dict.keys())
     
-    
-    for step in step_dict.keys(): # first step and last step
-        print("evaluating step .....", step)
-        plot_enstrophy_spectrum(
-            [target[idx, ..., step, channel_id].cpu(),
-            pred[idx, ..., step, channel_id].cpu()],
-            h=2 * np.pi / n_test,
-            labels=["Ground Truth", "Prediction"],
-            title=f"t={step},c={channel_id}",
-            factor=1,
-            slope=5/3,
-            log_path=log_path,
-            model_name=model_name
-        )
+    for channel_id in range(pred.shape[-1]):
+        for step in step_dict.keys(): # first step and last step
+            print("evaluating step .....", step, "channel .....", channel_id)
+            plot_enstrophy_spectrum(
+                [target[idx, ..., step, channel_id].cpu(),
+                pred[idx, ..., step, channel_id].cpu()],
+                h=2 * np.pi / n_test,
+                labels=["Ground Truth", "Prediction"],
+                title=f"t={step},c={channel_id}",
+                factor=1,
+                slope=5/3,
+                log_path=log_path,
+                model_name=model_name
+            )
 
 
 
