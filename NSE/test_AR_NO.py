@@ -435,7 +435,7 @@ def plot_spectral_error(save_data, model_name='', log_path=''):
             pred[idx, ..., step, channel_id].cpu()],
             h=2 * np.pi / n_test,
             labels=["Ground Truth", "Prediction"],
-            title=f"t = {step}",
+            title=f"t={step},c={channel_id}",
             factor=1,
             slope=5/3,
             log_path=log_path,

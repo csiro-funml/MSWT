@@ -190,7 +190,7 @@ def plot_enstrophy_spectrum(
     plt.xlabel("Wavenumber", fontsize=fontsize)
     ax.xaxis.set_tick_params(labelsize=fontsize)
     ax.yaxis.set_tick_params(labelsize=fontsize)
-    plt.savefig(f'{log_path}/{model_name}_{title}_enstrophy_spectrum.png')
+    plt.savefig(f'{log_path}/spectral_error/{model_name}_{title}_enstrophy_spectrum.png')
 
 
 def plot_contour_trajectory(
