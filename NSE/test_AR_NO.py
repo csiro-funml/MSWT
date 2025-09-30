@@ -31,7 +31,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
-
+from visualizations import plot_enstrophy_spectrum
 warnings.filterwarnings("ignore")
 
 ################################################################
@@ -411,6 +411,36 @@ def no_postprocessing_pred_save_data(args):
     print("Successfully saved the predictions for diffusion training")
 
 
+################################################################
+# Function 4 plot the spectral error
+################################################################
+def plot_spectral_error(save_data, model_name='', log_path=''):
+    pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
+    idx = 0
+    channel_id = 0
+    t = 0
+    n_test = target.shape[1]
+    if 'ns2d' in log_path and 'torchcf' not in log_path: # NS equation
+        step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
+    else:
+        total_steps_to_compute = 5
+        step_dict = {t: f"t={t+1}" for t in range(0, pred.shape[-2], pred.shape[-2]//total_steps_to_compute)}
+        print("steps to compute",step_dict.keys())
+    
+    
+    for step in step_dict.keys(): # first step and last step
+        print("evaluating step .....", step)
+        plot_enstrophy_spectrum(
+            [target[idx, ..., step, channel_id].cpu(),
+            pred[idx, ..., step, channel_id].cpu()],
+            h=2 * np.pi / n_test,
+            labels=["Ground Truth", "Prediction"],
+            title=f"t = {step}",
+            factor=1,
+            slope=5/3,
+            log_path=log_path,
+            model_name=model_name
+        )
 
 
 
@@ -418,14 +448,18 @@ def no_postprocessing_pred_save_data(args):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
-    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     #### 3. compute different types of metrics
-    compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
+    # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
     #### 4. postprocessing save the data for diffusion training
     # no_postprocessing_pred_save_data(args)
+
+
+    #### 5. plot the spectral error
+    plot_spectral_error(save_data, model_name=args.model, log_path=log_path)
