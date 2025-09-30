@@ -473,4 +473,4 @@ if __name__ == '__main__':
 
 
     #### 5. plot the spectral error
-    plot_spectral_error(save_data, model_name=args.model, log_path=log_path)
+    # plot_spectral_error(save_data, model_name=args.model, log_path=log_path)
