@@ -663,7 +663,7 @@ def find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile):
 
 
 # USED FOR testing evaluation
-def get_frequency_bands_from_cumulative_energy(
+def get_frequency_bands_from_cumulative_energy_old(
     y: torch.Tensor,
     low_percentile: float = 0.67,
     high_percentile: float = 0.99,
@@ -747,6 +747,92 @@ def get_frequency_bands_from_cumulative_energy(
     return k_low, k_high, k_freq, E_freq
 
 
+def get_frequency_bands_from_cumulative_energy(
+    y: torch.Tensor,
+    low_percentile: float = 0.67,
+    high_percentile: float = 0.99,
+    max_freq: int = None,
+    eps: float = 1e-12,
+) -> Tuple[int, int, torch.Tensor, torch.Tensor]:
+    """
+    Determine frequency band boundaries using cumulative energy distribution.
+    Returns discrete frequency bin indices for low/mid/high frequency aggregation.
+
+    Args:
+        y: Tensor of shape (N, H, W, C) - input field data.
+        low_percentile: Cumulative energy fraction for low/mid boundary (default 0.33).
+        high_percentile: Cumulative energy fraction for mid/high boundary (default 0.67).
+        max_freq: Maximum frequency to consider (default = min(H, W)//2).
+        eps: Small number to avoid divide-by-zero.
+
+    Returns:
+        k_low: int, frequency bin where cumulative energy >= low_percentile.
+        k_high: int, frequency bin where cumulative energy >= high_percentile.
+        freq_bins: tensor of frequency bin centers [0, 1, 2, ..., max_freq].
+        cumulative_energy: tensor of cumulative energy fractions.
+    """
+    assert y.ndim == 5, "y must have shape (N,H,W,T,C)"
+    N, H, W, T, C = y.shape
+    if max_freq is None:
+        max_freq = min(H, W) // 2
+
+    device = y.device
+    dtype = y.dtype
+
+    y = rearrange(y, 'b h w t c -> (b t c) h w')
+
+    # Use full 2D FFT so the spectrum shape matches (B T C H, W)
+    print("y shape", y.shape)
+    y_fft = torch.fft.fft2(y)
+
+    # Take magnitude and move to numpy for binning
+    fourier_amplitudes = torch.abs(y_fft).detach().cpu().numpy()
+    # Create the k-frequency grid for rectangular image
+    kfreq_x = np.fft.fftfreq(W) * W
+    kfreq_y = np.fft.fftfreq(H) * H
+    kfreq2D = np.meshgrid(kfreq_x, kfreq_y)
+    knrm = np.sqrt(kfreq2D[0] ** 2 + kfreq2D[1] ** 2)
+    # Flatten the arrays to use in binning (1D arrays of equal length,  (H*W,) ) 
+    knrm = knrm.ravel() # ALL the frequences in the image
+
+    # Define the bins for the wavenumber - use the minimum dimension for binning
+    min_dim = min(H, W)
+    kbins = np.arange(1, min_dim // 2 + 1, 1.0)
+
+    amplitudes = []
+    for idx in range(fourier_amplitudes.shape[0]):
+        fourier_idx = fourier_amplitudes[idx].ravel()
+        # Bin the data (radial mean), turn the 2D array into 1D array
+        E_freq, _, _ = stats.binned_statistic(
+            knrm, fourier_idx, statistic="mean", bins=kbins
+       )
+        amplitudes.append(E_freq)
+    amplitudes = np.array(amplitudes)
+    E_freq = amplitudes.mean(axis=0)
+
+    log_E_freq = np.log(E_freq)
+    log_freq = np.log(kbins[:len(log_E_freq)])
+    k_freq = kbins[:len(E_freq)]
+        
+    # k_low, k_high, intercept = find_freq_from_linear_fit(log_freq, log_E_freq)
+    # plot it temporarily
+    # plt.loglog(k_freq, E_freq, 'X-',markersize=1, label='data')
+    # plt.loglog(k_freq, np.exp(-5.0/3*log_freq + intercept), 'r--', label='linear fit') # linear fit
+    #     # Mark intersection points
+    # plt.legend()
+    # plt.show()
+    # k_low = 12
+    # k_high = 40
+
+    # compute the cumulative sum of the energy
+    E_freq_cumsum = np.cumsum(E_freq)
+    E_freq_cumsum = E_freq_cumsum / E_freq_cumsum[-1]
+    k_low, k_high = find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile)
+
+    return k_low, k_high, k_freq, E_freq
+
+
+
 def aggregate_spectral_energy_by_bands(
     k_low: int,
     k_high: int,
@@ -777,18 +863,18 @@ if __name__ == "__main__":
     
     # Create test data (N, H, W, C)
     torch.manual_seed(42)
-    N, H, W, C = 2, 128, 128, 3
-    target = torch.randn([N, H, W, C])
+    N, H, W, C = 2, 128, 128, 1
+    target = torch.randn([N, H, W, 1, C])
     pred = target + 0.1 * torch.randn_like(target)  # Add some noise
     
     print(f"Data shape: {target.shape}")
     print(f"Max frequency: {min(H, W) // 2}")
     
     # Get frequency bands using cumulative energy
-    k_low, k_high,  E_bins_target = get_frequency_bands_from_cumulative_energy(
+    k_low, k_mid, k_high,  E_bins_target = get_frequency_bands_from_cumulative_energy(
         target, low_percentile=0.70, high_percentile=0.99
     )
-    _, _, E_bins_pred = get_frequency_bands_from_cumulative_energy(
+    _, _, _,E_bins_pred = get_frequency_bands_from_cumulative_energy(
         pred, low_percentile=0.80, high_percentile=0.99
     )
 
