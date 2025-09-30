@@ -31,7 +31,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
-from visualizations import plot_enstrophy_spectrum
+from visualizations import plot_enstrophy_spectrum, spectrum_2d
 warnings.filterwarnings("ignore")
 
 ################################################################
@@ -430,17 +430,24 @@ def plot_spectral_error(save_data, model_name='', log_path=''):
     for channel_id in range(pred.shape[-1]):
         for step in step_dict.keys(): # first step and last step
             print("evaluating step .....", step, "channel .....", channel_id)
-            plot_enstrophy_spectrum(
-                [target[idx, ..., step, channel_id].cpu(),
-                pred[idx, ..., step, channel_id].cpu()],
-                h=2 * np.pi / n_test,
-                labels=["Ground Truth", "Prediction"],
-                title=f"t={step},c={channel_id}",
-                factor=1,
-                slope=5/3,
-                log_path=log_path,
-                model_name=model_name
-            )
+            # plot_enstrophy_spectrum(
+            #     [target[idx, ..., step, channel_id].cpu(),
+            #     pred[idx, ..., step, channel_id].cpu()],
+            #     h=2 * np.pi / n_test,
+            #     labels=["Ground Truth", "Prediction"],
+            #     title=f"t={step},c={channel_id}",
+            #     factor=1,
+            #     slope=5/3,
+            #     log_path=log_path,
+            #     model_name=model_name
+            # )
+            E_spectrum_fno = spectrum_2d(target[idx, ..., step, channel_id].cpu(), n_test)
+            E_spectrum_pred = spectrum_2d(pred[idx, ..., step, channel_id].cpu(), n_test)
+            plt.loglog(E_spectrum_fno, label = 'FNO Spectrum')
+            plt.loglog(E_spectrum_pred, label = 'Prediction Spectrum')
+            plt.legend()
+            plt.savefig(f'{log_path}/spectral_error/{model_name}_{step}_{channel_id}_fno_spectrum.png')
+            plt.show()
 
 
 
