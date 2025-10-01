@@ -1,5 +1,6 @@
 #!/usr/bin/env python  
 #-*- coding:utf-8 _*-
+from errno import EEXIST
 import torch
 from torch.nn.modules.loss import _WeightedLoss
 import torch.nn.functional as F
@@ -150,6 +151,8 @@ class SpectralError(_WeightedLoss):
             self.method_f = get_frequency_bands_from_cumulative_energy
         elif method == 'square approximation':
             self.method_f = spectrum_2d
+        elif method == 'cfd':
+            self.method_f = spectral_cfd
         self.method = method
 
 
@@ -942,6 +945,51 @@ def spectrum_2d(y: torch.Tensor,
     k_low, k_high = find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile)
     return k_low, k_high, k_freq, E_freq
 
+
+def spectral_cfd(y: torch.Tensor,
+    low_percentile: float = 0.67,
+    high_percentile: float = 0.99,
+    max_freq: int = None,
+    eps: float = 1e-12,
+) -> Tuple[int, int, torch.Tensor, torch.Tensor]:
+    y = rearrange(y, 'b h w t c -> (b t c) h w')
+    vorticity = y
+    if isinstance(vorticity, np.ndarray):
+        vorticity = torch.from_numpy(vorticity)
+    n = vorticity.shape[-1]
+    h = 2 * np.pi / n
+    kx = torch.fft.fftfreq(n, d=h)
+    ky = torch.fft.fftfreq(n, d=h)
+    kx, ky = torch.meshgrid([kx, ky], indexing="ij")
+    kmax = n // 2
+    kx = kx[..., : kmax + 1]
+    ky = ky[..., : kmax + 1]
+    k2 = (4 * torch.pi**2) * (kx**2 + ky**2)
+    print("k2 shape", k2.shape)
+    k2[0, 0] = 1.0
+
+    wh = torch.fft.rfft2(vorticity)
+
+    tke = torch.abs(wh)**2
+    kmod = torch.sqrt(k2)
+    k = torch.arange(1, kmax, dtype=torch.float64)  # Nyquist limit for this grid
+    Ens = torch.zeros_like(k)
+    dk = (torch.max(k) - torch.min(k)) / (2 * n)
+    for i in range(len(k)):
+        Ens[i] += (tke[(kmod < k[i] + dk) & (kmod >= k[i] - dk)]).sum()
+    
+    n_observations = n
+    E_freq = Ens
+    print("E_freq shape", E_freq.shape)
+    
+    min_dim = n_observations
+    kbins = np.arange(1, min_dim // 2 + 1, 1.0)
+    k_freq = kbins[:len(E_freq)]
+    
+    E_freq_cumsum = np.cumsum(E_freq)
+    E_freq_cumsum = E_freq_cumsum / E_freq_cumsum[-1]
+    k_low, k_high = find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile)
+    return k_low, k_high, k_freq, E_freq
 
 if __name__ == "__main__":
     # x = torch.randn([2, 128, 128, 1, 3])

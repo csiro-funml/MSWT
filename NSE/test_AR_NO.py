@@ -276,7 +276,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     loss_dict['max_global'] = GlobalMaxAbsError()
     loss_dict['spectral_error_radial'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='radial')
     loss_dict['spectral_error_square'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='square approximation')
-    
+    loss_dict['spectral_error_cfd'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='cfd')
     if 'ns2d' in log_path and 'torchcf' not in log_path: # NS equation
         step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
     else:
