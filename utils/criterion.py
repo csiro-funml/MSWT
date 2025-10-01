@@ -190,7 +190,7 @@ class SpectralError(_WeightedLoss):
             plt.yticks(fontsize=font_size)
             if not os.path.exists(f'{self.save_path}/spectral_error'):
                 os.makedirs(f'{self.save_path}/spectral_error')
-            plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{self.model_name}_c{channel}_t{time_step}.png')
+            plt.savefig(f'{self.save_path}/spectral_error/spectral_error_{self.model_name}_{self.method}_c{channel}_t{time_step}.png')
             plt.clf()
         # plt.show()
 
