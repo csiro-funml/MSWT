@@ -786,7 +786,7 @@ def get_frequency_bands_from_cumulative_energy(
     y_fft = torch.fft.fft2(y)
 
     # Take magnitude and move to numpy for binning
-    fourier_amplitudes = torch.abs(y_fft).detach().cpu().numpy()
+    fourier_amplitudes = (torch.abs(y_fft)**2).detach().cpu().numpy()
     # Create the k-frequency grid for rectangular image
     kfreq_x = np.fft.fftfreq(W) * W
     kfreq_y = np.fft.fftfreq(H) * H
@@ -797,7 +797,7 @@ def get_frequency_bands_from_cumulative_energy(
 
     # Define the bins for the wavenumber - use the minimum dimension for binning
     min_dim = min(H, W)
-    kbins = np.arange(1, min_dim // 2 + 1, 1.0)
+    kbins = np.arange(0.5, min_dim // 2 + 1, 1.0)
 
     amplitudes = []
     for idx in range(fourier_amplitudes.shape[0]):
@@ -812,7 +812,8 @@ def get_frequency_bands_from_cumulative_energy(
 
     log_E_freq = np.log(E_freq)
     log_freq = np.log(kbins[:len(log_E_freq)])
-    k_freq = kbins[:len(E_freq)]
+    k_freq = 0.5 * (kbins[1:] + kbins[:-1])
+    # k_freq = kbins[:len(E_freq)]
         
     # k_low, k_high, intercept = find_freq_from_linear_fit(log_freq, log_E_freq)
     # plot it temporarily
