@@ -970,9 +970,9 @@ def spectral_cfd(y: torch.Tensor,
 
     wh = torch.fft.rfft2(vorticity)
 
-    tke = torch.abs(wh)**2
+    tke = (torch.abs(wh)**2).cpu()
     kmod = torch.sqrt(k2)
-    k = torch.arange(1, kmax, dtype=torch.float64)  # Nyquist limit for this grid
+    k = torch.arange(1, kmax+1, dtype=torch.float64)  # Nyquist limit for this grid
     print("k shape", k.shape)
     dk = (torch.max(k) - torch.min(k)) / (2 * n)
     
