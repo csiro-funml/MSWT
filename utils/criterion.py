@@ -973,10 +973,18 @@ def spectral_cfd(y: torch.Tensor,
     tke = torch.abs(wh)**2
     kmod = torch.sqrt(k2)
     k = torch.arange(1, kmax, dtype=torch.float64)  # Nyquist limit for this grid
-    Ens = torch.zeros_like(k)
+   
     dk = (torch.max(k) - torch.min(k)) / (2 * n)
-    for i in range(len(k)):
-        Ens[i] += (tke[(kmod < k[i] + dk) & (kmod >= k[i] - dk)]).sum()
+    
+    n_samples = tke.shape[0]
+    E_freq = []
+    for s in range(n_samples):
+        Ens = torch.zeros_like(k)
+        for i in range(len(k)):
+            Ens[i] += (tke[(kmod < k[i] + dk) & (kmod >= k[i] - dk)]).sum()
+        E_freq.append(Ens)
+    E_freq = torch.stack(E_freq)
+    E_freq = E_freq.mean(dim=0)
     
     n_observations = n
     E_freq = Ens
