@@ -930,6 +930,8 @@ def spectrum_2d(y: torch.Tensor,
         spectrum[:, j - 1] = (signal[:, ind[0], ind[1]].sum(dim=1)).abs() ** 2
 
     E_freq = spectrum.mean(dim=0)
+    E_freq = E_freq[:n_observations//2+1] # keep only the positive frequencies
+    
     min_dim = n_observations
     kbins = np.arange(1, min_dim // 2 + 1, 1.0)
     k_freq = kbins[:len(E_freq)]
