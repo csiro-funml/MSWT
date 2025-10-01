@@ -136,7 +136,7 @@ class GlobalMaxAbsError(_WeightedLoss):
 
 
 class SpectralError(_WeightedLoss):
-    def __init__(self, model_name, save_path, low_percentile=0.80, high_percentile=0.99):
+    def __init__(self, model_name, save_path, low_percentile=0.80, high_percentile=0.99, method='radial'):
         super(SpectralError, self).__init__()
         self.mse = nn.MSELoss()
         self.k_low=None
@@ -145,15 +145,21 @@ class SpectralError(_WeightedLoss):
         self.save_path = save_path
         self.low_percentile=low_percentile
         self.high_percentile=high_percentile
+        self.method = method
+        if method  == 'radial':
+            self.method_f = get_frequency_bands_from_cumulative_energy
+        elif method == 'square approximation':
+            self.method_f = spectrum_2d
+        self.method = method
+
 
     def forward(self, pred, y, channel=None, time_step=None, save_plot=False):
         B, H, W, T, C = y.shape
         # find the spectral band edges from the truth using OLD method
-
-        k_low_new, k_high_new, k_freq, E_bins_target = get_frequency_bands_from_cumulative_energy(
+        k_low_new, k_high_new, k_freq, E_bins_target = self.method_f(
             y, low_percentile=self.low_percentile, high_percentile=self.high_percentile
         )
-        _, _, _, E_bins_pred = get_frequency_bands_from_cumulative_energy( # new method
+        _, _, _, E_bins_pred = self.method_f( # new method
             pred, low_percentile=self.low_percentile, high_percentile=self.high_percentile
         )
         if self.k_low is None:
@@ -787,7 +793,7 @@ def get_frequency_bands_from_cumulative_energy(
 
     # Take magnitude and move to numpy for binning
     # fourier_amplitudes = (torch.abs(y_fft)**2).detach().cpu().numpy()
-    fourier_amplitudes = (torch.abs(y_fft)).detach().cpu().numpy()
+    fourier_amplitudes = (torch.abs(y_fft)**2).detach().cpu().numpy()
     # Create the k-frequency grid for rectangular image
     kfreq_x = np.fft.fftfreq(W) * W
     kfreq_y = np.fft.fftfreq(H) * H
@@ -852,10 +858,94 @@ def aggregate_spectral_energy_by_bands(
     return low_band_error, mid_band_error, high_band_error
 
 
-if __name__ == "__main__":
-    x = torch.randn([2, 128, 128, 1, 3])
-    y = torch.randn([2, 128, 128, 1, 3])
+def spectrum_2d(y: torch.Tensor,
+    low_percentile: float = 0.67,
+    high_percentile: float = 0.99,
+    max_freq: int = None,
+    eps: float = 1e-12,
+    normalize=True,
+) -> Tuple[int, int, torch.Tensor, torch.Tensor]:
+    """This function computes the spectrum of a 2D signal using the Fast Fourier Transform (FFT).
 
+    Paramaters
+    ----------
+    signal : a tensor of shape (T * n_observations * n_observations)
+        A 2D discretized signal represented as a 1D tensor with shape
+        (T * n_observations * n_observations), where T is the number of time
+        steps and n_observations is the spatial size of the signal.
+
+        T can be any number of channels that we reshape into and
+        n_observations * n_observations is the spatial resolution.
+    n_observations: an integer
+        Number of discretized points. Basically the resolution of the signal.
+    normalize: bool
+        whether to apply normalization to the output of the 2D FFT. 
+        If True, normalizes the outputs by ``1/n_observations``
+        (actually ``1/sqrt(n_observations * n_observations)``). 
+    Returns
+    --------
+    spectrum: a tensor
+        A 1D tensor of shape (s,) representing the computed spectrum.
+        The spectrum is computed using a square approximation to radial
+        binning, meaning that the wavenumber 'bin' into which a particular 
+        coefficient is the coefficient's location along the diagonal, indexed 
+        from the top-left corner of the 2d FFT output. 
+    """
+    T = y.shape[0]
+    y = rearrange(y, 'b h w t c -> (b t c) h w')
+    n_observations = y.shape[-1]
+    signal = y.view(T, n_observations, n_observations)
+
+    if normalize:
+        signal = torch.fft.fft2(signal, norm="ortho")
+    else:
+        signal = torch.fft.rfft2(
+            signal, s=(n_observations, n_observations), norm="backward"
+        )
+
+    # 2d wavenumbers following PyTorch fft convention
+    k_max = n_observations // 2
+    wavenumers = torch.cat(
+        (
+            torch.arange(start=0, end=k_max, step=1),
+            torch.arange(start=-k_max, end=0, step=1),
+        ),
+        0,
+    ).repeat(n_observations, 1)
+    k_x = wavenumers.transpose(0, 1)
+    k_y = wavenumers
+
+    # Sum wavenumbers
+    sum_k = torch.abs(k_x) + torch.abs(k_y)
+    sum_k = sum_k
+
+    # Remove symmetric components from wavenumbers
+    index = -1.0 * torch.ones((n_observations, n_observations))
+    k_max1 = k_max + 1
+    index[0:k_max1, 0:k_max1] = sum_k[0:k_max1, 0:k_max1]
+    print(index)
+    spectrum = torch.zeros((T, n_observations))
+    for j in range(1, n_observations + 1):
+        ind = torch.where(index == j)
+        spectrum[:, j - 1] = (signal[:, ind[0], ind[1]].sum(dim=1)).abs() ** 2
+
+    E_freq = spectrum.mean(dim=0)
+    min_dim = n_observations
+    kbins = np.arange(1, min_dim // 2 + 1, 1.0)
+    k_freq = kbins[:len(E_freq)]
+    
+    E_freq_cumsum = np.cumsum(E_freq)
+    E_freq_cumsum = E_freq_cumsum / E_freq_cumsum[-1]
+    k_low, k_high = find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile)
+    return k_low, k_high, k_freq, E_freq
+
+
+if __name__ == "__main__":
+    # x = torch.randn([2, 128, 128, 1, 3])
+    # y = torch.randn([2, 128, 128, 1, 3])
+    x = torch.randn([2, 6, 6, 1, 3])
+    y = torch.randn([2, 6, 6, 1, 1])
+    spectrum = spectrum_2d(y)
     # evaluator = Evaluator(temporal=True, griddata=True, component='all', normalizer=None)
     # metrics = evaluator(x, y)
     # print(metrics)

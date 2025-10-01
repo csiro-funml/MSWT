@@ -274,7 +274,8 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     loss_dict['boundary_rmse'] = BoundaryRMSE()
     loss_dict['max_avg'] = MaxAbsError()
     loss_dict['max_global'] = GlobalMaxAbsError()
-    loss_dict['spectral_error'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97)
+    loss_dict['spectral_error_radial'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='radial')
+    loss_dict['spectral_error_square'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='square approximation')
     
     if 'ns2d' in log_path and 'torchcf' not in log_path: # NS equation
         step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
@@ -291,7 +292,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
         for c in range(pred.shape[-1]):
             # evaluate different metrics per channel
             for key, loss_func in loss_dict.items():
-                if key == 'spectral_error':
+                if 'spectral_error' in key:
                     # (B, H, W, T, C)
                     loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None],
                                              channel=c, time_step=step, save_plot=True)
