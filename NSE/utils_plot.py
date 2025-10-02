@@ -1131,7 +1131,6 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     vmax = np.max(target)
     # make them symmetrical around zero
     vmax = max(abs(vmin), abs(vmax))
-    print("vmin", vmin, "vmax", vmax)
     if vmin < 0:
         vmin = -vmax
     else:
@@ -1139,7 +1138,7 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     # cuz I want to text the different baseliens, I need to fix the threshol for the error (5% of the output)
     error_vmin = -0.1*vmax
     error_vmax = 0.1*vmax
-    
+    print("error_vmin", error_vmin, "error_vmax", error_vmax, "vmax", vmax, "vmin", vmin)
     cmap = 'RdBu_r'
     total_steps_to_plot = 2 
     fig, axes = plt.subplots(2*total_steps_to_plot, 2, figsize=(12, 5*total_steps_to_plot)) if model_name == 'FNO' else plt.subplots(2*total_steps_to_plot, 2, figsize=(12, 4*total_steps_to_plot))
