@@ -1264,7 +1264,11 @@ if __name__ == '__main__':
     # Block 1: Plot the prediction and ground truth and abs error
     if args.dataset == 'ns2d_torchcf_re1000':
         ntrain = 5000
-    # ntrain = 7000 if args.dataset == 'sw2d_pda' else 5200
+    elif args.dataset == 'ns2d_pda':
+        ntrain = 5200
+    elif args.dataset == 'sw2d_pda':
+        ntrain = 7000
+
     comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
     log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
     # FNO/Wavelet/HFS/PDERefiner test data
