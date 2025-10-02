@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=00:20:00
+#SBATCH --time=00:10:00
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -47,7 +47,7 @@ source $HOME/.venvs/pytorch/bin/activate
 
 
 # Utile plotting in the server
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_pda' --model='HFS' 
+CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='PDERefiner' 
@@ -69,7 +69,7 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='WaveletTransV2' --use_write --lr_method='cossin' --T_in=7 --epochs=3000 --resume_path=True
 
 # Testing
-CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='FNO' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='FNO' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='HFS' --T_in=7 --epochs=3000
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO.py --dataset='ns2d_torchcf_re1000' --model='WaveletTransV2' --T_in=7 --epochs=3000
 
