@@ -1129,61 +1129,51 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     # use target min and max as vmin and vmax
     vmin = np.min(target)
     vmax = np.max(target)
-    error_vmin = -0.23
-    error_vmax = 0.23
+    # make them symmetrical around zero
+    vmax = max(abs(vmin), abs(vmax))
+    vmin = -vmax
+    # cuz I want to text the different baseliens, I need to fix the threshol for the error (5% of the output)
+    error_vmin = 0.1*vmin
+    error_vmax = 0.1*vmax
+    
     cmap = 'RdBu_r'
-    fig, axes = plt.subplots(4, 2, figsize=(8, 10))
-    # axes[0, 0] is the target at the first time step,
-    axes[0, 0].imshow(target[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
-    axes[0, 0].set_ylabel('GT T+1')
-    # just turn off the ticks but not lables
-    axes[0, 0].set_xticks([])
-    axes[0, 0].set_yticks([])
+    total_steps_to_plot = 2 
+    fig, axes = plt.subplots(2*total_steps_to_plot, 2, figsize=(12, 5*total_steps_to_plot)) if model_name == 'FNO' else plt.subplots(2*total_steps_to_plot, 2, figsize=(12, 4*total_steps_to_plot))
+    
+    max_total_steps = [0, -1]
+    assert len(max_total_steps) == total_steps_to_plot, "max_total_steps must be the same as total_steps_to_plot"
+    for row_idx, time_idx in enumerate(max_total_steps):
+        if 2*row_idx >= axes.shape[0]:
+            break
+        # DRAW THE FIRST COLUMN
+        # axes[0, 0] is the target at the first time step,
+        axes[2*row_idx, 0].imshow(target[..., time_idx], vmin=vmin, vmax=vmax, cmap=cmap)
+        axes[2*row_idx, 0].set_ylabel('GT T'+f'{time_idx+1}')
+        # just turn off the ticks but not lables
+        axes[2*row_idx, 0].set_xticks([])
+        axes[2*row_idx, 0].set_yticks([])
 
-    #  axes[2, 0] is the target at the last time step,
-    axes[2, 0].imshow(target[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
-    axes[2, 0].set_ylabel('GT T+T_out')
-    axes[2, 0].set_xticks([])
-    axes[2, 0].set_yticks([])
+        # turn off axes  for axes[2*row_idx+1, 0]
+        axes[2*row_idx+1, 0].axis('off')
     
-    # turn off axes  ofr axes[1,0] and [3,0]
-    axes[1, 0].axis('off')
-    axes[3, 0].axis('off')
-    
-    
-    # axes[0, 1] to axes[1, 1] is the prediction and the abs error at the first time step
-    cm0 = axes[0, 1].imshow(pred[..., 0], vmin=vmin, vmax=vmax, cmap=cmap)
-    axes[0, 1].set_ylabel('Pred T+1')
-    axes[0, 1].set_xticks([])
-    axes[0, 1].set_yticks([])
-    fig.colorbar(cm0, ax=axes[0, 1], location='right', anchor=(0, 0.3), shrink=0.7) # add colorbar
-    
-    cm1 = axes[1, 1].imshow(error[..., 0], cmap=cmap, vmin=error_vmin, vmax=error_vmax)
-    axes[1, 1].set_ylabel('Error T+1')
-    axes[1, 1].set_xticks([])
-    axes[1, 1].set_yticks([])
-    fig.colorbar(cm1, ax=axes[1, 1], location='right', anchor=(0, 0.3), shrink=0.7)
-
-     # axes[2, 1] to axes[3, 1] is the prediction and the abs error at the last time step
-    cm2 = axes[2, 1].imshow(pred[..., -1], vmin=vmin, vmax=vmax, cmap=cmap)
-    axes[2, 1].set_ylabel('Pred T+T_out')
-    axes[2, 1].set_xticks([])
-    axes[2, 1].set_yticks([])
-    fig.colorbar(cm2, ax=axes[2, 1], location='right', anchor=(0, 0.3), shrink=0.7)
-
-    cm3 = axes[3, 1].imshow(error[..., -1], cmap=cmap, vmin=error_vmin, vmax=error_vmax)
-    axes[3, 1].set_ylabel('Error T+T_out')
-    axes[3, 1].set_xticks([])
-    axes[3, 1].set_yticks([])
-    fig.colorbar(cm3, ax=axes[3, 1], location='right', anchor=(0, 0.3), shrink=0.7)
+        # DRAW THE SECOND COLUMN
+        # axes[0, 1] to axes[1, 1] is the prediction and the abs error at the first time step
+        cm0 = axes[2*row_idx, 1].imshow(pred[..., time_idx], vmin=vmin, vmax=vmax, cmap=cmap)
+        axes[2*row_idx, 1].set_ylabel('Pred T'+f'{time_idx+1}')
+        axes[2*row_idx, 1].set_xticks([])
+        axes[2*row_idx, 1].set_yticks([])
+        fig.colorbar(cm0, ax=axes[2*row_idx, 1], location='right', anchor=(0, 0.5), shrink=0.6) # add colorbar
+        
+        cm1 = axes[2*row_idx+1, 1].imshow(error[..., time_idx], cmap=cmap, vmin=error_vmin, vmax=error_vmax)
+        axes[2*row_idx+1, 1].set_ylabel('Error T'+f'{time_idx+1}')
+        axes[2*row_idx+1, 1].set_xticks([])
+        axes[2*row_idx+1, 1].set_yticks([])
+        fig.colorbar(cm1, ax=axes[2*row_idx+1, 1], location='right', anchor=(0, 0.5), shrink=0.6)
     
     # tight layout
     fig.tight_layout()
-    # plt.savefig(f'{log_path}/{model_name}_prediction_gt_error.png')
-    plt.savefig(f'{log_path}/{model_name}_prediction_gt_long_error.png', dpi=300)
+    plt.savefig(f'{log_path}/{model_name}_prediction_gt_error_channel_{channel_id}.png')
     plt.show()
-    
-    return pred, target, error
     # plot the prediction and ground truth and abs error
     # plt.imshow(pred[0, 0, ...], vmin=vmin, vmax=vmax, cmap=custom_cmap)
     # plt.axis('off')
@@ -1280,8 +1270,9 @@ if __name__ == '__main__':
     # FNO/Wavelet/HFS/PDERefiner test data
     pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     # pred_data = torch.load(f'{log_path}/test_long_data_prediction.pth', map_location=device)
-    # plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
-    generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
+    for channel_id in range(pred_data['pred'].shape[-1]):
+        plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=channel_id, model_name=args.model, log_path=log_path)
+    # generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name=args.model, log_path=log_path)
     
     
     # FNO-Diffusion test data
