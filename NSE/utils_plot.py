@@ -1131,7 +1131,9 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     vmax = np.max(target)
     # make them symmetrical around zero
     vmax = max(abs(vmin), abs(vmax))
-    vmin = -vmax
+    if vmin < 0:
+        vmin = -vmax
+        
     # cuz I want to text the different baseliens, I need to fix the threshol for the error (5% of the output)
     error_vmin = 0.1*vmin
     error_vmax = 0.1*vmax
