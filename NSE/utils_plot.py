@@ -1137,7 +1137,7 @@ def plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name
     else:
         vmin = 0
     # cuz I want to text the different baseliens, I need to fix the threshol for the error (5% of the output)
-    error_vmin = 0.1*vmin
+    error_vmin = -0.1*vmax
     error_vmax = 0.1*vmax
     
     cmap = 'RdBu_r'
