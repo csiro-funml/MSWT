@@ -47,7 +47,7 @@ source $HOME/.venvs/pytorch/bin/activate
 
 
 # Utile plotting in the server
-CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_pda' --model='FNO' 
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='FNO' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='wavelet_transformer' 
 # CUDA_VISIBLE_DEVICES=0 python3 utils_plot.py --dataset='ns2d_pda' --model='PDERefiner' 
@@ -77,9 +77,11 @@ CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_pda' --model='F
 # Plotting
 
 
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re1000' --model='FNO'
+CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re1000' --model='FNO'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re1000' --model='HFS'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re1000' --model='WaveletTransV2'
+
+
 #################################################################################################################################
 
 
