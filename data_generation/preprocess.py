@@ -440,14 +440,12 @@ def preprocess_torchcfd_ns2d(load_path, save_path, total_time=100):
             stream = data['stream']
 
             out = np.stack([vorticity, stream], axis=-1).squeeze(1) # (N, T, H, W, 2)
-            print("out.shape", out.shape)
             out = np.transpose(out, (0, 2, 3, 1, 4)) # (N, H, W, T, 2)
             if total_time < out.shape[-2]: # subsampling the time
                 step = out.shape[-2] // total_time
                 print("subsampling step", step)
                 out = out[:,:,:,::step,:]
                 print("subsampled out.shape", out.shape)
-                exit()
             # Create the destination file
             key = 'train'
             if path == train_path:
