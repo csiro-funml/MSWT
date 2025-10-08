@@ -431,7 +431,7 @@ def preprocess_torchcfd_ns2d(load_path, save_path, total_time=100):
         test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N500_{}_T100.pt'.format(Re))
         val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_{}_T100.pt'.format(Re))
     else:
-        train_path  = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_{}_T30.pt'.format(Re))
+        train_path  = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N1000_{}_T30.pt'.format(Re))
         test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N512_{}_T30.pt'.format(Re))
         val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_{}_T30.pt'.format(Re))
     # train_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_{}_T30.pt'.format(Re))
