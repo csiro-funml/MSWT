@@ -34,6 +34,29 @@ from tqdm import tqdm
 
 
 ################################################################
+# helper functions
+################################################################
+
+def _to_rgb_minmax(image_2d: torch.Tensor) -> torch.Tensor:
+    """Convert single-channel 2D field to 3-channel RGB with per-image min-max normalization.
+    
+    Args:
+        image_2d: (H, W) tensor
+        
+    Returns:
+        (3, H, W) tensor with RGB channels
+    """
+    img = image_2d.detach().float()
+    min_val = torch.amin(img)
+    max_val = torch.amax(img)
+    if torch.isfinite(min_val) and torch.isfinite(max_val) and (max_val > min_val):
+        img = (img - min_val) / (max_val - min_val)
+    else:
+        img = torch.zeros_like(img)
+    return img.unsqueeze(0).repeat(3, 1, 1)  # (3, H, W)
+
+
+################################################################
 # configs
 ################################################################
 
@@ -339,10 +362,11 @@ for ep in pbar:
                     else:
                         for band_key in list(loss_metric.keys()): # only save  spec_low, spec_mid, spec_high
                             writer.add_scalar(f"test_{key}_{band_key}", loss_metric[band_key], ep)
-                # write the pred and target as an image
-                #pred_denorm # (B,H,W,T,C)
-                writer.add_image("model pred", pred_denorm[[0],:,:,0,0], ep)
-                writer.add_image("ground truth", target_denorm[[0],:,:,0,0])
+                # write the pred and target as RGB images for TensorBoard
+                pred_img = _to_rgb_minmax(pred_denorm[0, :, :, 0, 0])
+                target_img = _to_rgb_minmax(target_denorm[0, :, :, 0, 0])
+                writer.add_image("model pred", pred_img, ep)
+                writer.add_image("ground truth", target_img, ep)
         if test_rel_l2_loss < best_loss:
             best_loss = test_rel_l2_loss
             best_loss_epoch = ep
