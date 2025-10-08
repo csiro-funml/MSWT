@@ -17,7 +17,7 @@ def generate_gt_gif(sample_data, log_path=None):
     cmap = 'RdBu_r'
     
     keys = ['vorticity', 'stream']
-    fig, ax = plt.subplots(1, 3, figsize=(10, 5))
+    fig, ax = plt.subplots(1,2, figsize=(10, 5))
     titles = {}
     imgs = {}
     for i, key in enumerate(keys):
