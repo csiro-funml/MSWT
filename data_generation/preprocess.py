@@ -405,7 +405,7 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
         # continue
 
 
-def preprocess_torchcfd_ns2d(load_path, save_path, truncate_time=100):
+def preprocess_torchcfd_ns2d(load_path, save_path, total_time=100):
     """
     Preprocess the Navier-Stokes 2D dataset from torch-cfd
     there are 2 channels in the dataset:
@@ -442,9 +442,12 @@ def preprocess_torchcfd_ns2d(load_path, save_path, truncate_time=100):
             out = np.stack([vorticity, stream], axis=-1).squeeze(1) # (N, T, H, W, 2)
             print("out.shape", out.shape)
             out = np.transpose(out, (0, 2, 3, 1, 4)) # (N, H, W, T, 2)
-            if truncate_time < out.shape[-2]:
-                print("truncate time", truncate_time)
-                out = out[:,:,:,:truncate_time,:]
+            if total_time < out.shape[-2]: # subsampling the time
+                step = out.shape[-2] // total_time
+                print("subsampling step", step)
+                out = out[:,:,:,::step,:]
+                print("subsampled out.shape", out.shape)
+                exit()
             # Create the destination file
             key = 'train'
             if path == train_path:
@@ -702,6 +705,6 @@ if __name__ == '__main__':
 
     #### torch-cfd datasets
     load_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data'
-    # save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re1000'
-    save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000'
-    preprocess_torchcfd_ns2d(load_path=load_path, save_path=save_path, truncate_time=30)
+    save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re1000'
+    # save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000'
+    preprocess_torchcfd_ns2d(load_path=load_path, save_path=save_path, total_time=30)
