@@ -426,14 +426,20 @@ def preprocess_torchcfd_ns2d(load_path, save_path, total_time=100):
     val_tot = 0
     # load path for train, test, val
     Re = 'Re1000' if 'Re1000' in save_path else 'Re5000'
-    train_path  = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_{}_T100.pt'.format(Re))
-    test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N500_{}_T100.pt'.format(Re))
-    val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_{}_T100.pt'.format(Re))
+    if Re == 'Re1000':
+        train_path  = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_{}_T100.pt'.format(Re))
+        test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N500_{}_T100.pt'.format(Re))
+        val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_{}_T100.pt'.format(Re))
+    else:
+        train_path  = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_{}_T30.pt'.format(Re))
+        test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N512_{}_T30.pt'.format(Re))
+        val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_{}_T30.pt'.format(Re))
     # train_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N5000_{}_T30.pt'.format(Re))
     # test_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N500_{}_T30.pt'.format(Re))
     # val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_{}_T30.pt'.format(Re))
     try:
-        for path in [train_path, test_path, val_path]:
+        # for path in [train_path, test_path, val_path]:
+        for path in [train_path]:
             data = torch.load(path)
         
             vorticity = data['vorticity']
@@ -703,6 +709,6 @@ if __name__ == '__main__':
 
     #### torch-cfd datasets
     load_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data'
-    save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re1000'
-    # save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000'
+    # save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re1000'
+    save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000'
     preprocess_torchcfd_ns2d(load_path=load_path, save_path=save_path, total_time=30)
