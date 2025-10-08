@@ -379,17 +379,17 @@ if not torch.cuda.is_available():
                             'val_path': './data/large/pdearena/sw2d_pda/val',
                           }
 else:
-    DATASET_DICT[name] = {'train_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/train', 
-                          'test_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/test',
-                          'val_path': '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/val',
+    DATASET_DICT[name] =  {'train_path': '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000/train', 
+                          'test_path': '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000/test',
+                          'val_path': '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000/val',
                           }
 DATASET_DICT[name]['train_size'] = 5000 # somehow the number is smaller by 1
-DATASET_DICT[name]['test_size'] = 500       ### default 400, maximum 717
+DATASET_DICT[name]['test_size'] = 512       ### default 400, maximum 717
 DATASET_DICT[name]['val_size'] = 256       ### default 400, maximum 717
 DATASET_DICT[name]['scatter_storage'] = True
-DATASET_DICT[name]['t_test'] = 100   ## predict 10 timesteps for testing
+DATASET_DICT[name]['t_test'] = 30   ## predict 10 timesteps for testing
 DATASET_DICT[name]['t_in'] = 7     ## use 10 as prefix steps, not necessary used
-DATASET_DICT[name]['t_total'] = 100
+DATASET_DICT[name]['t_total'] = 30
 DATASET_DICT[name]['in_size'] = (128, 128)
 DATASET_DICT[name]['n_channels'] = 2
 DATASET_DICT[name]['downsample'] = (1, 1)
