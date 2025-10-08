@@ -383,7 +383,7 @@ else:
                           'test_path': '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000/test',
                           'val_path': '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000/val',
                           }
-DATASET_DICT[name]['train_size'] = 5000 # somehow the number is smaller by 1
+DATASET_DICT[name]['train_size'] = 1000 # somehow the number is smaller by 1
 DATASET_DICT[name]['test_size'] = 512       ### default 400, maximum 717
 DATASET_DICT[name]['val_size'] = 256       ### default 400, maximum 717
 DATASET_DICT[name]['scatter_storage'] = True
