@@ -16,28 +16,28 @@ def generate_gt_gif(sample_data, log_path=None):
     # keys are (u, vx, vy), shape (T, H, W)
     cmap = 'RdBu_r'
     
-    keys = [0, 1]
+    keys = ['vorticity', 'stream']
     fig, ax = plt.subplots(1, 3, figsize=(10, 5))
     titles = {}
     imgs = {}
     for i, key in enumerate(keys):
-        data_c = sample_data[...,key]
+        data_c = sample_data[...,i]
         print("data_c.shape", data_c.shape)
         vmax = np.max(np.abs(data_c))
         vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
         imgs[key] = ax[i].imshow(data_c[0], vmin=vmin, vmax=vmax, cmap=cmap)
         ax[i].axis('off')
-        titles[key] =ax[i].set_title(str(key) + ' T=0')
+        titles[key] =ax[i].set_title(key + ' T=0')
 
     def update(frame_idx):
         print("frame_idx", frame_idx)
         for i, key in enumerate(keys):
-            data_c = sample_data[...,key]
+            data_c = sample_data[...,i]
             vmax = np.max(np.abs(data_c))
             vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
             imgs[key].set_data(data_c[frame_idx])
             imgs[key].set_clim(vmin=vmin, vmax=vmax)
-            titles[key].set_text(str(key) + ' T=' + str(frame_idx))
+            titles[key].set_text(key + ' T=' + str(frame_idx))
         # Don't return anything when blit=False
         return []
 
