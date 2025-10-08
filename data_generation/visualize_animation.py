@@ -54,7 +54,7 @@ def generate_gt_gif(sample_data, log_path=None):
     plt.close(fig)
 
 
-log_path = '/home/wan410/multiscale_neural_operators/'
+log_path = '/home/wan410/multiscale_neural_operator/'
 generate_gt_gif(data, log_path)
 
 
