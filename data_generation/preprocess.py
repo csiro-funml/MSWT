@@ -439,7 +439,7 @@ def preprocess_torchcfd_ns2d(load_path, save_path, total_time=100):
     # val_path = os.path.join(LOAD_PATH, 'McWilliams2d_128x128_N256_{}_T30.pt'.format(Re))
     try:
         # for path in [train_path, test_path, val_path]:
-        for path in [val_path]:
+        for path in [test_path]:
             data = torch.load(path)
         
             vorticity = data['vorticity']
