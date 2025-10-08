@@ -460,8 +460,8 @@ def plot_spectral_error(save_data, model_name='', log_path=''):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=True)
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=False)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     #### 2. load the save_data
     save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
