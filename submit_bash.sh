@@ -79,7 +79,8 @@ source $HOME/.venvs/pytorch/bin/activate
 # Plotting
 
 
-CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re1000' --model='FNO'
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re1000' --model='FNO'
+CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re5000' --model='FNO'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re1000' --model='HFS'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_torchcf_re1000' --model='WaveletTransV2'
 
