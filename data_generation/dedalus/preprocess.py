@@ -169,7 +169,7 @@ def load_dedalus_data(data_path):
     total_data = np.concatenate(total_data, axis=-2) # (N_t, 256, 256, 5)
     logger.info(total_data.shape) # (3990, 256, 256)
     # save the data to an h5 file
-    with h5py.File(os.path.join(data_path, 'data_ns2d_T%d.h5' % total_data.shape[0]), 'w') as f:
+    with h5py.File(os.path.join('/datastore/wan410/ns2d_dedalus', 'data_ns2d_T%d.h5' % total_data.shape[0]), 'w') as f:
         f.create_dataset('data', data=total_data)
     logger.info("Data saved to: %s" % os.path.join(data_path, 'data_ns2d_T%d.pt' % total_data.shape[0]))
     return total_data
