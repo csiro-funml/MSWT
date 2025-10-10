@@ -168,15 +168,15 @@ def load_dedalus_data(data_path):
             total_data.append(data_var)
     total_data = np.concatenate(total_data, axis=-2) # (N_t, 256, 256, 5)
     logger.info(total_data.shape) # (3990, 256, 256)
-    # save the data to pt file
-    torch.save(total_data, os.path.join(data_path, 'data_ns2d_T%d.pt' % total_data.shape[0]))
+    # save the data to an h5 file
+    with h5py.File(os.path.join(data_path, 'data_ns2d_T%d.h5' % total_data.shape[0]), 'w') as f:
+        f.create_dataset('data', data=total_data)
     logger.info("Data saved to: %s" % os.path.join(data_path, 'data_ns2d_T%d.pt' % total_data.shape[0]))
     return total_data
 
 
 def create_animation(data_path):
-    data = torch.load(os.path.join(data_path, 'data_ns2d_T3990.pt' ))
-    data = data.numpy()
+    data = h5py.File(os.path.join(data_path, 'data_ns2d_T3990.h5' ), 'r')['data']
     print(data.shape)
     varlist = ['pressure', 'vx', 'vy', 'vorticity', 'streamfunction']
 
