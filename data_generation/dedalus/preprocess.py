@@ -223,6 +223,38 @@ def create_animation(data_path):
     return
 
 
+
+def load_real_data(data_path):                                                                                                
+                                                                                                                      
+    file_path = os.path.join(data_path, 'snapshots_s1.h5')                                                              
+                                                                                                                        
+    with h5py.File(file_path, 'r') as f:                                                                                  
+        print("HDF5 File Structure:")                                                                                     
+        print("=" * 60)                                                                                                   
+                                                                                                                        
+        def print_structure(name, obj):                                                                                   
+            if isinstance(obj, h5py.Dataset):                                                                             
+                print(f"\nDataset: {name}")                                                                               
+                print(f"  Shape: {obj.shape}")                                                                            
+                print(f"  Dtype: {obj.dtype}")                                                                            
+                print(f"  Size: {obj.size} elements")                                                                     
+                # Calculate size in bytes                                                                                 
+                size_bytes = obj.size * obj.dtype.itemsize                                                                
+                if size_bytes < 1024:                                                                                     
+                    print(f"  Memory: {size_bytes} bytes")                                                                
+                elif size_bytes < 1024**2:                                                                                
+                    print(f"  Memory: {size_bytes/1024:.2f} KB")                                                          
+                else:                                                                                                     
+                    print(f"  Memory: {size_bytes/1024**2:.2f} MB")                                                       
+            elif isinstance(obj, h5py.Group):                                                                             
+                print(f"\nGroup: {name}")                                                                                 
+                                                                                                                        
+        f.visititems(print_structure)                                                                                     
+                                                                                                                        
+        print("\n" + "=" * 60)                                                                                            
+        print("\nTop-level keys:")                                                                                        
+        print(list(f.keys()))   
+
 def downsample_data(data_path):
     data = h5py.File(os.path.join(data_path, 'data_ns2d_T3990.h5' ), 'r')['data']
 
@@ -248,9 +280,10 @@ def downsample_data(data_path):
     torch.save(u_down, os.path.join(data_path, 'data_ns2d_T3990_downsampled.h5'))
     return u_down
 
-data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/snapshots_s1'
-data = load_dedalus_data(data_path)
-create_animation(data_path)
+data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/'
+data = load_real_data(data_path)
+# data = load_dedalus_data(data_path)
+# create_animation(data_path)
 
 
 # merged_snap = merge_snapshot_files(snaps_dir)
