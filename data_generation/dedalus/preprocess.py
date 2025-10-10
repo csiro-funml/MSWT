@@ -176,44 +176,62 @@ def load_dedalus_data(data_path):
 
 
 def create_animation(data_path):
-    data = h5py.File(os.path.join(data_path, 'data_ns2d_T3990.h5' ), 'r')['data']
-    print(data.shape)
-    varlist = ['pressure', 'vx', 'vy', 'vorticity', 'streamfunction']
-
+    file_path = os.path.join(data_path, 'snapshots_s1.h5')            
+    data = h5py.File(file_path, 'r')['tasks']
+    # print(data.shape)
+    varlist = ['vorticity', 'streamfunction', 'pressure','velocity']
+    split_var = ['velocity_x', 'velocity_y']
     # keys are (u, vx, vy), shape (T, H, W)
     cmap = 'RdBu_r'
     
-    fig, ax = plt.subplots(2,3, figsize=(20, 10))
+    fig, ax = plt.subplots(1, 5, figsize=(50, 10))
     titles = {}
     imgs = {}
     for i, key in enumerate(varlist):
-        data_c = data[...,i]
-        print("data channel %s shape: " % key, data_c.shape)
-        vmax = np.max(np.abs(data_c))
-        vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
-        row, col = divmod(i, 3)
-        imgs[key] = ax[row, col].imshow(data_c[0,...,i], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
-        ax[row, col].axis('off')
-        titles[key] =ax[row, col].set_title(key + ' T=0')
-    ax[1, 2].axis('off') # turn off the last axis
+        if key != 'velocity':
+            data_c = data[key]
+            print("data channel %s shape: " % key, data_c.shape)
+            vmax = np.max(np.abs(data_c))
+            vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
+            imgs[key] = ax[i].imshow(data_c[0], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
+            ax[i].axis('off')
+            titles[key] =ax[i].set_title(key + ' T=0')
+        else:
+            for j, data_c in enumerate([data[key][:,0], data[key][:,1]]):
+                print("data channel %s shape: " % key, data_c.shape)
+                vmax = np.max(np.abs(data_c))
+                vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
+                imgs[split_var[j]] = ax[i+j].imshow(data_c[0], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
+                ax[i+j].axis('off')
+                titles[split_var[j]] =ax[i+j].set_title(split_var[j] + ' T=0')
 
     def update(frame_idx):
         print("frame_idx", frame_idx)
         for i, key in enumerate(varlist):
-            data_c = data[...,i]
-            vmax = np.max(np.abs(data_c))
-            vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
-            imgs[key].set_data(data_c[frame_idx,...,i])
-            imgs[key].set_clim(vmin=vmin, vmax=vmax)
-            titles[key].set_text(key + ' T=' + str(frame_idx))
+            if key != 'velocity':
+                data_c = data[key]
+                print("data channel %s shape: " % key, data_c.shape)
+                vmax = np.max(np.abs(data_c))
+                vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
+                imgs[key] = ax[i].imshow(data_c[frame_idx], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
+                ax[i].axis('off')
+                titles[key] =ax[i].set_title(key + ' T=' + str(frame_idx))
+            else:
+                for j, data_c in enumerate([data[key][:,0], data[key][:,1]]):
+                    print("data channel %s shape: " % key, data_c.shape)
+                    vmax = np.max(np.abs(data_c))
+                    vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
+                    imgs[split_var[j]] = ax[i+j].imshow(data_c[frame_idx], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
+                    ax[i+j].axis('off')
+                    titles[split_var[j]] =ax[i+j].set_title(split_var[j] + ' T=' + str(frame_idx))
         # Don't return anything when blit=False
         return []
 
     anim = FuncAnimation(fig, update, frames=data.shape[0], interval=200, blit=False)
 
-    nt=4990
+    nt=3990
     sample_id = 0
-    gif_path = f'{data_path}/sample_{sample_id}_nt{nt}.gif'
+    gif_path = f'/datastore/wan410/ns2d_dedalus/sample_{sample_id}_nt{nt}.gif'
     try:
         anim.save(gif_path, writer=PillowWriter(fps=2))
     except Exception as e:
@@ -226,7 +244,7 @@ def create_animation(data_path):
 
 def load_real_data(data_path):                                                                                                
                                                                                                                       
-    file_path = os.path.join(data_path, 'snapshots_s1_p0.h5')                                                              
+    file_path = os.path.join(data_path, 'snapshots_s1.h5')                                                              
                                                                                                                         
     with h5py.File(file_path, 'r') as f:                                                                                  
         print("HDF5 File Structure:")                                                                                     
@@ -280,10 +298,10 @@ def downsample_data(data_path):
     torch.save(u_down, os.path.join(data_path, 'data_ns2d_T3990_downsampled.h5'))
     return u_down
 
-data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/snapshots_s1'
-data = load_real_data(data_path)
+data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/'
+# data = load_real_data(data_path)
 # data = load_dedalus_data(data_path)
-# create_animation(data_path)
+create_animation(data_path)
 
 
 # merged_snap = merge_snapshot_files(snaps_dir)
