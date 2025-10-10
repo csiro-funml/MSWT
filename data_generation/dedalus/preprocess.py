@@ -16,7 +16,7 @@ import re
 import h5py
 import numpy as np
 import os
-import torch
+# import torch
 import matplotlib
 from matplotlib.animation import FuncAnimation
 from matplotlib.animation import PillowWriter
@@ -298,10 +298,11 @@ def downsample_data(data_path):
     torch.save(u_down, os.path.join(data_path, 'data_ns2d_T3990_downsampled.h5'))
     return u_down
 
-data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/'
-# data = load_real_data(data_path)
-# data = load_dedalus_data(data_path)
-create_animation(data_path)
+if __name__ == '__main__':
+    data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/'
+    # data = load_real_data(data_path)
+    # data = load_dedalus_data(data_path)
+    create_animation(data_path)
 
 
 # merged_snap = merge_snapshot_files(snaps_dir)
