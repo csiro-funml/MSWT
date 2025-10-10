@@ -18,6 +18,8 @@ import numpy as np
 import os
 import torch
 import matplotlib
+from matplotlib.animation import FuncAnimation
+from matplotlib.animation import PillowWriter
 matplotlib.use("Agg")  # headless
 import matplotlib.pyplot as plt
 
@@ -169,9 +171,58 @@ def load_dedalus_data(data_path):
     return total_data
 
 
+def create_animation(data_path):
+    data = torch.load(os.path.join(data_path, 'data_ns2d_T3990.pt' ))
+    data = data.numpy()
+    print(data.shape)
+    varlist = ['pressure', 'vx', 'vy', 'vorticity', 'streamfunction']
+
+    # keys are (u, vx, vy), shape (T, H, W)
+    cmap = 'RdBu_r'
+    
+    fig, ax = plt.subplots(2,3, figsize=(20, 10))
+    titles = {}
+    imgs = {}
+    for i, key in enumerate(varlist):
+        data_c = data[...,i]
+        print("data channel %s shape: " % key, data_c.shape)
+        vmax = np.max(np.abs(data_c))
+        vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
+        row, col = divmod(i, 3)
+        imgs[key] = ax[row, col].imshow(data_c[0,...,i], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
+        ax[row, col].axis('off')
+        titles[key] =ax[row, col].set_title(key + ' T=0')
+    ax[1, 2].axis('off') # turn off the last axis
+
+    def update(frame_idx):
+        print("frame_idx", frame_idx)
+        for i, key in enumerate(varlist):
+            data_c = data[...,i]
+            vmax = np.max(np.abs(data_c))
+            vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
+            imgs[key].set_data(data_c[frame_idx,...,i])
+            imgs[key].set_clim(vmin=vmin, vmax=vmax)
+            titles[key].set_text(key + ' T=' + str(frame_idx))
+        # Don't return anything when blit=False
+        return []
+
+    anim = FuncAnimation(fig, update, frames=data.shape[0], interval=20, blit=False)
+
+    nt=4990
+    sample_id = 0
+    gif_path = f'{data_path}/sample_{sample_id}_nt{nt}.gif'
+    try:
+        anim.save(gif_path, writer=PillowWriter(fps=2))
+    except Exception as e:
+        print(f'Failed to save GIF due to: {e}')
+
+    plt.close(fig)
+    return
+
 
 data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/snapshots_s1'
 data = load_dedalus_data(data_path)
+create_animation(data_path)
 
 
 # merged_snap = merge_snapshot_files(snaps_dir)
