@@ -227,7 +227,7 @@ def create_animation(data_path):
         # Don't return anything when blit=False
         return []
 
-    anim = FuncAnimation(fig, update, frames=data.shape[0], interval=200, blit=False)
+    anim = FuncAnimation(fig, update, frames=200, interval=200, blit=False)
 
     nt=3990
     sample_id = 0
