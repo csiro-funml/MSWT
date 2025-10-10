@@ -145,9 +145,9 @@ def plot_snapshot_frames(snap_h5, outdir, start, count, stride=1, dpi=300):
 def load_dedalus_data(data_path):
     file = os.path.join(data_path, 'snapshots_s1_p0.h5')
     with h5py.File(file, "r") as f:
-        vars = f.keys()
+        vars = f['tasks'].keys()
         for var in vars:
-            data = np.array(f[var])
+            data = np.array(f['tasks'][var])
             print(f"{var}: {data.shape}")
     return data
 
