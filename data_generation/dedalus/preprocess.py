@@ -226,7 +226,7 @@ def create_animation(data_path):
 
 def load_real_data(data_path):                                                                                                
                                                                                                                       
-    file_path = os.path.join(data_path, 'snapshots_s1.h5')                                                              
+    file_path = os.path.join(data_path, 'snapshots_s1_p0.h5')                                                              
                                                                                                                         
     with h5py.File(file_path, 'r') as f:                                                                                  
         print("HDF5 File Structure:")                                                                                     
@@ -280,7 +280,7 @@ def downsample_data(data_path):
     torch.save(u_down, os.path.join(data_path, 'data_ns2d_T3990_downsampled.h5'))
     return u_down
 
-data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/'
+data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/snapshots_s1'
 data = load_real_data(data_path)
 # data = load_dedalus_data(data_path)
 # create_animation(data_path)
