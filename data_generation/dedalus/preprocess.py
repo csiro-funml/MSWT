@@ -379,7 +379,7 @@ def create_animation(data_path, cache_dir=None):
         return []
 
     logger.info("Creating animation with 200 frames...")
-    anim = FuncAnimation(fig, update, frames=200, interval=200, blit=False)
+    anim = FuncAnimation(fig, update, frames=np.arange(0,3990,20), interval=200, blit=False)
 
     nt=3990
     sample_id = 0
