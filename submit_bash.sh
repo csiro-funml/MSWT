@@ -5,7 +5,6 @@
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --account=OD-230881
 #SBATCH --cpus-per-task=9        # cpu-cores per task (>1 if multi-threaded tasks)
