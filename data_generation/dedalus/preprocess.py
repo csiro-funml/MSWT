@@ -16,7 +16,7 @@ import re
 import h5py
 import numpy as np
 import os
-
+import torch
 import matplotlib
 matplotlib.use("Agg")  # headless
 import matplotlib.pyplot as plt
@@ -143,13 +143,30 @@ def plot_snapshot_frames(snap_h5, outdir, start, count, stride=1, dpi=300):
 
 
 def load_dedalus_data(data_path):
-    file = os.path.join(data_path, 'snapshots_s1_p0.h5')
-    with h5py.File(file, "r") as f:
-        vars = f['tasks'].keys()
-        for var in vars:
-            data = np.array(f['tasks'][var])
-            print(f"{var}: {data.shape}")
-    return data
+    filelist = [os.path.join(data_path,'snapshots_s1_p%d.h5' % i) for i in range(16)] # 16 files
+    total_data = []
+    var_list = ['pressure', 'velocity', 'vorticity', 'streamfunction']
+    for file in filelist:
+        print("Loading file: ", file)
+        with h5py.File(file, "r") as f:
+            data_var = []
+            for var in var_list:
+                data = np.array(f['tasks'][var])
+                if var == 'velocity': # velocity is a 2D field
+                    data_var.append(data[:,0,:])
+                    data_var.append(data[:,1,:])
+                else:
+                    data_var.append(data)
+                print(f"{var}: {data.shape}")
+            data_var = np.stack(data_var, axis=0) # (5, N_t, 256, 16) # (pressure, vx, vy, vorticity, streamfunction)
+            data_var = data_var.transpose(1,2,3,0) # (3990, 256, 16, 5)
+            total_data.append(data_var)
+    total_data = np.concatenate(total_data, axis=-2) # (N_t, 256, 256, 5)
+    print(total_data.shape) # (3990, 256, 256)
+    # save the data to pt file
+    torch.save(total_data, os.path.join(data_path, 'data_ns2d_T%d.pt' % total_data.shape[0]))
+    print("Data saved to: ", os.path.join(data_path, 'data_ns2d_T%d.pt' % total_data.shape[0]))
+    return total_data
 
 
 
