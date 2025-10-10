@@ -207,27 +207,49 @@ def load_dedalus_data(data_path):
     return total_data
 
 
-def create_animation(data_path):
-    # Set up logging
-    logger = setup_logger('./')
-    logger.info("Starting animation creation...")
+def load_or_cache_data(data_path, cache_dir=None):
+    """Load data from HDF5 or use cached version if available."""
+    if cache_dir is None:
+        cache_dir = os.path.join(data_path, 'cached_data')
     
+    cache_dir = pathlib.Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Check if cached data exists
+    cache_file = cache_dir / 'animation_data.npz'
+    vmin_vmax_file = cache_dir / 'vmin_vmax.npz'
+    
+    logger = setup_logger(cache_dir)
+    
+    if cache_file.exists() and vmin_vmax_file.exists():
+        logger.info("Loading cached data from disk...")
+        cached_data = np.load(cache_file)
+        vmin_vmax = np.load(vmin_vmax_file)
+        
+        # Convert back to dict format
+        cached_dict = {key: cached_data[key] for key in cached_data.keys()}
+        vmin_vmax_dict = {key: (vmin_vmax[key][0], vmin_vmax[key][1]) for key in vmin_vmax.keys()}
+        
+        logger.info(f"Loaded cached data with keys: {list(cached_dict.keys())}")
+        return cached_dict, vmin_vmax_dict, logger
+    
+    # Load from original HDF5 and cache
+    logger.info("Loading data from HDF5 and creating cache...")
     file_path = os.path.join(data_path, 'snapshots_s1.h5')            
     logger.info(f"Loading data from: {file_path}")
     
-    # Load all data into memory once to avoid repeated HDF5 access
+    cached_data = {}
+    vmin_vmax = {}
+    
     with h5py.File(file_path, 'r') as f:
         data_tasks = f['tasks']
         varlist = ['vorticity', 'streamfunction', 'pressure','velocity']
         split_var = ['velocity_x', 'velocity_y']
         
-        # Pre-load all data into numpy arrays
-        cached_data = {}
-        vmin_vmax = {}
-        
         for key in varlist:
             if key != 'velocity':
-                data_c = np.array(data_tasks[key])  # Load entire dataset into memory
+                # Force immediate loading by copying to new array
+                data_c = np.array(data_tasks[key]).copy()  # .copy() ensures it's fully loaded
                 cached_data[key] = data_c
                 logger.info(f"Loaded {key} with shape: {data_c.shape}")
                 
@@ -238,7 +260,7 @@ def create_animation(data_path):
                 logger.info(f"Pre-computed {key} range: [{vmin:.3f}, {vmax:.3f}]")
             else:
                 # Handle velocity components
-                velocity_data = np.array(data_tasks[key])  # Load entire velocity dataset
+                velocity_data = np.array(data_tasks[key]).copy()  # Force immediate loading
                 logger.info(f"Loaded {key} with shape: {velocity_data.shape}")
                 
                 for j, data_c in enumerate([velocity_data[:,0], velocity_data[:,1]]):
@@ -252,6 +274,72 @@ def create_animation(data_path):
                     vmin_vmax[var_name] = (vmin, vmax)
                     logger.info(f"Pre-computed {var_name} range: [{vmin:.3f}, {vmax:.3f}]")
     
+    # Save to cache
+    logger.info("Saving data to cache...")
+    np.savez_compressed(cache_file, **cached_data)
+    
+    # Save vmin/vmax separately for easier loading
+    vmin_vmax_arrays = {key: np.array([vmin, vmax]) for key, (vmin, vmax) in vmin_vmax.items()}
+    np.savez(vmin_vmax_file, **vmin_vmax_arrays)
+    
+    logger.info(f"Cache saved to: {cache_file}")
+    logger.info(f"Vmin/Vmax saved to: {vmin_vmax_file}")
+    
+    return cached_data, vmin_vmax, logger
+
+
+def create_individual_h5_cache(data_path, cache_dir=None):
+    """Alternative: Create individual H5 files per timestep for very large datasets."""
+    if cache_dir is None:
+        cache_dir = os.path.join(data_path, 'timestep_cache')
+    
+    cache_dir = pathlib.Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    logger = setup_logger(cache_dir)
+    
+    file_path = os.path.join(data_path, 'snapshots_s1.h5')
+    logger.info(f"Creating individual H5 files from: {file_path}")
+    
+    with h5py.File(file_path, 'r') as f:
+        data_tasks = f['tasks']
+        varlist = ['vorticity', 'streamfunction', 'pressure','velocity']
+        
+        # Get total number of timesteps
+        sample_var = varlist[0] if varlist[0] != 'velocity' else varlist[1]
+        total_timesteps = data_tasks[sample_var].shape[0]
+        
+        logger.info(f"Processing {total_timesteps} timesteps...")
+        
+        for t in range(total_timesteps):
+            if t % 100 == 0:  # Log progress every 100 timesteps
+                logger.info(f"Processing timestep {t}/{total_timesteps}")
+            
+            timestep_file = cache_dir / f'timestep_{t:06d}.h5'
+            
+            with h5py.File(timestep_file, 'w') as cache_f:
+                for key in varlist:
+                    if key != 'velocity':
+                        data_slice = data_tasks[key][t, :, :]
+                        cache_f.create_dataset(key, data=data_slice)
+                    else:
+                        # Store velocity components separately
+                        vx = data_tasks[key][t, 0, :, :]
+                        vy = data_tasks[key][t, 1, :, :]
+                        cache_f.create_dataset('velocity_x', data=vx)
+                        cache_f.create_dataset('velocity_y', data=vy)
+    
+    logger.info(f"Created {total_timesteps} individual H5 files in {cache_dir}")
+    return cache_dir
+
+
+def create_animation(data_path, cache_dir=None):
+    # Load or create cached data
+    cached_data, vmin_vmax, logger = load_or_cache_data(data_path, cache_dir)
+    logger.info("Starting animation creation...")
+    
+    varlist = ['vorticity', 'streamfunction', 'pressure','velocity']
+    split_var = ['velocity_x', 'velocity_y']
     cmap = 'RdBu_r'
     fig, ax = plt.subplots(1, 5, figsize=(50, 10))
     titles = {}
@@ -368,9 +456,15 @@ def downsample_data(data_path):
 
 if __name__ == '__main__':
     data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/'
-    # data = load_real_data(data_path)
-    # data = load_dedalus_data(data_path)
-    create_animation(data_path)
+    
+    # Option 1: Use compressed NPZ cache (recommended)
+    create_animation(data_path, cache_dir='/datastore/wan410/ns2d_dedalus')
+    
+    # Option 2: Create individual H5 files per timestep (for very large datasets)
+    # create_individual_h5_cache(data_path)
+    
+    # Option 3: Use custom cache directory
+    # create_animation(data_path, cache_dir='/path/to/custom/cache')
 
 
 # merged_snap = merge_snapshot_files(snaps_dir)
