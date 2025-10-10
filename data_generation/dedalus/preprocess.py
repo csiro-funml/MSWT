@@ -25,6 +25,38 @@ import matplotlib.pyplot as plt
 import logging
 
 
+def setup_logger(log_dir):
+    """Set up logging to both file and console for Slurm jobs."""
+    log_dir = pathlib.Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    log_file = log_dir / "preprocess.log"
+    
+    # Create logger
+    logger = logging.getLogger('preprocess')
+    logger.setLevel(logging.INFO)
+    
+    # Clear any existing handlers
+    logger.handlers.clear()
+    
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # File handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+
 def merge_snapshot_files(snaps_dir):
     """
     Merge distributed snapshot files from MPI runs into a single file.
@@ -176,68 +208,104 @@ def load_dedalus_data(data_path):
 
 
 def create_animation(data_path):
-    file_path = os.path.join(data_path, 'snapshots_s1.h5')            
-    data = h5py.File(file_path, 'r')['tasks']
-    # print(data.shape)
-    varlist = ['vorticity', 'streamfunction', 'pressure','velocity']
-    split_var = ['velocity_x', 'velocity_y']
-    # keys are (u, vx, vy), shape (T, H, W)
-    cmap = 'RdBu_r'
+    # Set up logging
+    logger = setup_logger('./')
+    logger.info("Starting animation creation...")
     
+    file_path = os.path.join(data_path, 'snapshots_s1.h5')            
+    logger.info(f"Loading data from: {file_path}")
+    
+    # Load all data into memory once to avoid repeated HDF5 access
+    with h5py.File(file_path, 'r') as f:
+        data_tasks = f['tasks']
+        varlist = ['vorticity', 'streamfunction', 'pressure','velocity']
+        split_var = ['velocity_x', 'velocity_y']
+        
+        # Pre-load all data into numpy arrays
+        cached_data = {}
+        vmin_vmax = {}
+        
+        for key in varlist:
+            if key != 'velocity':
+                data_c = np.array(data_tasks[key])  # Load entire dataset into memory
+                cached_data[key] = data_c
+                logger.info(f"Loaded {key} with shape: {data_c.shape}")
+                
+                # Pre-compute vmin/vmax once
+                vmax = np.max(np.abs(data_c))
+                vmin = -vmax if np.min(data_c) < 0 else np.min(data_c)
+                vmin_vmax[key] = (vmin, vmax)
+                logger.info(f"Pre-computed {key} range: [{vmin:.3f}, {vmax:.3f}]")
+            else:
+                # Handle velocity components
+                velocity_data = np.array(data_tasks[key])  # Load entire velocity dataset
+                logger.info(f"Loaded {key} with shape: {velocity_data.shape}")
+                
+                for j, data_c in enumerate([velocity_data[:,0], velocity_data[:,1]]):
+                    var_name = split_var[j]
+                    cached_data[var_name] = data_c
+                    logger.info(f"Loaded {var_name} with shape: {data_c.shape}")
+                    
+                    # Pre-compute vmin/vmax for each velocity component
+                    vmax = np.max(np.abs(data_c))
+                    vmin = -vmax if np.min(data_c) < 0 else np.min(data_c)
+                    vmin_vmax[var_name] = (vmin, vmax)
+                    logger.info(f"Pre-computed {var_name} range: [{vmin:.3f}, {vmax:.3f}]")
+    
+    cmap = 'RdBu_r'
     fig, ax = plt.subplots(1, 5, figsize=(50, 10))
     titles = {}
     imgs = {}
+    
+    # Initialize plots with cached data and pre-computed ranges
     for i, key in enumerate(varlist):
         if key != 'velocity':
-            data_c = data[key]
-            print("data channel %s shape: " % key, data_c.shape)
-            vmax = np.max(np.abs(data_c))
-            vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
-            imgs[key] = ax[i].imshow(data_c[0], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
+            data_c = cached_data[key]
+            vmin, vmax = vmin_vmax[key]
+            imgs[key] = ax[i].imshow(data_c[0], vmin=vmin, vmax=vmax, cmap=cmap)
             ax[i].axis('off')
-            titles[key] =ax[i].set_title(key + ' T=0')
+            titles[key] = ax[i].set_title(key + ' T=0')
         else:
-            for j, data_c in enumerate([data[key][:,0], data[key][:,1]]):
-                print("data channel %s shape: " % key, data_c.shape)
-                vmax = np.max(np.abs(data_c))
-                vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
-                imgs[split_var[j]] = ax[i+j].imshow(data_c[0], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
+            for j, data_c in enumerate([cached_data['velocity_x'], cached_data['velocity_y']]):
+                var_name = split_var[j]
+                vmin, vmax = vmin_vmax[var_name]
+                imgs[var_name] = ax[i+j].imshow(data_c[0], vmin=vmin, vmax=vmax, cmap=cmap)
                 ax[i+j].axis('off')
-                titles[split_var[j]] =ax[i+j].set_title(split_var[j] + ' T=0')
+                titles[var_name] = ax[i+j].set_title(var_name + ' T=0')
 
     def update(frame_idx):
-        print("frame_idx", frame_idx)
+        logger.info(f"Updating frame {frame_idx}")
         for i, key in enumerate(varlist):
             if key != 'velocity':
-                data_c = data[key]
-                print("data channel %s shape: " % key, data_c.shape)
-                vmax = np.max(np.abs(data_c))
-                vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
-                imgs[key] = ax[i].imshow(data_c[frame_idx], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
-                ax[i].axis('off')
-                titles[key] =ax[i].set_title(key + ' T=' + str(frame_idx))
+                data_c = cached_data[key]  # Use cached data
+                vmin, vmax = vmin_vmax[key]  # Use pre-computed range
+                imgs[key].set_array(data_c[frame_idx])  # Update existing image data
+                titles[key].set_text(key + ' T=' + str(frame_idx))
             else:
-                for j, data_c in enumerate([data[key][:,0], data[key][:,1]]):
-                    print("data channel %s shape: " % key, data_c.shape)
-                    vmax = np.max(np.abs(data_c))
-                    vmin = -vmax if np.min(data_c) <0 else np.min(data_c)
-                    imgs[split_var[j]] = ax[i+j].imshow(data_c[frame_idx], vmin=vmin, vmax=vmax, cmap=cmap) # the first time step
-                    ax[i+j].axis('off')
-                    titles[split_var[j]] =ax[i+j].set_title(split_var[j] + ' T=' + str(frame_idx))
+                for j, data_c in enumerate([cached_data['velocity_x'], cached_data['velocity_y']]):
+                    var_name = split_var[j]
+                    vmin, vmax = vmin_vmax[var_name]  # Use pre-computed range
+                    imgs[var_name].set_array(data_c[frame_idx])  # Update existing image data
+                    titles[var_name].set_text(var_name + ' T=' + str(frame_idx))
         # Don't return anything when blit=False
         return []
 
+    logger.info("Creating animation with 200 frames...")
     anim = FuncAnimation(fig, update, frames=200, interval=200, blit=False)
 
     nt=3990
     sample_id = 0
     gif_path = f'/datastore/wan410/ns2d_dedalus/sample_{sample_id}_nt{nt}.gif'
+    logger.info(f"Saving animation to: {gif_path}")
+    
     try:
         anim.save(gif_path, writer=PillowWriter(fps=2))
+        logger.info("Animation saved successfully!")
     except Exception as e:
-        print(f'Failed to save GIF due to: {e}')
+        logger.error(f'Failed to save GIF due to: {e}')
 
     plt.close(fig)
+    logger.info("Animation creation completed.")
     return
 
 
