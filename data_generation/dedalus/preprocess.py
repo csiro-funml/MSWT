@@ -22,6 +22,7 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.animation import PillowWriter
 matplotlib.use("Agg")  # headless
 import matplotlib.pyplot as plt
+import logging
 
 
 def merge_snapshot_files(snaps_dir):
@@ -148,8 +149,10 @@ def load_dedalus_data(data_path):
     filelist = [os.path.join(data_path,'snapshots_s1_p%d.h5' % i) for i in range(16)] # 16 files
     total_data = []
     var_list = ['pressure', 'velocity', 'vorticity', 'streamfunction']
+    logger = logging.getLogger()
     for file in filelist:
-        print("Loading file: ", file)
+        # use logger in case my print message is omitted in slurm
+        logger.info("Loading file: %s" % file)
         with h5py.File(file, "r") as f:
             data_var = []
             for var in var_list:
@@ -159,15 +162,15 @@ def load_dedalus_data(data_path):
                     data_var.append(data[:,1,:])
                 else:
                     data_var.append(data)
-                print(f"{var}: {data.shape}")
+                logger.info(f"{var}: {data.shape}")
             data_var = np.stack(data_var, axis=0) # (5, N_t, 256, 16) # (pressure, vx, vy, vorticity, streamfunction)
             data_var = data_var.transpose(1,2,3,0) # (3990, 256, 16, 5)
             total_data.append(data_var)
     total_data = np.concatenate(total_data, axis=-2) # (N_t, 256, 256, 5)
-    print(total_data.shape) # (3990, 256, 256)
+    logger.info(total_data.shape) # (3990, 256, 256)
     # save the data to pt file
     torch.save(total_data, os.path.join(data_path, 'data_ns2d_T%d.pt' % total_data.shape[0]))
-    print("Data saved to: ", os.path.join(data_path, 'data_ns2d_T%d.pt' % total_data.shape[0]))
+    logger.info("Data saved to: %s" % os.path.join(data_path, 'data_ns2d_T%d.pt' % total_data.shape[0]))
     return total_data
 
 
