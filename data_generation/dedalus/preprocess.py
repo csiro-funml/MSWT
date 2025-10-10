@@ -209,7 +209,7 @@ def create_animation(data_path):
         # Don't return anything when blit=False
         return []
 
-    anim = FuncAnimation(fig, update, frames=data.shape[0], interval=20, blit=False)
+    anim = FuncAnimation(fig, update, frames=data.shape[0], interval=200, blit=False)
 
     nt=4990
     sample_id = 0
@@ -222,6 +222,31 @@ def create_animation(data_path):
     plt.close(fig)
     return
 
+
+def downsample_data(data_path):
+    data = h5py.File(os.path.join(data_path, 'data_ns2d_T3990.h5' ), 'r')['data']
+
+    # Get original size
+    T, C, H, W = u.shape
+    
+    # Compute FFT
+    u_hat = torch.fft.rfft2(u, norm='forward')
+    
+    # Create frequency selection mask
+    freqs_h = torch.fft.fftfreq(H, d=1/H)
+    freqs_w = torch.fft.rfftfreq(W, d=1/W)
+    
+    # Select frequencies within [-N/2, N/2-1] range
+    sel_h = torch.logical_and(freqs_h >= -N/2, freqs_h <= N/2-1)
+    sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
+    
+    # Apply frequency selection
+    u_hat_down = u_hat[:, :, sel_h][:, :, :, sel_w]
+    
+    # Compute inverse FFT
+    u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
+    torch.save(u_down, os.path.join(data_path, 'data_ns2d_T3990_downsampled.h5'))
+    return u_down
 
 data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/snapshots_s1'
 data = load_dedalus_data(data_path)

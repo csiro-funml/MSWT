@@ -1159,10 +1159,6 @@ class LongTemporalDataset2D(Dataset):
             x = x.permute(2, 3, 0, 1).contiguous() # (N, N, T, C)
             y = y.permute(2, 3, 0, 1).contiguous() # (N, N, T, C)
             # print("x shape", x.shape, "y shape", y.shape)
-
-        # # idx_cls = torch.LongTensor([dataset_idx])
-        # x = x.permute(3, 2, 0, 1) # (H, W, T, C) -> (C, T, H, W)
-        # y = y.permute(3, 2, 0, 1)
         return x, y
 
     def downsample_x(self, u, N):
