@@ -591,9 +591,9 @@ if __name__ == '__main__':
     dirc_path = '/datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/'
     ## Read the scalars (energy, enstrophy, palinstrophy)
     scalars_dir = dirc_path + 'scalars'
-    out_root = dirc_path + 'plots'
+    out_root = "/datastore/wan410/ns2d_dedalus/data/realisation_0000/" + 'plots'
     times, series = read_scalars_all(scalars_dir)
-    plot_time_series(times, series, out_root + "scalars", dpi=300)
+    plot_time_series(times, series, out_root, dpi=300)
 
     
     # Option 1: Use compressed NPZ cache (recommended)
