@@ -11,6 +11,5 @@
 
 
 module load pytorch/2.5.1-py312-cu122-mpi
-source $HOME/.venvs/pytorch/bin/activate
 
 python3 preprocess.py
