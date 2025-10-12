@@ -610,7 +610,13 @@ if __name__ == '__main__':
 
     # Print data structure 
     load_real_data(dirc_path + 'snapshots')
-
+    
+    # print the time step
+    file_path = os.path.join(dirc_path+ 'snapshots', 'snapshots_s1.h5')                                                              
+                                                                                         
+    with h5py.File(file_path, 'r') as f:                  
+        data = np.array(f['scales/timestep'])
+        print(data[:30])
     # Preprocess the data
     # load data from /datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/snapshots
     
