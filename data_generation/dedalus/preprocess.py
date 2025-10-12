@@ -599,21 +599,25 @@ def plot_time_series(times, series, outdir, dpi=300):
 
 
 if __name__ == '__main__':
-    data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/'
     dirc_path = '/datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/'
-    ## Read the scalars (energy, enstrophy, palinstrophy)
-    scalars_dir = dirc_path + 'scalars'
-    out_root = "/datastore/wan410/ns2d_dedalus/data/realisation_0000/" + 'plots'
-    times, series = read_scalars_all(scalars_dir)
-    plot_time_series(times, series, out_root, dpi=300)
-
     
+    
+    ## Read the scalars (energy, enstrophy, palinstrophy)
+    # scalars_dir = dirc_path + 'scalars'
+    # out_root = "/datastore/wan410/ns2d_dedalus/data/realisation_0000/" + 'plots'
+    # times, series = read_scalars_all(scalars_dir)
+    # plot_time_series(times, series, out_root, dpi=300)
+
+    # Print data structure 
+    load_real_data(dirc_path + 'snapshots')
+
+    # Preprocess the data
+    # load data from /datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/snapshots
+    
+
     # Option 1: Use compressed NPZ cache (recommended)
     # create_animation(data_path, cache_dir='/datastore/wan410/ns2d_dedalus')
-    
-
-
-    # plot the trend of the data
+    # 
 
     # Option 2: Create individual H5 files per timestep (for very large datasets)
     # create_individual_h5_cache(data_path)
