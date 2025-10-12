@@ -507,7 +507,10 @@ def read_scalars_all(scalars_dir):
     # Sort by time consistently for all included keys
     order = np.argsort(times)
     times = times[order]
-    print("time shape", times.shape, "range", times[0], times[-1], "delta t1", times[1] - times[0], "delta tN", times[-1] - times[-2])
+    # I will save the time difference to plot cuz delta t is not uniform
+    delta_t = times[1:] - times[:-1]
+    out_series['delta_t'] = delta_t
+    # print("time shape", times.shape, "range", times[0], times[-1], "delta t1", times[1] - times[0], "delta tN", times[-1] - times[-2])
     for k in out_series:
         out_series[k] = out_series[k][order]
         print("out_series %s shape" % k, out_series[k].shape)
@@ -532,6 +535,12 @@ def sorted_h5_by_write_number(h5_paths):
 
 def plot_time_series(times, series, outdir, dpi=300):
     outdir = pathlib.Path(outdir); outdir.mkdir(parents=True, exist_ok=True)
+    # Time difference
+    plt.figure(figsize=(7, 4))
+    plt.plot(times[:-1], series["delta_t"])
+    plt.xlabel("t"); plt.ylabel("delta_t"); plt.title("Time difference vs time")
+    plt.grid(True, alpha=0.3); plt.tight_layout()
+    plt.savefig(outdir / "delta_t.png", dpi=dpi); plt.close()
 
     # Energy
     plt.figure(figsize=(7, 4))
