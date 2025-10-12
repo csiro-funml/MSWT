@@ -10,6 +10,4 @@
 #SBATCH --cpus-per-task=1        # cpu-cores per task (>1 if multi-threaded tasks)
 
 
-module load pytorch/2.5.1-py312-cu122-mpi
-
 python3 preprocess.py
