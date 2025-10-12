@@ -507,13 +507,14 @@ def read_scalars_all(scalars_dir):
     # Sort by time consistently for all included keys
     order = np.argsort(times)
     times = times[order]
-    # I will save the time difference to plot cuz delta t is not uniform
-    delta_t = times[1:] - times[:-1]
-    out_series['delta_t'] = delta_t
     # print("time shape", times.shape, "range", times[0], times[-1], "delta t1", times[1] - times[0], "delta tN", times[-1] - times[-2])
     for k in out_series:
         out_series[k] = out_series[k][order]
         print("out_series %s shape" % k, out_series[k].shape)
+    
+     # I will save the time difference to plot cuz delta t is not uniform
+    delta_t = times[1:] - times[:-1]
+    out_series['delta_t'] = delta_t
     return times, out_series
 
 
