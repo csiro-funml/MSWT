@@ -454,12 +454,155 @@ def downsample_data(data_path):
     torch.save(u_down, os.path.join(data_path, 'data_ns2d_T3990_downsampled.h5'))
     return u_down
 
+
+def read_scalars_all(scalars_dir):
+    """Concatenate scalar time series across all HDF5 files in `scalars_dir`.
+
+    Required scalars: energy, enstrophy, palinstrophy
+    Optional scalars (if present in all files): inj, drag_loss, visc_loss
+    """
+    files = sorted_h5_by_write_number(sorted(pathlib.Path(scalars_dir).glob("*.h5")))
+    if not files:
+        raise FileNotFoundError(f"No HDF5 files found in scalars dir: {scalars_dir}")
+
+    required_keys = ["energy", "enstrophy", "palinstrophy"]
+    optional_keys = ["inj", "drag_loss", "visc_loss"]
+
+    times_all = []
+    series_req = {k: [] for k in required_keys}
+    series_opt = {k: [] for k in optional_keys}
+    opt_present_all = {k: True for k in optional_keys}
+
+    for fp in files:
+        print("reading file: ", fp)
+        with h5py.File(fp, "r") as f:
+            t = np.array(f["scales/sim_time"])
+            times_all.append(t)
+
+            # Required scalars must exist
+            for key in required_keys:
+                if key not in f["tasks"]:
+                    raise KeyError(f"Task '{key}' not found in {fp}")
+                arr = np.array(f[f"tasks/{key}"]).squeeze()
+                series_req[key].append(arr)
+
+            # Optional scalars: include only if present in ALL files
+            for key in optional_keys:
+                if key in f["tasks"]:
+                    arr = np.array(f[f"tasks/{key}"]).squeeze()
+                    series_opt[key].append(arr)
+                else:
+                    opt_present_all[key] = False
+
+    # Concatenate time and series
+    times = np.concatenate(times_all)
+
+    out_series = {}
+    for k in required_keys:
+        out_series[k] = np.concatenate(series_req[k])
+    for k in optional_keys:
+        if opt_present_all[k]:
+            out_series[k] = np.concatenate(series_opt[k])
+
+    # Sort by time consistently for all included keys
+    order = np.argsort(times)
+    times = times[order]
+    for k in out_series:
+        out_series[k] = out_series[k][order]
+    return times, out_series
+
+
+
+
+def sorted_h5_by_write_number(h5_paths):
+    """Sort Dedalus analysis files by their 'scales/write_number'[0]."""
+    def first_write_number(p):
+        try:
+            with h5py.File(p, "r") as f:
+                wn = f["scales/write_number"][0]
+            return int(wn)
+        except Exception:
+            m = re.search(r"(\d+)(?=\.h5$)", p.name)
+            return int(m.group(1)) if m else 0
+    return sorted(h5_paths, key=first_write_number)
+
+
+
+def plot_time_series(times, series, outdir, dpi=300):
+    outdir = pathlib.Path(outdir); outdir.mkdir(parents=True, exist_ok=True)
+
+    # Energy
+    plt.figure(figsize=(7, 4))
+    plt.plot(times, series["energy"])
+    plt.xlabel("t"); plt.ylabel("Energy"); plt.title("Kinetic energy vs time")
+    plt.grid(True, alpha=0.3); plt.tight_layout()
+    plt.savefig(outdir / "energy.png", dpi=dpi); plt.close()
+
+    # Enstrophy
+    plt.figure(figsize=(7, 4))
+    plt.plot(times, series["enstrophy"])
+    plt.xlabel("t"); plt.ylabel("Enstrophy"); plt.title("Enstrophy vs time")
+    plt.grid(True, alpha=0.3); plt.tight_layout()
+    plt.savefig(outdir / "enstrophy.png", dpi=dpi); plt.close()
+
+    # Palinstrophy
+    plt.figure(figsize=(7, 4))
+    plt.plot(times, series["palinstrophy"])
+    plt.xlabel("t"); plt.ylabel("Palinstrophy"); plt.title("Palinstrophy vs time")
+    plt.grid(True, alpha=0.3); plt.tight_layout()
+    plt.savefig(outdir / "palinstrophy.png", dpi=dpi); plt.close()
+
+    # Optional new scalars, plot only if present
+    if "inj" in series:
+        plt.figure(figsize=(7, 4))
+        plt.plot(times, series["inj"])
+        plt.xlabel("t"); plt.ylabel("inj"); plt.title("Energy injection rate inj vs time")
+        plt.grid(True, alpha=0.3); plt.tight_layout()
+        plt.savefig(outdir / "inj.png", dpi=dpi); plt.close()
+
+    if "drag_loss" in series:
+        plt.figure(figsize=(7, 4))
+        plt.plot(times, series["drag_loss"])
+        plt.xlabel("t"); plt.ylabel("drag_loss"); plt.title("Linear drag dissipation drag_loss vs time")
+        plt.grid(True, alpha=0.3); plt.tight_layout()
+        plt.savefig(outdir / "drag_loss.png", dpi=dpi); plt.close()
+
+    if "visc_loss" in series:
+        plt.figure(figsize=(7, 4))
+        plt.plot(times, series["visc_loss"])
+        plt.xlabel("t"); plt.ylabel("visc_loss"); plt.title("Viscous dissipation visc_loss vs time")
+        plt.grid(True, alpha=0.3); plt.tight_layout()
+        plt.savefig(outdir / "visc_loss.png", dpi=dpi); plt.close()
+
+    # Plot sum of inj, drag_loss, and visc_loss if all are present
+    if all(k in series for k in ["inj", "drag_loss", "visc_loss"]):
+        total = series["inj"] - series["drag_loss"] - series["visc_loss"]
+        plt.figure(figsize=(7, 4))
+        plt.plot(times, total)
+        plt.xlabel("t"); plt.ylabel("inj - (drag_loss + visc_loss)")
+        plt.title("Total energy balance (inj - (drag_loss + visc_loss)) vs time")
+        plt.grid(True, alpha=0.3); plt.tight_layout()
+        plt.savefig(outdir / "energy_balance_sum.png", dpi=dpi); plt.close()
+
+
+
 if __name__ == '__main__':
     data_path = '/datasets/work/oa-tcch/work/forXuesong/snapshots/'
+    dirc_path = '/datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/'
+    ## Read the scalars (energy, enstrophy, palinstrophy)
+    scalars_dir = dirc_path + 'scalars'
+    out_root = dirc_path + 'plots'
+    times, series = read_scalars_all(scalars_dir)
+    plot_time_series(times, series, out_root + "scalars", dpi=300)
+
     
     # Option 1: Use compressed NPZ cache (recommended)
-    create_animation(data_path, cache_dir='/datastore/wan410/ns2d_dedalus')
+    # create_animation(data_path, cache_dir='/datastore/wan410/ns2d_dedalus')
     
+
+
+    # plot the trend of the data
+
     # Option 2: Create individual H5 files per timestep (for very large datasets)
     # create_individual_h5_cache(data_path)
     
