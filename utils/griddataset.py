@@ -1142,7 +1142,7 @@ class DedalusDataset2D(Dataset):
                 timestep_aug = np.tile(timestep_data, (H, W, 1)).transpose(2, 0, 1)  # (T, H, W)
                 
                 # Stack all data
-                data = np.stack([vorticity_data, streamfunction_data, timestep_aug], axis=1)  # (T, C, H, W)
+                data = np.stack([vorticity_data, streamfunction_data, timestep_aug], axis=1).float()  # (T, C, H, W)
                 
             except (OSError, KeyError, IndexError):
                 # Fallback: use the main virtual dataset file
