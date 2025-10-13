@@ -18,7 +18,7 @@ import numpy as np
 import os
 # import torch
 import matplotlib
-
+from tqdm import tqdm
 matplotlib.use("Agg")  # headless
 import matplotlib.pyplot as plt
 import logging
@@ -222,32 +222,32 @@ def plot_time_series(times, series, outdir, dpi=300):
 
 def load_real_data(data_path, truncate_time=100, max_time=200, save_path=None):
     file_path = os.path.join(data_path, 'snapshots_s1.h5')                                                              
-    var_names = ["scales/sim_time", "scales/timestep", "tasks/vorticity", "tasks/streamfunction", "tasks/pressure", "tasks/velocity_x", "tasks/velocity_y"] 
-    var_data = {}
+    var_data = []
     truncate_idx = None
-    with h5py.File(file_path, 'r') as f:                                                                                  
-        for var_name in var_names:
-            if var_name not in f and 'velocity' not in var_name:
-                raise KeyError(f"Variable '{var_name}' not found in {file_path}")
-            elif 'velocity' not in var_name:
-                var_data_full = np.array(f[var_name]) # load data as numpy array (T, (C), H, W)
-                if var_name == "sim_time":
-                    truncate_idx = np.where(var_data[var_name] >= truncate_time and var_data[var_name] <= truncate_time + max_time)
-                    print("total time steps after truncation", truncate_idx[0])
-                else:
-                    var_data[var_name] = var_data_full[truncate_idx]
-            else:
-                if var_name == 'velocity_y':
-                    var_data[var_name] = np.array(f['velocity'])[:, 1, ...][truncate_idx]
-                else:
-                    var_data[var_name] = np.array(f['velocity'])[:, 0, ...][truncate_idx]   
-            var_data[var_name] = var_data_full[truncate_idx]
+
+    with h5py.File(file_path, 'r') as f:                  
+        # stream processing to save memory                                                                
+        time_full = np.array(f['scales/sim_time']) # load data as numpy array (T)
+        truncate_idx = np.where(time_full >= truncate_time and time_full <= truncate_time + max_time)
+        print("total time steps after truncation", truncate_idx.shape[0], "time range", time_full[truncate_idx[0]], time_full[truncate_idx[-1]])
+        for idx in tqdm(truncate_idx): # load data for each time step
+            # load timestep
+            timestep = np.array(f['scales/timestep'][idx])
+            vorticity = np.array(f['tasks/vorticity'][idx])
+            streamfunction = np.array(f['tasks/streamfunction'][idx])
+            pressure = np.array(f['tasks/pressure'][idx])
+            velocity_x = np.array(f['tasks/velocity'][idx,0,...])
+            velocity_y = np.array(f['tasks/velocity'][idx,1,...])
+            var_data.append([timestep, vorticity, streamfunction, pressure, velocity_x, velocity_y])
+           
+    var_data = np.array(var_data) # (C, T, H, W)
+    print("var_data shape", var_data.shape)
     # concanate all variables as numpy array and save it to npz file
-    data_np = [x for x in var_data.values()]
-    data_np = np.concatenate(data_np, axis=0)  # (C, T, H, W)
-    data_np = data_np.transpose(2, 3, 1, 0) # (H, W, T, C)
-    print("data_np shape", data_np.shape)
-    np.savez(os.path.join(save_path, 'snapshots_s1_truncated.npz'), data_np)
+    # data_np = [x for x in var_data.values()]
+    # data_np = np.concatenate(data_np, axis=0)  # (C, T, H, W)
+    # data_np = data_np.transpose(2, 3, 1, 0) # (H, W, T, C)
+    # print("data_np shape", data_np.shape)
+    # np.savez(os.path.join(save_path, 'snapshots_s1_truncated.npz'), data_np)
     
        
 
@@ -265,7 +265,7 @@ if __name__ == '__main__':
     # Print data structure 
     print_data_structure(dirc_path + 'snapshots')
     # load 1000 steps of variables (vorticity, streamfunction, pressure, velocity, timestep) and save to h5 file
-    load_real_data(dirc_path + 'snapshots', truncate_time=100, max_time=200, save_path=out_root)
+    load_real_data(dirc_path + 'snapshots', truncate_time=100, max_time=110, save_path=out_root)
                                                                                          
 
     # Preprocess the data
