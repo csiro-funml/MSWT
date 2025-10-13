@@ -1,5 +1,6 @@
 #!/usr/bin/env python  
 #-*- coding:utf-8 _*-
+from re import X
 import torch
 import torch.nn.functional as F
 import time
@@ -1055,165 +1056,73 @@ class LocalTemporalDataset2D(Dataset):
         return x
 
 
-class LongTemporalDataset2D(Dataset):
-    def __init__(self, data_name, n_train=None, t_in=10, t_ar = 1, n_channels = None, normalize=False, train='train', downsample=None):
-        '''
-
-        :param data_name:
-        :param n_train:
-        :param res:
-        :param t_in:
-        :param t_ar:
-        :param n_channels:
-        :param normalize:
-        :param train:
-        '''
+class DedalusDataset2D(Dataset):
+    def __init__(self, data_name, n_train=None, t_in=10, t_ar = 1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=1):
+        ## /datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/snapshots
+        self.super().__init__()
         self.data_name = data_name
-        if  n_train is not None:
-            self.n_size = n_train
-        else:
-            self.n_size = DATASET_DICT[data_name]['%s_size'%train]
-        self.train = train == 'train'
-        self.res = DATASET_DICT[self.data_name]['in_size']
+        self.data_path = DATASET_DICT[data_name]['data_path']
+        self.n_size = DATASET_DICT[data_name]['%s_range'%train][1] - DATASET_DICT[data_name]['%s_range'%train][0]
+        self.start_idx = DATASET_DICT[data_name]['%s_range'%train][0]     
+        self.train = train
+        self.temporal_downsample = temporal_downsample
         self.t_in = t_in
-        self.t_ar = t_ar
-        self.t_test = DATASET_DICT[data_name]['t_test']
-        self.n_channels = DATASET_DICT[data_name]['n_channels'] if n_channels is None else n_channels
-        self.downsample = DATASET_DICT[data_name]['downsample'] if downsample is None else downsample
-
-        self.data = h5py.File(DATASET_DICT[self.data_name]['%s_path'%train], 'r') # load train/val/test from the h5 file (T, H, W, C)
-        # make sure the data has the shape (H, W, T, C)
-        self.data = self.data.permute(1, 2, 0, 3)
-
-        # if normalize
-        self.normalize = normalize
-        print("normalizing state", normalize)        
-        if normalize:
-           self.load_normalizer()
-                
-    def load_normalizer(self):
-        # check if the normalizer is saved,
-        normalizer_path = DATASET_DICT[self.data_name]['normalizer_path']
-        if os.path.exists(normalizer_path):
-            normstat = torch.load(normalizer_path)  # {"u" :{"mean":torch.tensor[], "std": torch.tensor},  "v", ... , "pres"}
-            self.norm_mean = normstat["mean"]
-            self.norm_std = normstat["std"]
-        else:
-            print("normalizer not found, using min-max normalization")
-            data_norm = self.data['data'][:]
-            inp_min = torch.amin(data_norm, dim=(0, 1, 2, 3)) # (C,) 
-            inp_max = torch.amax(data_norm, dim=(0, 1, 2,3)) # (C, )
-            self.norm_mean = inp_min # (C,)
-            self.norm_std = (inp_max - inp_min) #(C, )
-            print("min shape", inp_min.shape, self.norm_mean.numpy(), "max shape", inp_max.shape, self.norm_std.numpy())
-            torch.save({"mean": self.norm_mean, "std": self.norm_std}, normalizer_path)
-
-    def pad_data(self, x):
-        '''
-        pad data to unified shape
-        :param x: H, W, T, C
-        :return:  H', W', T', C'
-        '''
-        H, W, T, C = x.shape
-        x = x.view(H, W, -1).permute(2, 0, 1) # Cmax, H, W
-        x = F.interpolate(x.unsqueeze(0), size=(self.res[0], self.res[1]),mode='bilinear').squeeze(0).permute(1, 2, 0)
-        x = x.view(*x.shape[:2], T, C)
-        x_new = torch.ones([*x.shape[:-1], self.n_channels])    # use 1 for void padding
-        x_new[..., :x.shape[-1]] = x  # H, W, T, Cmax
-
-        return x_new
-
-    def get_target_mask(self, x, size_orig):
-        '''
-        :param x: single data, H, W, T, C
-        :param size_orig: original size of x
-        :return: masks for evaluation (by resolution)
-        '''
-        msk = torch.zeros(*x.shape[:2], 1, x.shape[-1])    ## target mask shape H,W,1,C
-        kx, ky = x.shape[0] // size_orig[0], x.shape[1] // size_orig[1]
-        if kx ==0 or ky == 0:
-            # print('warnings: target resolution < data resolution')
-            kx = 1 if kx ==0 else kx
-            ky = 1 if ky == 0 else ky
-        msk[::kx, ::ky, :, :size_orig[-1]] = 1
-
-        return msk
-
-    def __getitem__(self, idx):
-        '''
-        :param idx: start time step in the whole dataset
-        :return: data slice x:(H, W, T:T+t_in, C), y:(H, W, T+t_in:T+t_in+t_ar, C)
-        '''
-
-        x, y = self.data[idx:idx + self.t_in], self.data[idx + self.t_in:idx + self.t_in + self.t_ar]
-
-        ### downsample
-        if self.downsample != (1, 1):
-            # x, y = x[::self.downsample[0],::self.downsample[1]], y[::self.downsample[0],::self.downsample[1]]
-            # reshape x from (H, W, T, C) to (T, C, H, W)
-            # print("x shape", x.shape, "y shape", y.shape)
-            x = x.permute(2, 3, 0, 1).contiguous()
-            y = y.permute(2, 3, 0, 1).contiguous()
-            x = self.downsample_x(x, self.downsample[0]) # (T, C, N, N)
-            y = self.downsample_x(y, self.downsample[0])
-            x = x.permute(2, 3, 0, 1).contiguous() # (N, N, T, C)
-            y = y.permute(2, 3, 0, 1).contiguous() # (N, N, T, C)
-            # print("x shape", x.shape, "y shape", y.shape)
-        return x, y
-
-    def downsample_x(self, u, N):
+        self.t_out = t_ar
+        self.form = 'vorticity'
+        self.n_channels = 2 if self.form == 'vorticity' else 3
+        
+        self.norm_mean, self.norm_std = self.get_normalizer()
+   
+    def __getitem__(self, index):
         """
-        Downsample a real-valued input using FFT
-        Args:
-            u: Input tensor of shape (T, C, H, W)
-            N: Target size for downsampling
-        Returns:
-            Downsampled tensor of shape (T, C, N, N)
+        input: (T_in, H, W, C) sample every temporal_downsample steps
+        output: [T_out, H, W, C] sample every temporal_downsample steps
         """
-        # Get original size
-        T, C, H, W = u.shape
+        data = []
+        start_idx = index + self.start_idx # (skip train/val)
+       
+        with h5py.File(self.data_path, 'r') as f: # (T, H, W,C) 
+            for sample_idx in range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample):
+                timestep = np.array(f['scales/timestep'][sample_idx])                
+                if self.form == 'vorticity':
+                    vorticity = np.array(f['tasks/vorticity'][sample_idx])
+                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
+                    data.append([vorticity, streamfunction, timestep])
+                else:
+                    pressure = np.array(f['tasks/pressure'][sample_idx])
+                    velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
+                    velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
+                    data.append([pressure, velocity_x, velocity_y, timestep])
+            data = np.array(data) # (T_in + T_out, H, W, C)
+            print("data shape", data.shape)
+            x = data[:self.t_in, ...]
+            y = data[self.t_in:self.t_in + self.t_out, ...]
+            return x, y            
+           
+    def get_normalizer(self):
+        # use 100 samples from the training set to get the MIN-MAX normalizer
+        data_norm = []
+        with h5py.File(self.data_path, 'r') as f: # (T, H, W,C)
+            for sample_idx in range(100):
+                if self.form == 'vorticity':
+                    vorticity = np.array(f['tasks/vorticity'][sample_idx])
+                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
+                    data_norm.append([vorticity, streamfunction])
+                else:
+                    pressure = np.array(f['tasks/pressure'][sample_idx])
+                    velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
+                    velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
+                    data_norm.append([pressure, velocity_x, velocity_y])
+                data_norm.append([pressure, velocity_x, velocity_y])
         
-        # Compute FFT
-        u_hat = torch.fft.rfft2(u, norm='forward')
-        
-        # Create frequency selection mask
-        freqs_h = torch.fft.fftfreq(H, d=1/H)
-        freqs_w = torch.fft.rfftfreq(W, d=1/W)
-        
-        # Select frequencies within [-N/2, N/2-1] range
-        sel_h = torch.logical_and(freqs_h >= -N/2, freqs_h <= N/2-1)
-        sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
-        
-        # Apply frequency selection
-        u_hat_down = u_hat[:, :, sel_h][:, :, :, sel_w]
-        
-        # Compute inverse FFT
-        u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
-        
-        return u_down
+        data_norm = np.stack(data_norm) # (100, H, W, C)
+        data_mean =np.min(data_norm, dim=(0, 1, 2, 3)) # (C,)
+        data_std = (np.max(data_norm, dim=(0, 1, 2, 3)) - data_mean) # (C,)
+        print("data_mean", data_mean, "data_std", data_std)
+        return data_mean, data_std
     
-
-    def denormalize_x(self, x, meanstd=False):
-        """
-            X shape: (B, H, W, T, C)
-        """
-        if  len(self.norm_mean.shape)>1 and len(self.norm_mean.shape) != len(x.shape):
-            self.norm_mean = self.norm_mean[None, :, :, None, :]
-            self.norm_std = self.norm_std[None, :, :, None, :]
-        x_denorm = x * (self.norm_std.to(x.device) + 1e-6) +  self.norm_mean.to(x.device)
-        return x_denorm
-
-    def normalize_x(self, x):
-        # match the shape of x and norm_mean, norm_std
-        if len(self.norm_mean.shape)>1 and len(self.norm_mean.shape) != len(x.shape):
-            self.norm_mean = self.norm_mean[None, :, :, None, :]
-            self.norm_std = self.norm_std[None, :, :, None, :]
-        x = (x - self.norm_mean.to(x.device)) / (self.norm_std.to(x.device) + 1e-6)
-        return x
-
     def __len__(self):
-        return self.n_size
-
+        return self.n_size - self.temporal_downsample * (self.t_in + self.t_out) 
 
 class CNO_NavierStokes2D(Dataset):
     def __init__(self, data_name, which="training", nf=0, n_train = 750, s=64, in_dist = True):

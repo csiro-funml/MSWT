@@ -402,15 +402,16 @@ if not torch.cuda.is_available():
                             'val_path': './data/large/pdearena/sw2d_pda/val',
                           }
 else:
-    DATASET_DICT[name] =  {'train_path': '/datasets/work/oa-tcch/work/forXuesong/snapshots/snapshots_s1.h5', 
+    DATASET_DICT[name] =  {'data_path': '/datastore/wan410/ns2d_dedalus/data/realisation_0000/snapshots_s1.h5', 
                           }
-DATASET_DICT[name]['train_size'] = 3000 # 
-DATASET_DICT[name]['test_size'] = 890     
-DATASET_DICT[name]['val_size'] = 100      
+DATASET_DICT[name]['train_range'] = (0, 5000) 
+DATASET_DICT[name]['test_range'] = (5500, 6500)
+DATASET_DICT[name]['val_range'] = (5000, 5500)        
 DATASET_DICT[name]['scatter_storage'] = True
 DATASET_DICT[name]['t_test'] = 30   ## predict 10 timesteps for testing
 DATASET_DICT[name]['t_in'] = 7     ## use 10 as prefix steps, not necessary used
 DATASET_DICT[name]['t_total'] = 30
-DATASET_DICT[name]['in_size'] = (128, 128)
-DATASET_DICT[name]['n_channels'] = 2
-DATASET_DICT[name]['downsample'] = (1, 1)
+DATASET_DICT[name]['in_size'] = (256, 256)
+DATASET_DICT[name]['n_channels'] = 3
+DATASET_DICT[name]['downsample'] = (2, 2)
+DATASET_DICT[name]['temporal_downsample'] = 1
