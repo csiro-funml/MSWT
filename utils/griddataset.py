@@ -1071,7 +1071,7 @@ class DedalusDataset2D(Dataset):
         self.form = 'vorticity'
         self.n_channels = 2 if self.form == 'vorticity' else 3
         
-        self.norm_mean, self.norm_std = self.get_normalizer()
+        # self.norm_mean, self.norm_std = self.get_normalizer()
    
     def __getitem__(self, index):
         """
@@ -1087,6 +1087,7 @@ class DedalusDataset2D(Dataset):
                 if self.form == 'vorticity':
                     vorticity = np.array(f['tasks/vorticity'][sample_idx])
                     streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
+                    print(vorticity, streamfunction, timestep)
                     data.append([vorticity, streamfunction, timestep])
                 else:
                     pressure = np.array(f['tasks/pressure'][sample_idx])
@@ -1115,10 +1116,10 @@ class DedalusDataset2D(Dataset):
                     velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
                     data_norm.append([pressure, velocity_x, velocity_y])
         
-        data_norm = np.stack(data_norm) # (100, H, W, C)
-        print("data_norm shape", data_norm.shape)
-        data_mean =np.min(data_norm, axis=(0, 1, 2, 3)) # (C,)
-        data_std = (np.max(data_norm, axis=(0, 1, 2, 3)) - data_mean) # (C,)
+        data_norm = np.stack(data_norm) # (100, C, H, W)
+        # print("data_norm shape", data_norm.shape)
+        data_mean =np.min(data_norm, axis=(0, 2, 3)) # (C,)
+        data_std = (np.max(data_norm, axis=(0, 2, 3)) - data_mean) # (C,)
         print("data_mean", data_mean, "data_std", data_std)
         return data_mean, data_std
     
