@@ -402,7 +402,7 @@ if not torch.cuda.is_available():
                             'val_path': './data/large/pdearena/sw2d_pda/val',
                           }
 else:
-    DATASET_DICT[name] =  {'data_path': '/datastore/wan410/ns2d_dedalus/data/realisation_0000/snapshots_s1.h5', 
+    DATASET_DICT[name] =  {'data_path': '/datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/snapshots/snapshots_s1.h5', 
                           }
 DATASET_DICT[name]['train_range'] = (0, 5000) 
 DATASET_DICT[name]['test_range'] = (5500, 6500)
