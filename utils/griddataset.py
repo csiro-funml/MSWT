@@ -1119,8 +1119,8 @@ class DedalusDataset2D(Dataset):
                     
                     for file_path in file_paths:
                         with h5py.File(file_path, 'r') as f:
-                            vorticity_slice = np.array(f['tasks/vorticity'][sample_idx])  # (H, W//16)
-                            streamfunction_slice = np.array(f['tasks/streamfunction'][sample_idx])  # (H, W//16)
+                            vorticity_slice = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32)  # (H, W//16)
+                            streamfunction_slice = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32)  # (H, W//16)
                             vorticity_slices.append(vorticity_slice)
                             streamfunction_slices.append(streamfunction_slice)
                     
@@ -1131,10 +1131,10 @@ class DedalusDataset2D(Dataset):
                     all_vorticity_data.append(vorticity_full)
                     all_streamfunction_data.append(streamfunction_full)
                 
-                # Stack all data
-                timestep_data = np.array(all_timestep_data)  # (T, 1)
-                vorticity_data = np.array(all_vorticity_data)  # (T, H, W)
-                streamfunction_data = np.array(all_streamfunction_data)  # (T, H, W)
+                # Stack all data and convert to float32
+                timestep_data = np.array(all_timestep_data, dtype=np.float32)  # (T, 1)
+                vorticity_data = np.array(all_vorticity_data, dtype=np.float32)  # (T, H, W)
+                streamfunction_data = np.array(all_streamfunction_data, dtype=np.float32)  # (T, H, W)
                 
                 H, W = vorticity_data.shape[1], vorticity_data.shape[2]
                 
@@ -1152,15 +1152,15 @@ class DedalusDataset2D(Dataset):
                         H, W = f['tasks/vorticity'][sample_idx].shape
                         timestep_aug = np.tile(timestep, (H, W))
                         if self.form == 'vorticity':
-                            vorticity = np.array(f['tasks/vorticity'][sample_idx])
-                            streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
-                            data.append([vorticity, streamfunction, timestep_aug])
+                            vorticity = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32)
+                            streamfunction = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32)
+                            data.append([vorticity, streamfunction])
                         else:
-                            pressure = np.array(f['tasks/pressure'][sample_idx])
-                            velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
-                            velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
+                            pressure = np.array(f['tasks/pressure'][sample_idx], dtype=np.float32)
+                            velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...], dtype=np.float32)
+                            velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...], dtype=np.float32)
                             data.append([pressure, velocity_x, velocity_y])
-                    data = np.array(data)  # (T_in + T_out, C, H, W)
+                    data = np.array(data, dtype=np.float32)  # (T_in + T_out, C, H, W)
             
         else:
             # Original method for non-scatter storage
@@ -1198,16 +1198,16 @@ class DedalusDataset2D(Dataset):
         print("getting the normalizer")
         data_norm = []
         with h5py.File(self.data_path, 'r') as f: # (T, H, W,C)
-            for sample_idx in range(2000, 2100):
-                if self.form == 'vorticity':
-                    vorticity = np.array(f['tasks/vorticity'][sample_idx])
-                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
-                    data_norm.append([vorticity, streamfunction])
-                else:
-                    pressure = np.array(f['tasks/pressure'][sample_idx])
-                    velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
-                    velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
-                    data_norm.append([pressure, velocity_x, velocity_y])
+             for sample_idx in range(2000, 2100):
+                 if self.form == 'vorticity':
+                     vorticity = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32)
+                     streamfunction = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32)
+                     data_norm.append([vorticity, streamfunction])
+                 else:
+                     pressure = np.array(f['tasks/pressure'][sample_idx], dtype=np.float32)
+                     velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...], dtype=np.float32)
+                     velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...], dtype=np.float32)
+                     data_norm.append([pressure, velocity_x, velocity_y])
         
         data_norm = np.stack(data_norm) # (100, C, H, W)
         # print("data_norm shape", data_norm.shape)
@@ -1334,8 +1334,8 @@ class CachedDedalusDataset2D(DedalusDataset2D):
                     
                     for file_path in file_paths:
                         f = self._get_cached_file(file_path)
-                        vorticity_slice = np.array(f['tasks/vorticity'][sample_idx])  # (H, W//16)
-                        streamfunction_slice = np.array(f['tasks/streamfunction'][sample_idx])  # (H, W//16)
+                        vorticity_slice = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32)  # (H, W//16)
+                        streamfunction_slice = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32)  # (H, W//16)
                         vorticity_slices.append(vorticity_slice)
                         streamfunction_slices.append(streamfunction_slice)
                     
@@ -1346,10 +1346,10 @@ class CachedDedalusDataset2D(DedalusDataset2D):
                     all_vorticity_data.append(vorticity_full)
                     all_streamfunction_data.append(streamfunction_full)
                 
-                # Stack all data
-                timestep_data = np.array(all_timestep_data)  # (T, 1)
-                vorticity_data = np.array(all_vorticity_data)  # (T, H, W)
-                streamfunction_data = np.array(all_streamfunction_data)  # (T, H, W)
+                # Stack all data and convert to float32
+                timestep_data = np.array(all_timestep_data, dtype=np.float32)  # (T, 1)
+                vorticity_data = np.array(all_vorticity_data, dtype=np.float32)  # (T, H, W)
+                streamfunction_data = np.array(all_streamfunction_data, dtype=np.float32)  # (T, H, W)
                 
                 H, W = vorticity_data.shape[1], vorticity_data.shape[2]
                 
@@ -1357,7 +1357,7 @@ class CachedDedalusDataset2D(DedalusDataset2D):
                 timestep_aug = np.tile(timestep_data, (H, W, 1)).transpose(2, 0, 1)  # (T, H, W)
                 
                 # Stack all data
-                data = np.stack([vorticity_data, streamfunction_data, timestep_aug], axis=1)  # (T, C, H, W)
+                data = np.stack([vorticity_data, streamfunction_data], axis=1)  # (T, C, H, W)
                 
             except (OSError, KeyError, IndexError):
                 # Fallback: use the main virtual dataset file
@@ -1367,15 +1367,15 @@ class CachedDedalusDataset2D(DedalusDataset2D):
                     H, W = f['tasks/vorticity'][sample_idx].shape
                     timestep_aug = np.tile(timestep, (H, W))
                     if self.form == 'vorticity':
-                        vorticity = np.array(f['tasks/vorticity'][sample_idx])
-                        streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
-                        data.append([vorticity, streamfunction, timestep_aug])
+                        vorticity = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32)
+                        streamfunction = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32)
+                        data.append([vorticity, streamfunction])
                     else:
-                        pressure = np.array(f['tasks/pressure'][sample_idx])
-                        velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
-                        velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
-                        data.append([pressure, velocity_x, velocity_y, timestep_aug])
-                data = np.array(data)  # (T_in + T_out, C, H, W)
+                        pressure = np.array(f['tasks/pressure'][sample_idx], dtype=np.float32)
+                        velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...], dtype=np.float32)
+                        velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...], dtype=np.float32)
+                        data.append([pressure, velocity_x, velocity_y])
+                data = np.array(data, dtype=np.float32)  # (T_in + T_out, C, H, W)
             
         else:
             # Original method for non-scatter storage with caching
@@ -1385,15 +1385,15 @@ class CachedDedalusDataset2D(DedalusDataset2D):
                 H, W = f['tasks/vorticity'][sample_idx].shape
                 timestep_aug = np.tile(timestep, (H, W))               
                 if self.form == 'vorticity':
-                    vorticity = np.array(f['tasks/vorticity'][sample_idx]) # (H, W)
-                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx]) # (H, W)
-                    data.append([vorticity, streamfunction, timestep_aug])
+                    vorticity = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32) # (H, W)
+                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32) # (H, W)
+                    data.append([vorticity, streamfunction])
                 else:
-                    pressure = np.array(f['tasks/pressure'][sample_idx])
-                    velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
-                    velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
-                    data.append([pressure, velocity_x, velocity_y, timestep_aug])
-            data = np.array(data)  # (T_in + T_out, C, H, W)
+                    pressure = np.array(f['tasks/pressure'][sample_idx], dtype=np.float32)
+                    velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...], dtype=np.float32)
+                    velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...], dtype=np.float32)
+                    data.append([pressure, velocity_x, velocity_y])
+                data = np.array(data, dtype=np.float32)  # (T_in + T_out, C, H, W)
         
         # Convert to torch tensor
         data = torch.from_numpy(data) # (T_in + T_out, C, H, W)
