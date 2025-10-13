@@ -471,6 +471,7 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
                 vorticity_slice = np.array(f['tasks/vorticity'][t], dtype=np.float32)
                 stream_slice = np.array(f['tasks/streamfunction'][t], dtype=np.float32)
                 velocity_x_slice = np.array(f['tasks/velocity'][t, 0], dtype=np.float32)
+                print("velocity_x_slice.shape", velocity_x_slice.shape)
                 velocity_y_slice = np.array(f['tasks/velocity'][t, 1], dtype=np.float32)
                 pressure_slice = np.array(f['tasks/pressure'][t], dtype=np.float32)
                 vorticity_slices.append(vorticity_slice)
