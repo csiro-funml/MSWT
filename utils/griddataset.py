@@ -1101,6 +1101,7 @@ class DedalusDataset2D(Dataset):
            
     def get_normalizer(self):
         # use 100 samples from the training set to get the MIN-MAX normalizer
+        print("getting the normalizer")
         data_norm = []
         with h5py.File(self.data_path, 'r') as f: # (T, H, W,C)
             for sample_idx in range(100):
@@ -1115,8 +1116,9 @@ class DedalusDataset2D(Dataset):
                     data_norm.append([pressure, velocity_x, velocity_y])
         
         data_norm = np.stack(data_norm) # (100, H, W, C)
-        data_mean =np.min(data_norm, dim=(0, 1, 2, 3)) # (C,)
-        data_std = (np.max(data_norm, dim=(0, 1, 2, 3)) - data_mean) # (C,)
+        print("data_norm shape", data_norm.shape)
+        data_mean =np.min(data_norm, axis=(0, 1, 2, 3)) # (C,)
+        data_std = (np.max(data_norm, axis=(0, 1, 2, 3)) - data_mean) # (C,)
         print("data_mean", data_mean, "data_std", data_std)
         return data_mean, data_std
     
