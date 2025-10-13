@@ -1071,7 +1071,7 @@ class DedalusDataset2D(Dataset):
         self.t_in = t_in
         self.t_out = t_ar
         self.form = 'vorticity'
-        self.n_channels = 2 if self.form == 'vorticity' else 3
+        self.n_channels = 3 if self.form == 'vorticity' else 4
         self.norm_mean, self.norm_std = self.get_normalizer()
    
     def __getitem__(self, index):
