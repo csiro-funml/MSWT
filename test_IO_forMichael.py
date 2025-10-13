@@ -67,5 +67,5 @@ class DedalusDataset2D():
 
 if __name__ == '__main__':
     # Test single sample loading time
-    print("Testing single sample loading time...")
+    print("Testing 100 sample loading time...")
     dataset = DedalusDataset2D(name, t_in=7, t_ar=1, form='vorticity', normalize=True, train='train')
