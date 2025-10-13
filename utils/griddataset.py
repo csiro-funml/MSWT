@@ -1163,11 +1163,11 @@ class DedalusDataset2D(Dataset):
         data_std = np.concatenate([data_std, np.ones(1)], axis=-1)
         return data_mean, data_std
     
-    def denormalize(self, x):
+    def denormalize_x(self, x):
         x = x * (self.norm_std.to(x.device) + 1e-6) +  self.norm_mean.to(x.device)
         return x
 
-    def normalize(self, x):
+    def normalize_x(self, x):
         x = (x - self.norm_mean.to(x.device)) / (self.norm_std.to(x.device) + 1e-6)
         return x
 
