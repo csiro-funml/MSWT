@@ -31,6 +31,7 @@ class DedalusDataset2D():
     def __init__(self, data_name, t_in=10, t_ar = 1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=None):
         ## /datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/snapshots
         self.data_name = data_name
+        self.form = form
         self.data_path = DATASET_DICT[data_name]['data_path']
         self.norm_mean, self.norm_std = self.get_normalizer()
    
