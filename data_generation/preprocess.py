@@ -431,7 +431,7 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
     print("keys", DATASET_DICT[dataset_name].keys())
     data_path = DATASET_DICT[dataset_name]['data_path']
     base_path = data_path.replace('.h5', '')
-    file_paths = [f"{base_path}/snapshots_s1_p{i:02d}.h5" for i in range(16)]
+    file_paths = [f"{base_path}/snapshots_s1_p{i:d}.h5" for i in range(16)]
 
     # Probe metadata
     with h5py.File(file_paths[0], 'r') as f0:
