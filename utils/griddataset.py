@@ -1100,8 +1100,9 @@ class DedalusDataset2D(Dataset):
             # print("data shape", data.shape)
             if self.downsample != (1, 1):
                 data = self.downsample_x(data, H//self.downsample[0])
-            x = data[:self.t_in, ...]
-            y = data[self.t_in:self.t_in + self.t_out, ...]
+            data = data.permute(2, 3, 0, 1) # (T, C, H, W) -> (H, W, T, C)
+            x = data[..., :self.t_in, :]
+            y = data[..., self.t_in:self.t_in + self.t_out, :]
             return x, y            
 
     def downsample_x(self, u, N):
