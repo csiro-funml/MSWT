@@ -404,9 +404,9 @@ if not torch.cuda.is_available():
 else:
     DATASET_DICT[name] =  {'data_path': '/datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/snapshots/snapshots_s1.h5', 
                           }
-DATASET_DICT[name]['train_range'] = (0, 5000) 
-DATASET_DICT[name]['test_range'] = (5500, 6500)
-DATASET_DICT[name]['val_range'] = (5000, 5500)        
+DATASET_DICT[name]['train_range'] = (2000, 7000)  # 5k samples (100-350 s)
+DATASET_DICT[name]['test_range'] = (7500, 8500) # 1k samples (375s - 425s)
+DATASET_DICT[name]['val_range'] = (7000, 7500) # 500 samples(350-375s)        
 DATASET_DICT[name]['scatter_storage'] = True
 DATASET_DICT[name]['t_test'] = 30   ## predict 10 timesteps for testing
 DATASET_DICT[name]['t_in'] = 7     ## use 10 as prefix steps, not necessary used
