@@ -14,6 +14,9 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from pathlib import Path
 import json
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.make_master_file import DATASET_DICT
 # from data_generation.cfdbench import get_auto_dataset
 
 
@@ -420,7 +423,7 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
       - 16 slice files exist alongside it: snapshots_s1_p00.h5 ... snapshots_s1_p15.h5
       - Channels: vorticity, streamfunction → C=2
     """
-    from utils.make_master_file import DATASET_DICT
+    
 
     os.makedirs(save_dir, exist_ok=True)
     shards_dir = os.path.join(save_dir, 'shards')
