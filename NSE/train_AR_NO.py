@@ -21,7 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
 from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
-from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, DedalusDataset2D, CachedDedalusDataset2D
+from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
@@ -135,9 +135,9 @@ elif args.dataset == 'ns2d_dedalus':
     # train_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
     # test_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='test')
     # val_dataset= DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='val')
-    train_dataset = CachedDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
-    test_dataset = CachedDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test')
-    val_dataset= CachedDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='val')
+    train_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
+    test_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test')
+    val_dataset= MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='val')
 else:
     # load data and dataloader
     train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)

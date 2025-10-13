@@ -1222,6 +1222,7 @@ class DedalusDataset2D(Dataset):
         data_mean = torch.from_numpy(data_mean).type(torch.float32)
         data_std = torch.from_numpy(data_std).type(torch.float32)
         return data_mean, data_std
+    
     def downsample_x(self, u, N):
         """
         Downsample a real-valued input using FFT
@@ -1265,159 +1266,6 @@ class DedalusDataset2D(Dataset):
         return self.n_size - self.temporal_downsample * (self.t_in + self.t_out) 
 
 
-class CachedDedalusDataset2D(DedalusDataset2D):
-    """
-    Drop-in replacement for DedalusDataset2D with file caching for virtual datasets.
-    
-    Optimized for virtual dataset structure with p0-p15 files.
-    """
-    
-    def __init__(self, *args, cache_size=16, **kwargs):
-        self.cache_size = cache_size
-        self._file_cache = {}
-        super().__init__(*args, **kwargs)
-    
-    def _get_cached_file(self, file_path):
-        """Get cached file or load and cache it."""
-        if file_path not in self._file_cache:
-            # Load file
-            f = h5py.File(file_path, 'r')
-            
-            # Add to cache
-            self._file_cache[file_path] = f
-            
-            # Simple LRU: remove oldest if cache is full
-            if len(self._file_cache) > self.cache_size:
-                oldest_key = next(iter(self._file_cache))
-                self._file_cache[oldest_key].close()
-                del self._file_cache[oldest_key]
-        
-        return self._file_cache[file_path]
-    
-    def __getitem__(self, index):
-        """
-        Optimized version with file caching for virtual dataset structure.
-        """
-        data = []
-        start_idx = index + self.start_idx # (skip train/val)
-       
-        # Check if this dataset uses scatter storage (virtual dataset with p0-p15 files)
-        if DATASET_DICT[self.data_name]['scatter_storage']:
-            # For dedalus virtual dataset, p0-p15 contain spatial slices (W//16) not temporal samples
-            # We need to load from all files and concatenate along the spatial dimension
-            base_path = self.data_path.replace('.h5', '')
-            file_paths = [f"{base_path}/snapshots_s1_p{i:02d}.h5" for i in range(16)]  # p00 to p15
-            
-            # Load all required timesteps
-            timesteps_needed = list(range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample))
-            
-            # Try to load from individual files first
-            try:
-                # Load sample data from first file to get the structure
-                f0 = self._get_cached_file(file_paths[0])
-                sample_vorticity = np.array(f0['tasks/vorticity'][timesteps_needed[0]])  # (H, W//16)
-                H, W_partial = sample_vorticity.shape
-                W_full = W_partial * 16  # Total width when concatenated
-                
-                # Collect data from all files for each timestep
-                all_timestep_data = []
-                all_vorticity_data = []
-                all_streamfunction_data = []
-                
-                for sample_idx in timesteps_needed:
-                    # Load timestep data (same across all files)
-                    timestep = np.array(f0['scales/timestep'][sample_idx])
-                    all_timestep_data.append(timestep)
-                    
-                    # Collect spatial slices from all files for this timestep
-                    vorticity_slices = []
-                    streamfunction_slices = []
-                    
-                    for file_path in file_paths:
-                        f = self._get_cached_file(file_path)
-                        vorticity_slice = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32)  # (H, W//16)
-                        streamfunction_slice = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32)  # (H, W//16)
-                        vorticity_slices.append(vorticity_slice)
-                        streamfunction_slices.append(streamfunction_slice)
-                    
-                    # Concatenate spatial slices along the width dimension
-                    vorticity_full = np.concatenate(vorticity_slices, axis=1)  # (H, W)
-                    streamfunction_full = np.concatenate(streamfunction_slices, axis=1)  # (H, W)
-                    
-                    all_vorticity_data.append(vorticity_full)
-                    all_streamfunction_data.append(streamfunction_full)
-                
-                # Stack all data and convert to float32
-                timestep_data = np.array(all_timestep_data, dtype=np.float32)  # (T, 1)
-                vorticity_data = np.array(all_vorticity_data, dtype=np.float32)  # (T, H, W)
-                streamfunction_data = np.array(all_streamfunction_data, dtype=np.float32)  # (T, H, W)
-                
-                H, W = vorticity_data.shape[1], vorticity_data.shape[2]
-                
-                # Create timestep augmentation for all timesteps
-                timestep_aug = np.tile(timestep_data, (H, W, 1)).transpose(2, 0, 1)  # (T, H, W)
-                
-                # Stack all data
-                data = np.stack([vorticity_data, streamfunction_data], axis=1)  # (T, C, H, W)
-                
-            except (OSError, KeyError, IndexError):
-                # Fallback: use the main virtual dataset file
-                f = self._get_cached_file(self.data_path)
-                for sample_idx in timesteps_needed:
-                    timestep = np.array(f['scales/timestep'][sample_idx])
-                    H, W = f['tasks/vorticity'][sample_idx].shape
-                    timestep_aug = np.tile(timestep, (H, W))
-                    if self.form == 'vorticity':
-                        vorticity = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32)
-                        streamfunction = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32)
-                        data.append([vorticity, streamfunction])
-                    else:
-                        pressure = np.array(f['tasks/pressure'][sample_idx], dtype=np.float32)
-                        velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...], dtype=np.float32)
-                        velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...], dtype=np.float32)
-                        data.append([pressure, velocity_x, velocity_y])
-                data = np.array(data, dtype=np.float32)  # (T_in + T_out, C, H, W)
-            
-        else:
-            # Original method for non-scatter storage with caching
-            f = self._get_cached_file(self.data_path)
-            for sample_idx in range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample):
-                timestep = np.array(f['scales/timestep'][sample_idx]) # (1,) 
-                H, W = f['tasks/vorticity'][sample_idx].shape
-                timestep_aug = np.tile(timestep, (H, W))               
-                if self.form == 'vorticity':
-                    vorticity = np.array(f['tasks/vorticity'][sample_idx], dtype=np.float32) # (H, W)
-                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx], dtype=np.float32) # (H, W)
-                    data.append([vorticity, streamfunction])
-                else:
-                    pressure = np.array(f['tasks/pressure'][sample_idx], dtype=np.float32)
-                    velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...], dtype=np.float32)
-                    velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...], dtype=np.float32)
-                    data.append([pressure, velocity_x, velocity_y])
-                data = np.array(data, dtype=np.float32)  # (T_in + T_out, C, H, W)
-        
-        # Convert to torch tensor
-        data = torch.from_numpy(data) # (T_in + T_out, C, H, W)
-        
-        # Apply downsampling if needed
-        if self.downsample != (1, 1):
-            data = self.downsample_x(data, H//self.downsample[0])
-        
-        # Reshape to (H, W, T, C)
-        data = data.permute(2, 3, 0, 1) # (T, C, H, W) -> (H, W, T, C)
-        x = data[..., :self.t_in, :]
-        y = data[..., self.t_in:self.t_in + self.t_out, :]
-        return x, y
-    
-    def __del__(self):
-        """Clean up cached files when object is destroyed."""
-        for f in self._file_cache.values():
-            try:
-                f.close()
-            except:
-                pass
-
-
 class MemmapDedalusDataset2D(Dataset):
     """
     Dataset that reads Dedalus preprocessed memmap shards written by
@@ -1425,36 +1273,47 @@ class MemmapDedalusDataset2D(Dataset):
 
     Provides (x, y) where shapes are (H, W, t_in, C) and (H, W, t_out, C).
     """
-    def __init__(self, save_dir, t_in=10, t_out=1, normalize=True, temporal_downsample=1, downsample=(1,1)):
+    def __init__(self, data_name, memmap_dir=None, t_in=10, t_ar=1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=None):
         super().__init__()
-        self.save_dir = save_dir
+        self.data_name = data_name
+        self.memmap_dir = DATASET_DICT[data_name]['data_path'] if memmap_dir is None else memmap_dir
+        self.train = train
         self.t_in = t_in
-        self.t_out = t_out
+        self.t_out = t_ar
+        self.form = form
         self.normalize = normalize
-        self.temporal_downsample = temporal_downsample
-        self.downsample = downsample
+
+        # Read dataset config
+        self.temporal_downsample = DATASET_DICT[data_name]['temporal_downsample'] if temporal_downsample is None else temporal_downsample
+        self.downsample = DATASET_DICT[data_name]['downsample'] if downsample is None else downsample
+        in_size = DATASET_DICT[data_name]['in_size']
+        self.res = (in_size[0]//self.downsample[0], in_size[1]//self.downsample[1])
+
+        # Range and size
+        self.start_idx = DATASET_DICT[data_name]['%s_range'%train][0]
+        end_idx = DATASET_DICT[data_name]['%s_range'%train][1]
+        self.n_size = end_idx - self.start_idx
 
         # Load meta
-        with open(os.path.join(save_dir, 'meta.json'), 'r') as fp:
+        with open(os.path.join(self.memmap_dir, 'meta.json'), 'r') as fp:
             meta = json.load(fp)
 
         self.dtype = np.float16 if meta.get('dtype', 'float16') == 'float16' else np.float32
-        shape = meta['shape']  # {'T':..., 'C':2, 'H':..., 'W':...}
+        shape = meta['shape']  # {'T':..., 'C':..., 'H':..., 'W':...}
         self.T_total = int(shape['T'])
-        self.C = int(shape['C'])
+        self.C_all = int(shape['C'])
         self.H = int(shape['H'])
         self.W = int(shape['W'])
         self.shards = meta['shards']
         self.axis_order = meta.get('axis_order', 'TCHW')
 
-        # Normalizer (min-max per-channel)
-        norm = meta.get('normalizer', None)
-        if norm and normalize:
-            self.min_vals = torch.tensor(norm['min'], dtype=torch.float32)
-            self.max_vals = torch.tensor(norm['max'], dtype=torch.float32)
+        # Choose channels to match DedalusDataset2D
+        # Preprocess order: [vorticity, streamfunction, velocity_x, velocity_y, pressure]
+        if self.form == 'vorticity':
+            self.channel_indices = [0, 1]
         else:
-            self.min_vals = None
-            self.max_vals = None
+            self.channel_indices = [4, 2, 3]  # pressure, vx, vy
+        self.n_channels = len(self.channel_indices)
 
         # Build shard index map: global t -> (shard_idx, local_t)
         self._t_offsets = []
@@ -1463,12 +1322,18 @@ class MemmapDedalusDataset2D(Dataset):
             self._t_offsets.append((offset, s['file'], int(s['length'])))
             offset += int(s['length'])
 
-        # Effective number of samples (start points) with given temporal_downsample
+        # Effective number of samples within the specified split
         window = self.t_in + self.t_out
-        self.num_samples = self.T_total - self.temporal_downsample * window
+        self.num_samples = self.n_size - self.temporal_downsample * window
 
         # Keep per-worker cache of open memmaps
         self._mmaps = {}
+
+        # Compute normalizer on-the-fly if requested
+        self.norm_mean = None
+        self.norm_std = None
+        if self.normalize:
+            self.norm_mean, self.norm_std = self.get_normalizer()
 
     def _locate(self, t):
         # Find shard containing timestep t
@@ -1480,7 +1345,7 @@ class MemmapDedalusDataset2D(Dataset):
 
     def _get_mmap(self, relpath):
         if relpath not in self._mmaps:
-            path = os.path.join(self.save_dir, relpath)
+            path = os.path.join(self.memmap_dir, relpath)
             # Open memmap as read-only
             # shape not known here; we will reshape after slicing per sample read
             mm = np.memmap(path, dtype=self.dtype, mode='r')
@@ -1506,40 +1371,92 @@ class MemmapDedalusDataset2D(Dataset):
         return np.concatenate(chunks, axis=0)
 
     def __getitem__(self, index):
-        start_idx = index
-        # Gather timesteps with given temporal_downsample and window
-        timesteps = list(range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample))
-        t0 = timesteps[0]
-        length = len(timesteps)
-        data_tc_hw = self._read_window(t0, length)  # (T, C, H, W)
+        # Compute global start timestep in the selected split
+        t0_global = self.start_idx + index
+        # Read the full temporal window, then decimate by temporal_downsample
+        total_window = self.temporal_downsample * (self.t_in + self.t_out)
+        data_tc_hw_full = self._read_window(t0_global, total_window)  # (T_full, C_all, H, W)
+        data_tc_hw = data_tc_hw_full[::self.temporal_downsample]  # (T, C_all, H, W) where T = t_in + t_out
+        # Select channels
+        data_tc_hw = data_tc_hw[:, self.channel_indices]
 
-        # Downsample spatially if needed
-        data_tc_hw = torch.from_numpy(data_tc_hw.astype(np.float32))  # promote to float32 for ops
+        # Downsample spatially (FFT-based) if needed
+        data_tc_hw = torch.from_numpy(data_tc_hw.astype(np.float32))  # (T, C, H, W)
         if self.downsample != (1, 1):
-            T = data_tc_hw.shape[0]
-            data_tc_hw = data_tc_hw.permute(0, 1, 2, 3)  # (T,C,H,W)
-            data_tc_hw = data_tc_hw.reshape(T, self.C, self.H, self.W)
-            data_tc_hw = F.interpolate(data_tc_hw, size=(self.H//self.downsample[0], self.W//self.downsample[1]), mode='bilinear', align_corners=False)
-
+            target_N = self.H // self.downsample[0]
+            data_tc_hw = self.downsample_x(data_tc_hw, target_N)
+        
         # To (H, W, T, C)
         data = data_tc_hw.permute(2, 3, 0, 1)
-
-        # Normalize per-channel (min-max)
-        if self.normalize and self.min_vals is not None and self.max_vals is not None:
-            minv = self.min_vals.to(data.device)
-            maxv = self.max_vals.to(data.device)
-            data = (data - minv) / (maxv - minv + 1e-6)
 
         x = data[..., :self.t_in, :]
         y = data[..., self.t_in:self.t_in + self.t_out, :]
         return x, y
-
+    
     def __len__(self):
         return max(0, self.num_samples)
 
     def __del__(self):
         # Memmap objects close automatically when dereferenced
         self._mmaps.clear()
+
+    def get_normalizer(self):
+        """
+        Use 100 timesteps from the training range to compute Min-Max per selected channel.
+        Returns (mean=min, std=max-min) as torch tensors matching DedalusDataset2D.
+        """
+        data_norm = []
+        # Sample 100 evenly within the train range
+        num_samples = min(100, self.n_size)
+        step = max(1, self.n_size // num_samples)
+        count = 0
+        for idx in range(self.start_idx, self.start_idx + self.n_size, step):
+            if count >= num_samples:
+                break
+            arr = self._read_window(idx, 1)  # (1, C_all, H, W)
+            arr = arr[0, self.channel_indices]  # (C, H, W)
+            data_norm.append(arr.astype(np.float32))
+            count += 1
+        data_norm = np.stack(data_norm)  # (N, C, H, W)
+        data_min = np.min(data_norm, axis=(0, 2, 3))  # (C,)
+        data_std = np.max(data_norm, axis=(0, 2, 3)) - data_min  # (C,)
+        data_min = torch.from_numpy(data_min).type(torch.float32)
+        data_std = torch.from_numpy(data_std).type(torch.float32)
+        return data_min, data_std
+
+    def normalize_x(self, x):
+        if self.norm_mean is None or self.norm_std is None:
+            return x
+        if len(self.norm_mean.shape)>1 and len(self.norm_mean.shape) != len(x.shape):
+            self.norm_mean = self.norm_mean[None, :, :, None, :]
+            self.norm_std = self.norm_std[None, :, :, None, :]
+        x = (x - self.norm_mean.to(x.device)) / (self.norm_std.to(x.device) + 1e-6)
+        return x
+
+    def denormalize_x(self, x):
+        if self.norm_mean is None or self.norm_std is None:
+            return x
+        x = x * (self.norm_std.to(x.device) + 1e-6) + self.norm_mean.to(x.device)
+        return x
+
+    def downsample_x(self, u, N):
+        """
+        Downsample a real-valued input using FFT, matching DedalusDataset2D.
+        Args:
+            u: Input tensor of shape (T, C, H, W)
+            N: Target size for downsampling (assumes square target N x N)
+        Returns:
+            Downsampled tensor of shape (T, C, N, N)
+        """
+        T, C, H, W = u.shape
+        u_hat = torch.fft.rfft2(u, norm='forward')
+        freqs_h = torch.fft.fftfreq(H, d=1/H)
+        freqs_w = torch.fft.rfftfreq(W, d=1/W)
+        sel_h = torch.logical_and(freqs_h >= -N/2, freqs_h <= N/2-1)
+        sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
+        u_hat_down = u_hat[:, :, sel_h][:, :, :, sel_w]
+        u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
+        return u_down
 
 
     
