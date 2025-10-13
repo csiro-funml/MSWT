@@ -229,7 +229,8 @@ def load_real_data(data_path, truncate_time=100, max_time=200, save_path=None):
         # stream processing to save memory                                                                
         time_full = np.array(f['scales/sim_time']) # load data as numpy array (T)
         print("time_full shape", time_full.shape)
-        truncate_idx = np.where((time_full >= truncate_time) & (time_full <= truncate_time + max_time))
+        # get the index of the time steps within the range
+        truncate_idx = np.where((time_full >= truncate_time) & (time_full <= truncate_time + max_time))[0]
         print("total time steps after truncation", truncate_idx.shape[0], "time range", time_full[truncate_idx[0]], time_full[truncate_idx[-1]])
         for idx in tqdm(truncate_idx): # load data for each time step
             # load timestep
