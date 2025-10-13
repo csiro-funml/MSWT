@@ -1,3 +1,8 @@
+import sys
+import os
+# Add parent directory to Python path to access utils and models
+sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+
 from utils.griddataset import DedalusDataset2D
 
 
