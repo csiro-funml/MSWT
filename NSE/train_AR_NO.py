@@ -136,8 +136,8 @@ elif args.dataset == 'ns2d_dedalus':
     # test_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='test')
     # val_dataset= DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='val')
     train_dataset = CachedDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
-    test_dataset = CachedDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='test')
-    val_dataset= CachedDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='val')
+    test_dataset = CachedDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test')
+    val_dataset= CachedDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='val')
 else:
     # load data and dataloader
     train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
