@@ -448,7 +448,7 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
     # Allocate shards on demand
     def open_shard(shard_index, shard_len):
         fname = os.path.join(shards_dir, f'shard_{shard_index:05d}.dat')
-        mm = np.memmap(fname, dtype=np_dtype, mode='w+', shape=(shard_len, 2, H, W_full))
+        mm = np.memmap(fname, dtype=np_dtype, mode='w+', shape=(shard_len, 5, H, W_full))
         return fname, mm
 
     shard_index = 0
@@ -470,9 +470,8 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
             with h5py.File(fp, 'r') as f:
                 vorticity_slice = np.array(f['tasks/vorticity'][t], dtype=np.float32)
                 stream_slice = np.array(f['tasks/streamfunction'][t], dtype=np.float32)
-                velocity_x_slice = np.array(f['tasks/velocity'][t], dtype=np.float32)
-                print("velocity_x_slice.shape", velocity_x_slice.shape)
-                velocity_y_slice = np.array(f['tasks/velocity'][t], dtype=np.float32)
+                velocity_x_slice = np.array(f['tasks/velocity'][t, 0], dtype=np.float32)
+                velocity_y_slice = np.array(f['tasks/velocity'][t, 1], dtype=np.float32)
                 pressure_slice = np.array(f['tasks/pressure'][t], dtype=np.float32)
                 vorticity_slices.append(vorticity_slice)
                 stream_slices.append(stream_slice)
@@ -485,7 +484,11 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
         velocity_x_full = np.concatenate(velocity_x_slices, axis=1)  # (H, W)
         velocity_y_full = np.concatenate(velocity_y_slices, axis=1)  # (H, W)
         pressure_full = np.concatenate(pressure_slices, axis=1)      # (H, W)
-
+        print("vorticity_full.shape", vorticity_full.shape)
+        print("stream_full.shape", stream_full.shape)
+        print("velocity_x_full.shape", velocity_x_full.shape)
+        print("velocity_y_full.shape", velocity_y_full.shape)
+        print("pressure_full.shape", pressure_full.shape)
         # Update stats
         ch_min[0] = min(ch_min[0], float(vorticity_full.min()))
         ch_max[0] = max(ch_max[0], float(vorticity_full.max()))
