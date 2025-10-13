@@ -428,7 +428,7 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
     os.makedirs(save_dir, exist_ok=True)
     shards_dir = os.path.join(save_dir, 'shards')
     os.makedirs(shards_dir, exist_ok=True)
-
+    print("keys", DATASET_DICT[dataset_name].keys())
     data_path = DATASET_DICT[dataset_name]['data_path']
     base_path = data_path.replace('.h5', '')
     file_paths = [f"{base_path}/snapshots_s1_p{i:02d}.h5" for i in range(16)]
