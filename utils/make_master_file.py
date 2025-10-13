@@ -414,4 +414,4 @@ DATASET_DICT[name]['t_total'] = 30
 DATASET_DICT[name]['in_size'] = (256, 256)
 DATASET_DICT[name]['n_channels'] = 3
 DATASET_DICT[name]['downsample'] = (2, 2)
-DATASET_DICT[name]['temporal_downsample'] = 1
+DATASET_DICT[name]['temporal_downsample'] = 4

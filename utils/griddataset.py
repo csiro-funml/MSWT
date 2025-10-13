@@ -1095,12 +1095,45 @@ class DedalusDataset2D(Dataset):
                     velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
                     velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
                     data.append([pressure, velocity_x, velocity_y, timestep_aug])
-            data = np.array(data) # (T_in + T_out, H, W, C)
-            print("data shape", data.shape)
+            data = np.array(data) # (T_in + T_out, C, H, W)
+            # print("data shape", data.shape)
+            if self.downsample != (1, 1):
+                data = self.downsample_x(data, self.downsample)
             x = data[:self.t_in, ...]
             y = data[self.t_in:self.t_in + self.t_out, ...]
             return x, y            
-           
+
+    def downsample_x(self, u, N):
+        """
+        Downsample a real-valued input using FFT
+        Args:
+            u: Input tensor of shape (T, C, H, W)
+            N: Target size for downsampling
+        Returns:
+            Downsampled tensor of shape (T, C, N, N)
+        """
+        # Get original size
+        T, C, H, W = u.shape
+        
+        # Compute FFT
+        u_hat = torch.fft.rfft2(u, norm='forward')
+        
+        # Create frequency selection mask
+        freqs_h = torch.fft.fftfreq(H, d=1/H)
+        freqs_w = torch.fft.rfftfreq(W, d=1/W)
+        
+        # Select frequencies within [-N/2, N/2-1] range
+        sel_h = torch.logical_and(freqs_h >= -N/2, freqs_h <= N/2-1)
+        sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
+        
+        # Apply frequency selection
+        u_hat_down = u_hat[:, :, sel_h][:, :, :, sel_w]
+        
+        # Compute inverse FFT
+        u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
+        
+        return u_down
+
     def get_normalizer(self):
         # use 100 samples from the training set to get the MIN-MAX normalizer
         print("getting the normalizer")
