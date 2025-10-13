@@ -1113,7 +1113,6 @@ class DedalusDataset2D(Dataset):
                     velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
                     velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
                     data_norm.append([pressure, velocity_x, velocity_y])
-                data_norm.append([pressure, velocity_x, velocity_y])
         
         data_norm = np.stack(data_norm) # (100, H, W, C)
         data_mean =np.min(data_norm, dim=(0, 1, 2, 3)) # (C,)
