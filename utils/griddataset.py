@@ -1142,7 +1142,7 @@ class DedalusDataset2D(Dataset):
                 timestep_aug = np.tile(timestep_data, (H, W, 1)).transpose(2, 0, 1)  # (T, H, W)
                 
                 # Stack all data
-                data = np.stack([vorticity_data, streamfunction_data, timestep_aug], axis=1).float()  # (T, C, H, W)
+                data = np.stack([vorticity_data, streamfunction_data], axis=1).float()  # (T, C, H, W)
                 
             except (OSError, KeyError, IndexError):
                 # Fallback: use the main virtual dataset file
@@ -1159,7 +1159,7 @@ class DedalusDataset2D(Dataset):
                             pressure = np.array(f['tasks/pressure'][sample_idx])
                             velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
                             velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
-                            data.append([pressure, velocity_x, velocity_y, timestep_aug])
+                            data.append([pressure, velocity_x, velocity_y])
                     data = np.array(data)  # (T_in + T_out, C, H, W)
             
         else:
@@ -1177,7 +1177,7 @@ class DedalusDataset2D(Dataset):
                         pressure = np.array(f['tasks/pressure'][sample_idx])
                         velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
                         velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
-                        data.append([pressure, velocity_x, velocity_y, timestep_aug])
+                        data.append([pressure, velocity_x, velocity_y])
                 data = np.array(data)  # (T_in + T_out, C, H, W)
         
         # Convert to torch tensor
