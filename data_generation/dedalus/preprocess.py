@@ -227,7 +227,8 @@ def load_real_data(data_path, truncate_time=100, max_time=200, save_path=None):
 
     with h5py.File(file_path, 'r') as f:                  
         # stream processing to save memory                                                                
-        time_full = np.array(f['scales/sim_time']) # load data as numpy array (T)
+        time_full = np.array(f['scales/sim_time'][0]) # load data as numpy array (T)
+        print("time_full shape", time_full.shape)
         truncate_idx = np.where(time_full >= truncate_time and time_full <= truncate_time + max_time)
         print("total time steps after truncation", truncate_idx.shape[0], "time range", time_full[truncate_idx[0]], time_full[truncate_idx[-1]])
         for idx in tqdm(truncate_idx): # load data for each time step
