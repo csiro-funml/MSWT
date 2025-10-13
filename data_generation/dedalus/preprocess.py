@@ -222,7 +222,7 @@ def plot_time_series(times, series, outdir, dpi=300):
 
 def load_real_data(data_path, truncate_time=100, max_time=200, save_path=None):
     file_path = os.path.join(data_path, 'snapshots_s1.h5')                                                              
-    var_names = ["sim_time", "timestep", "vorticity", "streamfunction", "pressure", "velocity_x", "velocity_y"]                                                                                                                        
+    var_names = ["scales/sim_time", "scales/timestep", "tasks/vorticity", "tasks/streamfunction", "tasks/pressure", "tasks/velocity_x", "tasks/velocity_y"] 
     var_data = {}
     truncate_idx = None
     with h5py.File(file_path, 'r') as f:                                                                                  
