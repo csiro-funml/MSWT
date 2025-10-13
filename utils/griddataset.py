@@ -1083,17 +1083,18 @@ class DedalusDataset2D(Dataset):
        
         with h5py.File(self.data_path, 'r') as f: # (T, H, W,C) 
             for sample_idx in range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample):
-                timestep = np.array(f['scales/timestep'][sample_idx])                
+                timestep = np.array(f['scales/timestep'][sample_idx]) # (1,) 
+                H, W = f['tasks/vorticity'][sample_idx].shape
+                timestep_aug = np.tile(timestep, (H, W))               
                 if self.form == 'vorticity':
-                    vorticity = np.array(f['tasks/vorticity'][sample_idx])
-                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
-                    print(vorticity, streamfunction, timestep)
-                    data.append([vorticity, streamfunction, timestep])
+                    vorticity = np.array(f['tasks/vorticity'][sample_idx]) # (H, W)
+                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx]) # (H, W)
+                    data.append([vorticity, streamfunction, timestep_aug])
                 else:
                     pressure = np.array(f['tasks/pressure'][sample_idx])
                     velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
                     velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
-                    data.append([pressure, velocity_x, velocity_y, timestep])
+                    data.append([pressure, velocity_x, velocity_y, timestep_aug])
             data = np.array(data) # (T_in + T_out, H, W, C)
             print("data shape", data.shape)
             x = data[:self.t_in, ...]
