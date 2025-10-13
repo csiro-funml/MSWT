@@ -1188,7 +1188,7 @@ class DedalusDataset2D(Dataset):
             data = self.downsample_x(data, H//self.downsample[0])
         
         # Reshape to (H, W, T, C)
-        data = data.permute(2, 3, 0, 1).astype(torch.float32) # (T, C, H, W) -> (H, W, T, C)
+        data = data.permute(2, 3, 0, 1).type(torch.float32) # (T, C, H, W) -> (H, W, T, C)
         x = data[..., :self.t_in, :]
         y = data[..., self.t_in:self.t_in + self.t_out, :]
         return x, y            
@@ -1218,8 +1218,8 @@ class DedalusDataset2D(Dataset):
         # add timestep with 0 mean and 1 std 
         data_mean = np.concatenate([data_mean, np.zeros(1)], axis=-1)
         data_std = np.concatenate([data_std, np.ones(1)], axis=-1)
-        data_mean = torch.from_numpy(data_mean).astype(torch.float32)
-        data_std = torch.from_numpy(data_std).astype(torch.float32)
+        data_mean = torch.from_numpy(data_mean).type(torch.float32)
+        data_std = torch.from_numpy(data_std).type(torch.float32)
         return data_mean, data_std
     def downsample_x(self, u, N):
         """
