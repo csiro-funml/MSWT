@@ -1067,6 +1067,7 @@ class DedalusDataset2D(Dataset):
         self.train = train
         self.temporal_downsample = DATASET_DICT[data_name]['temporal_downsample'] if temporal_downsample is None else temporal_downsample
         self.downsample = DATASET_DICT[data_name]['downsample'] if downsample is None else downsample
+        self.res = (DATASET_DICT[data_name]['in_size'][0]//self.downsample[0], DATASET_DICT[data_name]['in_size'][1]//self.downsample[1])
         self.t_in = t_in
         self.t_out = t_ar
         self.form = 'vorticity'
