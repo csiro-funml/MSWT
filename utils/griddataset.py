@@ -1059,7 +1059,7 @@ class LocalTemporalDataset2D(Dataset):
 class DedalusDataset2D(Dataset):
     def __init__(self, data_name, n_train=None, t_in=10, t_ar = 1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=1):
         ## /datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/snapshots
-        self.super().__init__()
+        super().__init__()
         self.data_name = data_name
         self.data_path = DATASET_DICT[data_name]['data_path']
         self.n_size = DATASET_DICT[data_name]['%s_range'%train][1] - DATASET_DICT[data_name]['%s_range'%train][0]
