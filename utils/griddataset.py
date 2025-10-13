@@ -1096,7 +1096,7 @@ class DedalusDataset2D(Dataset):
                     velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
                     velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
                     data.append([pressure, velocity_x, velocity_y, timestep_aug])
-            data = np.array(data) # (T_in + T_out, C, H, W)
+            data = torch.from_numpy(np.array(data)) # (T_in + T_out, C, H, W)
             # print("data shape", data.shape)
             if self.downsample != (1, 1):
                 data = self.downsample_x(data, self.downsample)
