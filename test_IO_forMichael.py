@@ -190,19 +190,3 @@ if __name__ == '__main__':
         print(f"Average time per batch: {avg_batch_time:.4f} seconds")
         print(f"Time per sample in batch: {avg_batch_time/batch_size:.4f} seconds")
         
-        # Test with multiple workers
-        print(f"\nTesting with num_workers=2 for batch_size={batch_size}")
-        data_loader_multi = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=2)
-        
-        start_time = time.time()
-        batch_count = 0
-        for x_batch, y_batch in data_loader_multi:
-            batch_count += 1
-            if batch_count >= 3:  # Time first 3 batches
-                break
-        multi_batch_time = time.time() - start_time
-        avg_multi_batch_time = multi_batch_time / batch_count
-        
-        print(f"Total time for {batch_count} batches (multi-worker): {multi_batch_time:.4f} seconds")
-        print(f"Average time per batch (multi-worker): {avg_multi_batch_time:.4f} seconds")
-        print(f"Speedup: {avg_batch_time/avg_multi_batch_time:.2f}x")
