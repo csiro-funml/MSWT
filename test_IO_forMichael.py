@@ -24,7 +24,8 @@ DATASET_DICT[name]['t_in'] = 7     ## use 10 as prefix steps, not necessary used
 DATASET_DICT[name]['t_total'] = 30
 DATASET_DICT[name]['in_size'] = (256, 256)
 DATASET_DICT[name]['n_channels'] = 3
-DATASET_DICT[name]['downsample'] = (2, 2)
+# DATASET_DICT[name]['downsample'] = (2, 2)
+DATASET_DICT[name]['downsample'] = (1, 1)
 DATASET_DICT[name]['temporal_downsample'] = 4
 
 class DedalusDataset2D(Dataset):
@@ -163,7 +164,7 @@ if __name__ == '__main__':
     
     # Test batch loading time
     print("\nTesting batch loading time...")
-    batch_sizes = [1, 4, 8, 16, 32]
+    batch_sizes = [1, 4, 8]
     
     for batch_size in batch_sizes:
         print(f"\nTesting batch size: {batch_size}")
