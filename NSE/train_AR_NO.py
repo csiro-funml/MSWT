@@ -21,7 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
 from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
-from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D
+from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, DedalusDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
@@ -63,8 +63,8 @@ def _to_rgb_minmax(image_2d: torch.Tensor) -> torch.Tensor:
 
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
-parser.add_argument('--model', type=str, default='WaveletTransV2') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
-parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
+parser.add_argument('--model', type=str, default='FNO') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
+parser.add_argument('--dataset',type=str, default='ns2d_dedalus') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
 
@@ -127,10 +127,14 @@ print(f"Current working directory: {os.getcwd()}")
 
 ################################################################
 # load some toy data to run locally
-if not torch.cuda.is_available():
+if not torch.cuda.is_available() and args.dataset != 'ns2d_dedalus':
     train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, n_channels=3, normalize=args.normalize, train='train')
     test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels=3, normalize=args.normalize, train='test')
     val_dataset= test_dataset
+elif args.dataset == 'ns2d_dedalus':
+    train_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
+    test_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='test')
+    val_dataset= DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='val')
 else:
     # load data and dataloader
     train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)

@@ -1057,7 +1057,7 @@ class LocalTemporalDataset2D(Dataset):
 
 
 class DedalusDataset2D(Dataset):
-    def __init__(self, data_name, n_train=None, t_in=10, t_ar = 1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=1):
+    def __init__(self, data_name, t_in=10, t_ar = 1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=None):
         ## /datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/snapshots
         super().__init__()
         self.data_name = data_name
@@ -1065,14 +1065,13 @@ class DedalusDataset2D(Dataset):
         self.n_size = DATASET_DICT[data_name]['%s_range'%train][1] - DATASET_DICT[data_name]['%s_range'%train][0]
         self.start_idx = DATASET_DICT[data_name]['%s_range'%train][0]     
         self.train = train
-        self.temporal_downsample = temporal_downsample
+        self.temporal_downsample = DATASET_DICT[data_name]['temporal_downsample'] if temporal_downsample is None else temporal_downsample
         self.downsample = DATASET_DICT[data_name]['downsample'] if downsample is None else downsample
         self.t_in = t_in
         self.t_out = t_ar
         self.form = 'vorticity'
         self.n_channels = 2 if self.form == 'vorticity' else 3
-        
-        # self.norm_mean, self.norm_std = self.get_normalizer()
+        self.norm_mean, self.norm_std = self.get_normalizer()
    
     def __getitem__(self, index):
         """
@@ -1157,8 +1156,20 @@ class DedalusDataset2D(Dataset):
         data_mean =np.min(data_norm, axis=(0, 2, 3)) # (C,)
         data_std = (np.max(data_norm, axis=(0, 2, 3)) - data_mean) # (C,)
         print("data_mean", data_mean, "data_std", data_std)
+        
+        # add timestep with 0 mean and 1 std 
+        data_mean = np.concatenate([data_mean, np.zeros(1)], axis=-1)
+        data_std = np.concatenate([data_std, np.ones(1)], axis=-1)
         return data_mean, data_std
     
+    def denormalize(self, x):
+        x = x * (self.norm_std.to(x.device) + 1e-6) +  self.norm_mean.to(x.device)
+        return x
+
+    def normalize(self, x):
+        x = (x - self.norm_mean.to(x.device)) / (self.norm_std.to(x.device) + 1e-6)
+        return x
+
     def __len__(self):
         return self.n_size - self.temporal_downsample * (self.t_in + self.t_out) 
 
