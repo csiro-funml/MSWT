@@ -1161,6 +1161,8 @@ class DedalusDataset2D(Dataset):
         # add timestep with 0 mean and 1 std 
         data_mean = np.concatenate([data_mean, np.zeros(1)], axis=-1)
         data_std = np.concatenate([data_std, np.ones(1)], axis=-1)
+        data_mean = torch.from_numpy(data_mean)
+        data_std = torch.from_numpy(data_std)
         return data_mean, data_std
     
     def denormalize_x(self, x):
