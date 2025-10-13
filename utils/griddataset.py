@@ -1252,6 +1252,17 @@ class DedalusDataset2D(Dataset):
         
         return u_down
 
+    def denormalize_x(self, x):
+        x = x * (self.norm_std.to(x.device) + 1e-6) +  self.norm_mean.to(x.device)
+        return x
+
+    def normalize_x(self, x):
+        x = (x - self.norm_mean.to(x.device)) / (self.norm_std.to(x.device) + 1e-6)
+        return x
+
+    def __len__(self):
+        return self.n_size - self.temporal_downsample * (self.t_in + self.t_out) 
+
 
 class CachedDedalusDataset2D(DedalusDataset2D):
     """
@@ -1406,45 +1417,8 @@ class CachedDedalusDataset2D(DedalusDataset2D):
                 pass
 
 
-    def get_normalizer(self):
-        # use 100 samples from the training set to get the MIN-MAX normalizer
-        print("getting the normalizer")
-        data_norm = []
-        with h5py.File(self.data_path, 'r') as f: # (T, H, W,C)
-            for sample_idx in range(100):
-                if self.form == 'vorticity':
-                    vorticity = np.array(f['tasks/vorticity'][sample_idx])
-                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
-                    data_norm.append([vorticity, streamfunction])
-                else:
-                    pressure = np.array(f['tasks/pressure'][sample_idx])
-                    velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
-                    velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
-                    data_norm.append([pressure, velocity_x, velocity_y])
-        
-        data_norm = np.stack(data_norm) # (100, C, H, W)
-        # print("data_norm shape", data_norm.shape)
-        data_mean =np.min(data_norm, axis=(0, 2, 3)) # (C,)
-        data_std = (np.max(data_norm, axis=(0, 2, 3)) - data_mean) # (C,)
-        print("data_mean", data_mean, "data_std", data_std)
-        
-        # add timestep with 0 mean and 1 std 
-        data_mean = np.concatenate([data_mean, np.zeros(1)], axis=-1)
-        data_std = np.concatenate([data_std, np.ones(1)], axis=-1)
-        data_mean = torch.from_numpy(data_mean)
-        data_std = torch.from_numpy(data_std)
-        return data_mean, data_std
     
-    def denormalize_x(self, x):
-        x = x * (self.norm_std.to(x.device) + 1e-6) +  self.norm_mean.to(x.device)
-        return x
 
-    def normalize_x(self, x):
-        x = (x - self.norm_mean.to(x.device)) / (self.norm_std.to(x.device) + 1e-6)
-        return x
-
-    def __len__(self):
-        return self.n_size - self.temporal_downsample * (self.t_in + self.t_out) 
 
 class CNO_NavierStokes2D(Dataset):
     def __init__(self, data_name, which="training", nf=0, n_train = 750, s=64, in_dist = True):
