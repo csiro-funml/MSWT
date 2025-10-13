@@ -13,6 +13,7 @@ import os
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from pathlib import Path
+import json
 # from data_generation.cfdbench import get_auto_dataset
 
 
@@ -405,6 +406,144 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
         # continue
 
 
+def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/large/dedalus_memmap', shard_size=2048, dtype='float16'):
+    """
+    Preprocess Dedalus virtual dataset (p00–p15 spatial slices) into memmap shards.
+
+    Output layout:
+        save_dir/
+          - shards/shard_00000.dat, shard_00001.dat, ... (memmap files, shape (T_shard, C, H, W))
+          - meta.json (schema, shapes, dtype, splits, normalizer)
+
+    Assumptions:
+      - Source at DATASET_DICT[dataset_name]['data_path'] points to snapshots_s1.h5 (virtual dataset root)
+      - 16 slice files exist alongside it: snapshots_s1_p00.h5 ... snapshots_s1_p15.h5
+      - Channels: vorticity, streamfunction → C=2
+    """
+    from utils.make_master_file import DATASET_DICT
+
+    os.makedirs(save_dir, exist_ok=True)
+    shards_dir = os.path.join(save_dir, 'shards')
+    os.makedirs(shards_dir, exist_ok=True)
+
+    data_path = DATASET_DICT[dataset_name]['data_path']
+    base_path = data_path.replace('.h5', '')
+    file_paths = [f"{base_path}/snapshots_s1_p{i:02d}.h5" for i in range(16)]
+
+    # Probe metadata
+    with h5py.File(file_paths[0], 'r') as f0:
+        T_total, H, W_partial = f0['tasks/vorticity'].shape
+        W_full = W_partial * 16
+
+    # Configure dtype
+    np_dtype = np.float16 if str(dtype) == 'float16' else np.float32
+
+    # Streaming min/max (per-channel)
+    ch_min = np.array([np.inf, np.inf, np.inf, np.inf, np.inf], dtype=np.float64)
+    ch_max = np.array([-np.inf, -np.inf, -np.inf, -np.inf, -np.inf], dtype=np.float64)
+
+    # Allocate shards on demand
+    def open_shard(shard_index, shard_len):
+        fname = os.path.join(shards_dir, f'shard_{shard_index:05d}.dat')
+        mm = np.memmap(fname, dtype=np_dtype, mode='w+', shape=(shard_len, 2, H, W_full))
+        return fname, mm
+
+    shard_index = 0
+    t_written_in_shard = 0
+    # Determine current shard length (last shard might be shorter)
+    curr_shard_len = min(shard_size, T_total)
+    shard_path, shard_mm = open_shard(shard_index, curr_shard_len)
+
+    shard_files = []
+
+    # Iterate over all timesteps and write contiguously
+    for t in tqdm(range(T_total), desc='Building memmap shards from Dedalus'):
+        vorticity_slices = []
+        stream_slices = []
+        velocity_x_slices = []
+        velocity_y_slices = []
+        pressure_slices = []
+        for fp in file_paths:
+            with h5py.File(fp, 'r') as f:
+                vorticity_slice = np.array(f['tasks/vorticity'][t], dtype=np.float32)
+                stream_slice = np.array(f['tasks/streamfunction'][t], dtype=np.float32)
+                velocity_x_slice = np.array(f['tasks/velocity'][t, 0], dtype=np.float32)
+                velocity_y_slice = np.array(f['tasks/velocity'][t, 1], dtype=np.float32)
+                pressure_slice = np.array(f['tasks/pressure'][t], dtype=np.float32)
+                vorticity_slices.append(vorticity_slice)
+                stream_slices.append(stream_slice)
+                velocity_x_slices.append(velocity_x_slice)
+                velocity_y_slices.append(velocity_y_slice)
+                pressure_slices.append(pressure_slice)
+
+        vorticity_full = np.concatenate(vorticity_slices, axis=1)  # (H, W)
+        stream_full = np.concatenate(stream_slices, axis=1)        # (H, W)
+        velocity_x_full = np.concatenate(velocity_x_slices, axis=1)  # (H, W)
+        velocity_y_full = np.concatenate(velocity_y_slices, axis=1)  # (H, W)
+        pressure_full = np.concatenate(pressure_slices, axis=1)      # (H, W)
+
+        # Update stats
+        ch_min[0] = min(ch_min[0], float(vorticity_full.min()))
+        ch_max[0] = max(ch_max[0], float(vorticity_full.max()))
+        ch_min[1] = min(ch_min[1], float(stream_full.min()))
+        ch_max[1] = max(ch_max[1], float(stream_full.max()))
+        ch_min[2] = min(ch_min[2], float(velocity_x_full.min()))
+        ch_max[2] = max(ch_max[2], float(velocity_x_full.max()))
+        ch_min[3] = min(ch_min[3], float(velocity_y_full.min()))
+        ch_max[3] = max(ch_max[3], float(velocity_y_full.max()))
+        ch_min[4] = min(ch_min[4], float(pressure_full.min()))
+        ch_max[4] = max(ch_max[4], float(pressure_full.max()))
+
+        # Write to shard (T, C, H, W)
+        shard_mm[t_written_in_shard, 0] = vorticity_full.astype(np_dtype, copy=False)
+        shard_mm[t_written_in_shard, 1] = stream_full.astype(np_dtype, copy=False)
+        shard_mm[t_written_in_shard, 2] = velocity_x_full.astype(np_dtype, copy=False)
+        shard_mm[t_written_in_shard, 3] = velocity_y_full.astype(np_dtype, copy=False)
+        shard_mm[t_written_in_shard, 4] = pressure_full.astype(np_dtype, copy=False)
+        t_written_in_shard += 1
+
+        # Rotate shard if full
+        if t_written_in_shard == curr_shard_len and t != T_total - 1:
+            # finalize current shard
+            shard_mm.flush()
+            shard_files.append({'file': os.path.relpath(shard_path, start=save_dir), 'length': int(curr_shard_len)})
+            # open next shard
+            shard_index += 1
+            remaining = T_total - (shard_index * shard_size)
+            curr_shard_len = min(shard_size, remaining)
+            shard_path, shard_mm = open_shard(shard_index, curr_shard_len)
+            t_written_in_shard = 0
+
+    # finalize last shard
+    shard_mm.flush()
+    shard_files.append({'file': os.path.relpath(shard_path, start=save_dir), 'length': int(t_written_in_shard) if T_total % shard_size != 0 else int(curr_shard_len)})
+
+    # Write meta.json
+    meta = {
+        'source': data_path,
+        'dtype': str(dtype),
+        'axis_order': 'TCHW',
+        'shape': {'T': int(T_total), 'C': 2, 'H': int(H), 'W': int(W_full)},
+        'shard_size': int(shard_size),
+        'num_shards': int(len(shard_files)),
+        'shards': shard_files,
+        'normalizer': {
+            'type': 'minmax',
+            'min': [float(ch_min[0]), float(ch_min[1])],
+            'max': [float(ch_max[0]), float(ch_max[1])]
+        }
+    }
+
+    # attach splits if present
+    for key in ['train_range', 'val_range', 'test_range', 'temporal_downsample', 'downsample', 't_in']:
+        if key in DATASET_DICT[dataset_name]:
+            meta[key] = DATASET_DICT[dataset_name][key]
+
+    with open(os.path.join(save_dir, 'meta.json'), 'w') as fp:
+        json.dump(meta, fp, indent=2)
+
+    print('Memmap shards written to', save_dir)
+
 def preprocess_torchcfd_ns2d(load_path, save_path, total_time=100):
     """
     Preprocess the Navier-Stokes 2D dataset from torch-cfd
@@ -708,7 +847,12 @@ if __name__ == '__main__':
 
 
     #### torch-cfd datasets
-    load_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data'
+    # load_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data'
     # save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re1000'
-    save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000'
-    preprocess_torchcfd_ns2d(load_path=load_path, save_path=save_path, total_time=30)
+    # save_path = '/scratch3/wan410/operator_learning_data/NS_torchcfd/data/Re5000'
+    # preprocess_torchcfd_ns2d(load_path=load_path, save_path=save_path, total_time=30)
+
+
+
+    #### Dedalus datasets
+    preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='/scratch3/wan410/operator_learning_data/Dedalus', shard_size=2048, dtype='float16')

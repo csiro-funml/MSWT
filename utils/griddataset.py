@@ -20,6 +20,7 @@ from utils.normalizer import init_normalizer, UnitTransformer, PointWiseUnitTran
 from torch.utils.data import Dataset
 from utils.make_master_file import DATASET_DICT
 from utils.utilities import downsample, resize
+import json
 
 
 
@@ -1415,6 +1416,130 @@ class CachedDedalusDataset2D(DedalusDataset2D):
                 f.close()
             except:
                 pass
+
+
+class MemmapDedalusDataset2D(Dataset):
+    """
+    Dataset that reads Dedalus preprocessed memmap shards written by
+    data_generation.preprocess.preprocess_dedalus_to_shards.
+
+    Provides (x, y) where shapes are (H, W, t_in, C) and (H, W, t_out, C).
+    """
+    def __init__(self, save_dir, t_in=10, t_out=1, normalize=True, temporal_downsample=1, downsample=(1,1)):
+        super().__init__()
+        self.save_dir = save_dir
+        self.t_in = t_in
+        self.t_out = t_out
+        self.normalize = normalize
+        self.temporal_downsample = temporal_downsample
+        self.downsample = downsample
+
+        # Load meta
+        with open(os.path.join(save_dir, 'meta.json'), 'r') as fp:
+            meta = json.load(fp)
+
+        self.dtype = np.float16 if meta.get('dtype', 'float16') == 'float16' else np.float32
+        shape = meta['shape']  # {'T':..., 'C':2, 'H':..., 'W':...}
+        self.T_total = int(shape['T'])
+        self.C = int(shape['C'])
+        self.H = int(shape['H'])
+        self.W = int(shape['W'])
+        self.shards = meta['shards']
+        self.axis_order = meta.get('axis_order', 'TCHW')
+
+        # Normalizer (min-max per-channel)
+        norm = meta.get('normalizer', None)
+        if norm and normalize:
+            self.min_vals = torch.tensor(norm['min'], dtype=torch.float32)
+            self.max_vals = torch.tensor(norm['max'], dtype=torch.float32)
+        else:
+            self.min_vals = None
+            self.max_vals = None
+
+        # Build shard index map: global t -> (shard_idx, local_t)
+        self._t_offsets = []
+        offset = 0
+        for s in self.shards:
+            self._t_offsets.append((offset, s['file'], int(s['length'])))
+            offset += int(s['length'])
+
+        # Effective number of samples (start points) with given temporal_downsample
+        window = self.t_in + self.t_out
+        self.num_samples = self.T_total - self.temporal_downsample * window
+
+        # Keep per-worker cache of open memmaps
+        self._mmaps = {}
+
+    def _locate(self, t):
+        # Find shard containing timestep t
+        cum = 0
+        for idx, (offset, relpath, length) in enumerate(self._t_offsets):
+            if t < offset + length:
+                return idx, offset, relpath, length
+        raise IndexError('timestep out of range')
+
+    def _get_mmap(self, relpath):
+        if relpath not in self._mmaps:
+            path = os.path.join(self.save_dir, relpath)
+            # Open memmap as read-only
+            # shape not known here; we will reshape after slicing per sample read
+            mm = np.memmap(path, dtype=self.dtype, mode='r')
+            self._mmaps[relpath] = mm
+        return self._mmaps[relpath]
+
+    def _read_window(self, t0, length):
+        # Read [t0, t0+length) across shards, concatenate along time
+        chunks = []
+        remaining = length
+        cur_t = t0
+        while remaining > 0:
+            shard_idx, shard_offset, relpath, shard_len = self._locate(cur_t)
+            local_t = cur_t - shard_offset
+            take = min(remaining, shard_len - local_t)
+            mm = self._get_mmap(relpath)
+            # reshape memmap view to (T_shard, C, H, W)
+            Tsh = shard_len
+            view = np.ndarray(shape=(Tsh, self.C, self.H, self.W), dtype=self.dtype, buffer=mm)
+            chunks.append(view[local_t:local_t+take])
+            remaining -= take
+            cur_t += take
+        return np.concatenate(chunks, axis=0)
+
+    def __getitem__(self, index):
+        start_idx = index
+        # Gather timesteps with given temporal_downsample and window
+        timesteps = list(range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample))
+        t0 = timesteps[0]
+        length = len(timesteps)
+        data_tc_hw = self._read_window(t0, length)  # (T, C, H, W)
+
+        # Downsample spatially if needed
+        data_tc_hw = torch.from_numpy(data_tc_hw.astype(np.float32))  # promote to float32 for ops
+        if self.downsample != (1, 1):
+            T = data_tc_hw.shape[0]
+            data_tc_hw = data_tc_hw.permute(0, 1, 2, 3)  # (T,C,H,W)
+            data_tc_hw = data_tc_hw.reshape(T, self.C, self.H, self.W)
+            data_tc_hw = F.interpolate(data_tc_hw, size=(self.H//self.downsample[0], self.W//self.downsample[1]), mode='bilinear', align_corners=False)
+
+        # To (H, W, T, C)
+        data = data_tc_hw.permute(2, 3, 0, 1)
+
+        # Normalize per-channel (min-max)
+        if self.normalize and self.min_vals is not None and self.max_vals is not None:
+            minv = self.min_vals.to(data.device)
+            maxv = self.max_vals.to(data.device)
+            data = (data - minv) / (maxv - minv + 1e-6)
+
+        x = data[..., :self.t_in, :]
+        y = data[..., self.t_in:self.t_in + self.t_out, :]
+        return x, y
+
+    def __len__(self):
+        return max(0, self.num_samples)
+
+    def __del__(self):
+        # Memmap objects close automatically when dereferenced
+        self._mmaps.clear()
 
 
     
