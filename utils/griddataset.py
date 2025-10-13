@@ -1071,7 +1071,7 @@ class DedalusDataset2D(Dataset):
         self.t_in = t_in
         self.t_out = t_ar
         self.form = 'vorticity'
-        self.n_channels = 3 if self.form == 'vorticity' else 4
+        self.n_channels = 2 if self.form == 'vorticity' else 3
         self.norm_mean, self.norm_std = self.get_normalizer()
    
     def __getitem__(self, index):
@@ -1082,29 +1082,145 @@ class DedalusDataset2D(Dataset):
         data = []
         start_idx = index + self.start_idx # (skip train/val)
        
-        with h5py.File(self.data_path, 'r') as f: # (T, H, W,C) 
-            for sample_idx in range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample):
-                timestep = np.array(f['scales/timestep'][sample_idx]) # (1,) 
-                H, W = f['tasks/vorticity'][sample_idx].shape
-                timestep_aug = np.tile(timestep, (H, W))               
+        # Check if this dataset uses scatter storage (virtual dataset with p0-p15 files)
+        if DATASET_DICT[self.data_name]['scatter_storage']:
+            # For dedalus virtual dataset, p0-p15 contain spatial slices (W//16) not temporal samples
+            # We need to load from all files and concatenate along the spatial dimension
+            base_path = self.data_path.replace('.h5', '')
+            file_paths = [f"{base_path}/snapshots_s1_p{i:02d}.h5" for i in range(16)]  # p00 to p15
+            
+            # Load all required timesteps from the main virtual dataset file first to get the structure
+            timesteps_needed = list(range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample))
+            
+            # Try to load from individual files first
+            try:
+                # Load timestep data from first file to get the structure
+                with h5py.File(file_paths[0], 'r') as f:
+                    sample_timestep = np.array(f['scales/timestep'][timesteps_needed[0]])
+                    sample_vorticity = np.array(f['tasks/vorticity'][timesteps_needed[0]])  # (H, W//16)
+                    sample_streamfunction = np.array(f['tasks/streamfunction'][timesteps_needed[0]])  # (H, W//16)
+                
+                H, W_partial = sample_vorticity.shape
+                W_full = W_partial * 16  # Total width when concatenated
+                
+                # Collect data from all files for each timestep
+                all_timestep_data = []
+                all_vorticity_data = []
+                all_streamfunction_data = []
+                
+                for sample_idx in timesteps_needed:
+                    # Load timestep data (same across all files)
+                    timestep = np.array(h5py.File(file_paths[0], 'r')['scales/timestep'][sample_idx])
+                    all_timestep_data.append(timestep)
+                    
+                    # Collect spatial slices from all files for this timestep
+                    vorticity_slices = []
+                    streamfunction_slices = []
+                    
+                    for file_path in file_paths:
+                        with h5py.File(file_path, 'r') as f:
+                            vorticity_slice = np.array(f['tasks/vorticity'][sample_idx])  # (H, W//16)
+                            streamfunction_slice = np.array(f['tasks/streamfunction'][sample_idx])  # (H, W//16)
+                            vorticity_slices.append(vorticity_slice)
+                            streamfunction_slices.append(streamfunction_slice)
+                    
+                    # Concatenate spatial slices along the width dimension
+                    vorticity_full = np.concatenate(vorticity_slices, axis=1)  # (H, W)
+                    streamfunction_full = np.concatenate(streamfunction_slices, axis=1)  # (H, W)
+                    
+                    all_vorticity_data.append(vorticity_full)
+                    all_streamfunction_data.append(streamfunction_full)
+                
+                # Stack all data
+                timestep_data = np.array(all_timestep_data)  # (T, 1)
+                vorticity_data = np.array(all_vorticity_data)  # (T, H, W)
+                streamfunction_data = np.array(all_streamfunction_data)  # (T, H, W)
+                
+                H, W = vorticity_data.shape[1], vorticity_data.shape[2]
+                
+                # Create timestep augmentation for all timesteps
+                timestep_aug = np.tile(timestep_data, (H, W, 1)).transpose(2, 0, 1)  # (T, H, W)
+                
+                # Stack all data
+                data = np.stack([vorticity_data, streamfunction_data, timestep_aug], axis=1)  # (T, C, H, W)
+                
+            except (OSError, KeyError, IndexError):
+                # Fallback: use the main virtual dataset file
+                with h5py.File(self.data_path, 'r') as f:
+                    for sample_idx in timesteps_needed:
+                        timestep = np.array(f['scales/timestep'][sample_idx])
+                        H, W = f['tasks/vorticity'][sample_idx].shape
+                        timestep_aug = np.tile(timestep, (H, W))
+                        if self.form == 'vorticity':
+                            vorticity = np.array(f['tasks/vorticity'][sample_idx])
+                            streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
+                            data.append([vorticity, streamfunction, timestep_aug])
+                        else:
+                            pressure = np.array(f['tasks/pressure'][sample_idx])
+                            velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
+                            velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
+                            data.append([pressure, velocity_x, velocity_y, timestep_aug])
+                    data = np.array(data)  # (T_in + T_out, C, H, W)
+            
+        else:
+            # Original method for non-scatter storage
+            with h5py.File(self.data_path, 'r') as f: # (T, H, W,C) 
+                for sample_idx in range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample):
+                    timestep = np.array(f['scales/timestep'][sample_idx]) # (1,) 
+                    H, W = f['tasks/vorticity'][sample_idx].shape
+                    timestep_aug = np.tile(timestep, (H, W))               
+                    if self.form == 'vorticity':
+                        vorticity = np.array(f['tasks/vorticity'][sample_idx]) # (H, W)
+                        streamfunction = np.array(f['tasks/streamfunction'][sample_idx]) # (H, W)
+                        data.append([vorticity, streamfunction, timestep_aug])
+                    else:
+                        pressure = np.array(f['tasks/pressure'][sample_idx])
+                        velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
+                        velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
+                        data.append([pressure, velocity_x, velocity_y, timestep_aug])
+                data = np.array(data)  # (T_in + T_out, C, H, W)
+        
+        # Convert to torch tensor
+        data = torch.from_numpy(data) # (T_in + T_out, C, H, W)
+        
+        # Apply downsampling if needed
+        if self.downsample != (1, 1):
+            data = self.downsample_x(data, H//self.downsample[0])
+        
+        # Reshape to (H, W, T, C)
+        data = data.permute(2, 3, 0, 1) # (T, C, H, W) -> (H, W, T, C)
+        x = data[..., :self.t_in, :]
+        y = data[..., self.t_in:self.t_in + self.t_out, :]
+        return x, y            
+    
+    def get_normalizer(self):
+        # use 100 samples from the training set to get the MIN-MAX normalizer
+        print("getting the normalizer")
+        data_norm = []
+        with h5py.File(self.data_path, 'r') as f: # (T, H, W,C)
+            for sample_idx in range(2000, 2100):
                 if self.form == 'vorticity':
-                    vorticity = np.array(f['tasks/vorticity'][sample_idx]) # (H, W)
-                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx]) # (H, W)
-                    data.append([vorticity, streamfunction, timestep_aug])
+                    vorticity = np.array(f['tasks/vorticity'][sample_idx])
+                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
+                    data_norm.append([vorticity, streamfunction])
                 else:
                     pressure = np.array(f['tasks/pressure'][sample_idx])
                     velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
                     velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
-                    data.append([pressure, velocity_x, velocity_y, timestep_aug])
-            data = torch.from_numpy(np.array(data)) # (T_in + T_out, C, H, W)
-            # print("data shape", data.shape)
-            if self.downsample != (1, 1):
-                data = self.downsample_x(data, H//self.downsample[0])
-            data = data.permute(2, 3, 0, 1) # (T, C, H, W) -> (H, W, T, C)
-            x = data[..., :self.t_in, :]
-            y = data[..., self.t_in:self.t_in + self.t_out, :]
-            return x, y            
-
+                    data_norm.append([pressure, velocity_x, velocity_y])
+        
+        data_norm = np.stack(data_norm) # (100, C, H, W)
+        # print("data_norm shape", data_norm.shape)
+        data_mean =np.min(data_norm, axis=(0, 2, 3)) # (C,)
+        data_std = (np.max(data_norm, axis=(0, 2, 3)) - data_mean) # (C,)
+        print("data_mean", data_mean, "data_std", data_std)
+        
+        # add timestep with 0 mean and 1 std 
+        data_mean = np.concatenate([data_mean, np.zeros(1)], axis=-1)
+        data_std = np.concatenate([data_std, np.ones(1)], axis=-1)
+        data_mean = torch.from_numpy(data_mean)
+        data_std = torch.from_numpy(data_std)
+        return data_mean, data_std
     def downsample_x(self, u, N):
         """
         Downsample a real-valued input using FFT
@@ -1135,6 +1251,160 @@ class DedalusDataset2D(Dataset):
         u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
         
         return u_down
+
+
+class CachedDedalusDataset2D(DedalusDataset2D):
+    """
+    Drop-in replacement for DedalusDataset2D with file caching for virtual datasets.
+    
+    Optimized for virtual dataset structure with p0-p15 files.
+    """
+    
+    def __init__(self, *args, cache_size=16, **kwargs):
+        self.cache_size = cache_size
+        self._file_cache = {}
+        super().__init__(*args, **kwargs)
+    
+    def _get_cached_file(self, file_path):
+        """Get cached file or load and cache it."""
+        if file_path not in self._file_cache:
+            # Load file
+            f = h5py.File(file_path, 'r')
+            
+            # Add to cache
+            self._file_cache[file_path] = f
+            
+            # Simple LRU: remove oldest if cache is full
+            if len(self._file_cache) > self.cache_size:
+                oldest_key = next(iter(self._file_cache))
+                self._file_cache[oldest_key].close()
+                del self._file_cache[oldest_key]
+        
+        return self._file_cache[file_path]
+    
+    def __getitem__(self, index):
+        """
+        Optimized version with file caching for virtual dataset structure.
+        """
+        data = []
+        start_idx = index + self.start_idx # (skip train/val)
+       
+        # Check if this dataset uses scatter storage (virtual dataset with p0-p15 files)
+        if DATASET_DICT[self.data_name]['scatter_storage']:
+            # For dedalus virtual dataset, p0-p15 contain spatial slices (W//16) not temporal samples
+            # We need to load from all files and concatenate along the spatial dimension
+            base_path = self.data_path.replace('.h5', '')
+            file_paths = [f"{base_path}/snapshots_s1_p{i:02d}.h5" for i in range(16)]  # p00 to p15
+            
+            # Load all required timesteps
+            timesteps_needed = list(range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample))
+            
+            # Try to load from individual files first
+            try:
+                # Load sample data from first file to get the structure
+                f0 = self._get_cached_file(file_paths[0])
+                sample_vorticity = np.array(f0['tasks/vorticity'][timesteps_needed[0]])  # (H, W//16)
+                H, W_partial = sample_vorticity.shape
+                W_full = W_partial * 16  # Total width when concatenated
+                
+                # Collect data from all files for each timestep
+                all_timestep_data = []
+                all_vorticity_data = []
+                all_streamfunction_data = []
+                
+                for sample_idx in timesteps_needed:
+                    # Load timestep data (same across all files)
+                    timestep = np.array(f0['scales/timestep'][sample_idx])
+                    all_timestep_data.append(timestep)
+                    
+                    # Collect spatial slices from all files for this timestep
+                    vorticity_slices = []
+                    streamfunction_slices = []
+                    
+                    for file_path in file_paths:
+                        f = self._get_cached_file(file_path)
+                        vorticity_slice = np.array(f['tasks/vorticity'][sample_idx])  # (H, W//16)
+                        streamfunction_slice = np.array(f['tasks/streamfunction'][sample_idx])  # (H, W//16)
+                        vorticity_slices.append(vorticity_slice)
+                        streamfunction_slices.append(streamfunction_slice)
+                    
+                    # Concatenate spatial slices along the width dimension
+                    vorticity_full = np.concatenate(vorticity_slices, axis=1)  # (H, W)
+                    streamfunction_full = np.concatenate(streamfunction_slices, axis=1)  # (H, W)
+                    
+                    all_vorticity_data.append(vorticity_full)
+                    all_streamfunction_data.append(streamfunction_full)
+                
+                # Stack all data
+                timestep_data = np.array(all_timestep_data)  # (T, 1)
+                vorticity_data = np.array(all_vorticity_data)  # (T, H, W)
+                streamfunction_data = np.array(all_streamfunction_data)  # (T, H, W)
+                
+                H, W = vorticity_data.shape[1], vorticity_data.shape[2]
+                
+                # Create timestep augmentation for all timesteps
+                timestep_aug = np.tile(timestep_data, (H, W, 1)).transpose(2, 0, 1)  # (T, H, W)
+                
+                # Stack all data
+                data = np.stack([vorticity_data, streamfunction_data, timestep_aug], axis=1)  # (T, C, H, W)
+                
+            except (OSError, KeyError, IndexError):
+                # Fallback: use the main virtual dataset file
+                f = self._get_cached_file(self.data_path)
+                for sample_idx in timesteps_needed:
+                    timestep = np.array(f['scales/timestep'][sample_idx])
+                    H, W = f['tasks/vorticity'][sample_idx].shape
+                    timestep_aug = np.tile(timestep, (H, W))
+                    if self.form == 'vorticity':
+                        vorticity = np.array(f['tasks/vorticity'][sample_idx])
+                        streamfunction = np.array(f['tasks/streamfunction'][sample_idx])
+                        data.append([vorticity, streamfunction, timestep_aug])
+                    else:
+                        pressure = np.array(f['tasks/pressure'][sample_idx])
+                        velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
+                        velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
+                        data.append([pressure, velocity_x, velocity_y, timestep_aug])
+                data = np.array(data)  # (T_in + T_out, C, H, W)
+            
+        else:
+            # Original method for non-scatter storage with caching
+            f = self._get_cached_file(self.data_path)
+            for sample_idx in range(start_idx, start_idx + self.temporal_downsample * (self.t_in + self.t_out), self.temporal_downsample):
+                timestep = np.array(f['scales/timestep'][sample_idx]) # (1,) 
+                H, W = f['tasks/vorticity'][sample_idx].shape
+                timestep_aug = np.tile(timestep, (H, W))               
+                if self.form == 'vorticity':
+                    vorticity = np.array(f['tasks/vorticity'][sample_idx]) # (H, W)
+                    streamfunction = np.array(f['tasks/streamfunction'][sample_idx]) # (H, W)
+                    data.append([vorticity, streamfunction, timestep_aug])
+                else:
+                    pressure = np.array(f['tasks/pressure'][sample_idx])
+                    velocity_x = np.array(f['tasks/velocity'][sample_idx,0,...])
+                    velocity_y = np.array(f['tasks/velocity'][sample_idx,1,...])
+                    data.append([pressure, velocity_x, velocity_y, timestep_aug])
+            data = np.array(data)  # (T_in + T_out, C, H, W)
+        
+        # Convert to torch tensor
+        data = torch.from_numpy(data) # (T_in + T_out, C, H, W)
+        
+        # Apply downsampling if needed
+        if self.downsample != (1, 1):
+            data = self.downsample_x(data, H//self.downsample[0])
+        
+        # Reshape to (H, W, T, C)
+        data = data.permute(2, 3, 0, 1) # (T, C, H, W) -> (H, W, T, C)
+        x = data[..., :self.t_in, :]
+        y = data[..., self.t_in:self.t_in + self.t_out, :]
+        return x, y
+    
+    def __del__(self):
+        """Clean up cached files when object is destroyed."""
+        for f in self._file_cache.values():
+            try:
+                f.close()
+            except:
+                pass
+
 
     def get_normalizer(self):
         # use 100 samples from the training set to get the MIN-MAX normalizer
