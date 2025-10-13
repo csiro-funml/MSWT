@@ -1099,7 +1099,7 @@ class DedalusDataset2D(Dataset):
             data = torch.from_numpy(np.array(data)) # (T_in + T_out, C, H, W)
             # print("data shape", data.shape)
             if self.downsample != (1, 1):
-                data = self.downsample_x(data, self.downsample)
+                data = self.downsample_x(data, H//self.downsample[0])
             x = data[:self.t_in, ...]
             y = data[self.t_in:self.t_in + self.t_out, ...]
             return x, y            
