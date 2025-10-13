@@ -148,8 +148,8 @@ test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_si
 val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8)
 
 ntrain, ntest = len(train_dataset), len(test_dataset)
-if not args.pad:
-    args.res = train_dataset.res  # use original dataset  resolution to train the model
+# if not args.pad:
+#     args.res = train_dataset.res  # use original dataset  resolution to train the model
 
 comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
 log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
