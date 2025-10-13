@@ -8,6 +8,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --account=OD-230881
 #SBATCH --cpus-per-task=1        # cpu-cores per task (>1 if multi-threaded tasks)
+#SBATCH --gres=gpu:1
 
 
 module load pytorch/2.5.1-py312-cu122-mpi
