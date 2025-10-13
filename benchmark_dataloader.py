@@ -146,7 +146,7 @@ def benchmark_optimized_version():
         
         print(f"\nOptimized Results:")
         print(f"  Total time for 10 samples: {total_time:.3f}s")
-        print(f"  Average time per sample: {np.mean(times):.3f}s")
+        print(f"  Average time per sample: {total_time/len(times):.3f}s")
         print(f"  Memory usage: {start_memory:.1f}MB -> {end_memory:.1f}MB")
         
         return times
