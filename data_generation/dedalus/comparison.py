@@ -16,17 +16,26 @@ def downsample_x(u, downsample_spatial=(1, 1)):
     Returns:
         Downsampled tensor of shape (T, N, N)
     """
-    T, H, W = u.shape
-    print("u shape", u.shape)
-    N = H//downsample_spatial[0]
+    # Get original size
     u = torch.from_numpy(u)
+    
+    T, H, W = u.shape
+    N = H//downsample_spatial[0]
+    # Compute FFT
     u_hat = torch.fft.rfft2(u, norm='forward')
+    
+    # Create frequency selection mask
     freqs_h = torch.fft.fftfreq(H, d=1/H)
     freqs_w = torch.fft.rfftfreq(W, d=1/W)
+    
+    # Select frequencies within [-N/2, N/2-1] range
     sel_h = torch.logical_and(freqs_h >= -N/2, freqs_h <= N/2-1)
     sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
-    print("sel_h shape", sel_h.shape, "sel_w shape", sel_w.shape)
-    u_hat_down = u_hat[:, :, sel_h][:, :, sel_w]
+    
+    # Apply frequency selection
+    u_hat_down = u_hat[:, sel_h][:, :, sel_w]
+    
+    # Compute inverse FFT
     u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
     u_down = u_down.numpy()
     return u_down
