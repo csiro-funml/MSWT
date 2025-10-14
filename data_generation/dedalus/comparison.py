@@ -73,8 +73,7 @@ def load_data(pred_path, h5_path=None, load_both=True):
         true_streanfunction = data['output_streamfunction']
     else:
         start_idx = 7500
-        # end_idx = 8500
-        end_idx = 7540
+        end_idx = 8500
         stride = 4 # the model was trained to predict the solution after 4 steps
         downsample_spatial = (2, 2) # downsample the spatial resolution from 256 to 128 
         skip_steps = 7 # the first 7 steps were used as input to FNO
@@ -92,9 +91,13 @@ def load_data(pred_path, h5_path=None, load_both=True):
 
 if __name__ == "__main__":
     pred_path = '/scratch3/wan410/operator_learning_model/FNO_ns2d_dedalus_ntrain4968/test_data_prediction.npz'
-    print("Loading data from h5 path") # only if you have torch installed ,because the torch fft didn't get the same results as np fft
+    print("Loading data from ", pred_path)
     load_data(pred_path, h5_path=None, load_both=True)
     
-    print("Loading data from ", pred_path)
+    print("Loading data from h5 path") # only if you have torch installed ,because the torch fft didn't get the same results as np fft
     load_data(pred_path, h5_path=None, load_both=False)
+
+        
+
+
 
