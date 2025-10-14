@@ -4,7 +4,7 @@ Compare the prediciton of the FNO model with the ground truth
 """
 import numpy as np
 import h5py
-
+from tqdm import tqdm
 
 def downsample_x(u, downsample_spatial=(1, 1)):
     import torch
@@ -34,7 +34,7 @@ def get_groundtruth_from_h5(h5_path, snapshot_idx, downsample_spatial=(1, 1)):
     true_vorticity = []
     true_streanfunction = []
     with h5py.File(h5_path, 'r') as f:
-        for idx in snapshot_idx:
+        for idx in tqdm(snapshot_idx):
             vorticity = np.array(f['tasks/vorticity'][idx])
             streamfunction = np.array(f['tasks/streamfunction'][idx])
             true_vorticity.append(vorticity)
