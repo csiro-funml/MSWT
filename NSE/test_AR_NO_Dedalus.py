@@ -229,7 +229,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         yy = y[..., :args.T_bundle, :].to(device) #(1, H, W, 1, C)
         xx = test_dataset.normalize_x(xx) # normalize the input before the autoregressive predicting
         for t in range(0, max_steps, args.T_bundle):
-            save_data['input'].append(xx)
+            save_data['input']=xx
             im = model(xx)
             if t == 0:
                 pred = im
