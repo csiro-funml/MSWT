@@ -17,6 +17,7 @@ def downsample_x(u, downsample_spatial=(1, 1)):
         Downsampled tensor of shape (T, N, N)
     """
     T, H, W = u.shape
+    print("u shape", u.shape)
     N = H//downsample_spatial[0]
     u = torch.from_numpy(u)
     u_hat = torch.fft.rfft2(u, norm='forward')
@@ -62,7 +63,8 @@ def load_data(pred_path, h5_path=None, load_both=True):
         true_streanfunction = data['output_streamfunction']
     else:
         start_idx = 7500
-        end_idx = 8500
+        # end_idx = 8500
+        end_idx = 7516
         stride = 4 # the model was trained to predict the solution after 4 steps
         downsample_spatial = (2, 2) # downsample the spatial resolution from 256 to 128 
         skip_steps = 7 # the first 7 steps were used as input to FNO
