@@ -1401,6 +1401,9 @@ class MemmapDedalusDataset2D(Dataset):
         data = data_dowmsample[:, self.channel_indices]
         print("total time steps to predict", data.shape[0])
         data = torch.from_numpy(data.astype(np.float32)) 
+        if self.downsample != (1, 1):
+            target_N = self.H // self.downsample[0]
+            data = self.downsample_x(data, target_N)
         data = data.permute(2, 3, 0, 1) # (H, W, T, C)
         x = data[..., :self.t_in, :].unsqueeze(0)
         y = data[..., self.t_in:, :].unsqueeze(0)
