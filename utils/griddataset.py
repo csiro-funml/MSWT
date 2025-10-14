@@ -1427,7 +1427,8 @@ class MemmapDedalusDataset2D(Dataset):
         num_samples = min(100, self.n_size)
         step = max(1, self.n_size // num_samples)
         count = 0
-        for idx in range(self.start_idx, self.start_idx + self.n_size, step):
+        start_idx_training =  DATASET_DICT[self.data_name]['train_range'][0]
+        for idx in range(start_idx_training, start_idx_training + self.n_size, step):
             if count >= num_samples:
                 break
             arr = self._read_window(idx, 1)  # (1, C_all, H, W)
