@@ -220,34 +220,29 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
     with torch.no_grad():
         model.eval()
         test_dataset = test_loader.dataset
-        max_steps = test_dataset[0][1].shape[-2] if max_steps is None else max_steps
-
+        x, y = test_dataset.get_all_sequence()
+        max_steps = y.shape[1]
+        
         save_data = {'input': [], 'output': [], 'pred': []}
         # autoregressive computing  
-        for xx, yy in test_loader:
+        xx = x.to(device) #(1, H, W, T_in, C)
+        yy = y[..., :args.T_bundle, :].to(device) #(1, H, W, 1, C)
+        xx = test_dataset.normalize_x(xx) # normalize the input before the autoregressive predicting
+        for t in range(0, max_steps, args.T_bundle):
             save_data['input'].append(xx)
-            xx = xx.to(device)
-            yy = yy.to(device)
-            xx = test_dataset.normalize_x(xx) # normalize the input before the autoregressive predicting
-            for t in range(0, max_steps, args.T_bundle):
-                im = model(xx)
-                if t == 0:
-                    pred = im
-                else:
-                    pred = torch.cat((pred, im), -2)
-                xx = torch.cat((xx[..., args.T_bundle:,:], im), dim=-2)
-            # denormalize the pred at the final step (get better results)   
-            pred = test_dataset.denormalize_x(pred)    
+            im = model(xx)
+            if t == 0:
+                pred = im
+            else:
+                pred = torch.cat((pred, im), -2)
+            xx = torch.cat((xx[..., args.T_bundle:,:], im), dim=-2) # move to the next step
+        # denormalize the pred at the final step (get better results)   
+        pred = test_dataset.denormalize_x(pred)    
         
-            # # save the data to np_data
-            # # print("save input and output shape", xx.shape, yy.shape)
-            save_data['output'].append(yy)
-            save_data['pred'].append(pred)
-
-        # organzie np_data
-        save_data['input'] = torch.cat(save_data['input'], axis=0)
-        save_data['output'] = torch.cat(save_data['output'], axis=0)
-        save_data['pred'] = torch.cat(save_data['pred'], axis=0)
+        # # save the data to np_data
+        # # print("save input and output shape", xx.shape, yy.shape)
+        save_data['output']= y
+        save_data['pred']=pred
 
         # print the shape of the np_data
         print("save_data shape", save_data['input'].shape, save_data['output'].shape, save_data['pred'].shape)
@@ -466,10 +461,10 @@ if __name__ == '__main__':
     model, test_loader, log_path = load_data_model(just_load_path=False)
     save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
-    #### 2. load the save_data
-    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    # #### 2. load the save_data
+    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
-    #### 3. compute different types of metrics
+    # #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
     #### 4. postprocessing save the data for diffusion training

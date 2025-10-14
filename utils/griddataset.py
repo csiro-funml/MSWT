@@ -1291,8 +1291,8 @@ class MemmapDedalusDataset2D(Dataset):
 
         # Range and size
         self.start_idx = DATASET_DICT[data_name]['%s_range'%train][0]
-        end_idx = DATASET_DICT[data_name]['%s_range'%train][1]
-        self.n_size = end_idx - self.start_idx
+        self.end_idx = DATASET_DICT[data_name]['%s_range'%train][1]
+        self.n_size = self.end_idx - self.start_idx
 
         # Load meta
         with open(os.path.join(self.memmap_dir, 'meta.json'), 'r') as fp:
@@ -1393,6 +1393,19 @@ class MemmapDedalusDataset2D(Dataset):
         y = data[..., self.t_in:self.t_in + self.t_out, :]
         return x, y
     
+    def get_all_sequence(self):
+        t0_global = self.start_idx
+        t1_global = self.end_idx    
+        data = self._read_window(t0_global, t1_global - t0_global)
+        data_dowmsample = data[::self.temporal_downsample]
+        data = data_dowmsample[:, self.channel_indices]
+        print("total time steps to predict", data.shape[0])
+        data = data.permute(2, 3, 0, 1) # (H, W, T, C)
+        x = data[..., :self.t_in, :].unsqueeze(0)
+        y = data[..., self.t_in:, :].unsqueeze(0)
+        print("x shape", x.shape, "y shape", y.shape)
+        return x, y
+
     def __len__(self):
         return max(0, self.num_samples)
 
