@@ -11,19 +11,19 @@ def downsample_x(u, downsample_spatial=(1, 1)):
     """
     Downsample a real-valued input using FFT, matching DedalusDataset2D.
     Args:
-        u: Input tensor of shape (T, C, H, W)
+        u: Input tensor of shape (T, H, W)
         N: Target size for downsampling (assumes square target N x N)
     Returns:
         Downsampled tensor of shape (T, C, N, N)
     """
-    T, C, H, W = u.shape
-    N = H/downsample_spatial[0]
+    T, H, W = u.shape
+    N = H//downsample_spatial[0]
     u_hat = torch.fft.rfft2(u, norm='forward')
     freqs_h = torch.fft.fftfreq(H, d=1/H)
     freqs_w = torch.fft.rfftfreq(W, d=1/W)
     sel_h = torch.logical_and(freqs_h >= -N/2, freqs_h <= N/2-1)
     sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
-    u_hat_down = u_hat[:, :, sel_h][:, :, :, sel_w]
+    u_hat_down = u_hat[:, :, sel_h][:, :, sel_w]
     u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
     return u_down
 
