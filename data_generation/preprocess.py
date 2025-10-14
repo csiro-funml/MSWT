@@ -411,7 +411,7 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
 
 def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/large/dedalus_memmap', shard_size=2048, dtype='float16'):
     """
-    Preprocess Dedalus virtual dataset (p00–p15 spatial slices) into memmap shards.
+    Preprocess Dedalus virtual dataset (p0–p15 spatial slices) into memmap shards.
 
     Output layout:
         save_dir/
@@ -530,7 +530,7 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
         'source': data_path,
         'dtype': str(dtype),
         'axis_order': 'TCHW',
-        'shape': {'T': int(T_total), 'C': 2, 'H': int(H), 'W': int(W_full)},
+        'shape': {'T': int(T_total), 'C': len(ch_min), 'H': int(H), 'W': int(W_full)},
         'shard_size': int(shard_size),
         'num_shards': int(len(shard_files)),
         'shards': shard_files,
