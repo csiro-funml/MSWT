@@ -250,6 +250,21 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         # save to npz
         if save:
             torch.save(save_data, f'{log_path}/test_data_prediction.pth')
+            # save another version into numpy
+            save_data_numpy = {
+                'input': {'vorticity': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_in, C) -> (T_in, H, W)
+                          'streamfunction': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_in, C) -> (T_in, H, W)
+                          },
+                
+                'output': {'vorticity': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_out, C) -> (T_out, H, W)
+                            'streamfunction': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_out, C) -> (T_out, H, W)
+                            },
+                'pred': {'vorticity': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_out, C) -> (T_out, H, W)
+                         'streamfunction': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_out, C) -> (T_out, H, W)
+                         }
+            }
+            print("save_data_numpy shape", save_data_numpy['input']['vorticity'].shape, save_data_numpy['output']['vorticity'].shape, save_data_numpy['pred']['vorticity'].shape)
+            np.savez(f'{log_path}/test_data_prediction.npz', **save_data_numpy)
             # torch.save(save_data, f'{log_path}/test_long_data_prediction.pth')
         return save_data
 
