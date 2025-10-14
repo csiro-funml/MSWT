@@ -42,8 +42,7 @@ def downsample_x(u, downsample_spatial=(1, 1)):
 
 
 
-def get_groundtruth_from_h5(h5_path, snapshot_idx, downsample_spatial=(1, 1)):
-    h5_path ='/datasets/work/oa-tcch/work/forXuesong/new/realisation_0000/snapshots/snapshots_s1.h5'
+def get_groundtruth_from_h5(h5_path, snapshot_idx=None, downsample_spatial=(1, 1)):
     true_vorticity = []
     true_streanfunction = []
     with h5py.File(h5_path, 'r') as f:
@@ -94,8 +93,9 @@ if __name__ == "__main__":
     print("Loading both pred and ground truth from npz ", pred_path)
     load_data(pred_path, h5_path=None, load_both=True)
     
-    print("Loading ground truth from the original h5 file") # only if you have torch installed ,because the torch fft didn't get the same results as np fft
-    load_data(pred_path, h5_path=None, load_both=False)
+    h5_path = '/datasets/work/oa-tcch/work/forXuesong/new/realisation_0000/snapshots/snapshots_s1.h5'
+    print("Loading ground truth from the original h5 file, should give you the same results as the npz file") # only if you have torch installed ,because the torch fft didn't get the same results as np fft
+    load_data(pred_path, h5_path=h5_path, load_both=False)
 
         
 
