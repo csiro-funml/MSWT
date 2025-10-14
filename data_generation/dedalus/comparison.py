@@ -14,10 +14,11 @@ def downsample_x(u, downsample_spatial=(1, 1)):
         u: Input tensor of shape (T, H, W)
         N: Target size for downsampling (assumes square target N x N)
     Returns:
-        Downsampled tensor of shape (T, C, N, N)
+        Downsampled tensor of shape (T, N, N)
     """
     T, H, W = u.shape
     N = H//downsample_spatial[0]
+    u = torch.from_numpy(u)
     u_hat = torch.fft.rfft2(u, norm='forward')
     freqs_h = torch.fft.fftfreq(H, d=1/H)
     freqs_w = torch.fft.rfftfreq(W, d=1/W)
@@ -25,6 +26,7 @@ def downsample_x(u, downsample_spatial=(1, 1)):
     sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
     u_hat_down = u_hat[:, :, sel_h][:, :, sel_w]
     u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
+    u_down = u_down.numpy()
     return u_down
 
 
@@ -78,8 +80,9 @@ def load_data(pred_path, h5_path=None, load_both=True):
 
 if __name__ == "__main__":
     pred_path = '/scratch3/wan410/operator_learning_model/FNO_ns2d_dedalus_ntrain4968/test_data_prediction.npz'
+    print("Loading data from h5 path") # only if you have torch installed ,because the torch fft didn't get the same results as np fft
+    load_data(pred_path, h5_path=None, load_both=True)
+    
     print("Loading data from ", pred_path)
     load_data(pred_path, h5_path=None, load_both=False)
 
-    print("Loading data from h5 path")
-    load_data(pred_path, h5_path=None, load_both=True)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=03:30:00
+#SBATCH --time=00:30:00
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
