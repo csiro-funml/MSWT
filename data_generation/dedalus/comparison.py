@@ -64,7 +64,7 @@ def load_data(pred_path, h5_path=None, load_both=True):
     else:
         start_idx = 7500
         # end_idx = 8500
-        end_idx = 7516
+        end_idx = 7540
         stride = 4 # the model was trained to predict the solution after 4 steps
         downsample_spatial = (2, 2) # downsample the spatial resolution from 256 to 128 
         skip_steps = 7 # the first 7 steps were used as input to FNO
