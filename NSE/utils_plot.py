@@ -22,7 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
 
-from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, TemporalDataset2D_multiscale
+from utils.griddataset import MixedTemporalDataset, TemporalDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 
