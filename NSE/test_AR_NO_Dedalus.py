@@ -221,7 +221,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         model.eval()
         test_dataset = test_loader.dataset
         x, y = test_dataset.get_all_sequence()
-        max_steps = y.shape[1]
+        max_steps = y.shape[-2]
         
         save_data = {'input': [], 'output': [], 'pred': []}
         # autoregressive computing  
@@ -241,7 +241,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         
         # # save the data to np_data
         # # print("save input and output shape", xx.shape, yy.shape)
-        save_data['output']= y
+        save_data['output']= y.to(device)
         save_data['pred']=pred
 
         # print the shape of the np_data
