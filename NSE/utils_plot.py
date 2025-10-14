@@ -1271,6 +1271,8 @@ if __name__ == '__main__':
         ntrain = 5200
     elif args.dataset == 'sw2d_pda':
         ntrain = 7000
+    elif args.dataset == 'ns2d_dedalus':
+        ntrain = 4968
     else:
         ntrain = 1000
 
