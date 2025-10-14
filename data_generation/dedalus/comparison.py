@@ -54,7 +54,6 @@ def get_groundtruth_from_h5(h5_path, snapshot_idx, downsample_spatial=(1, 1)):
             true_streanfunction.append(streamfunction)
     true_vorticity = np.array(true_vorticity)
     true_streanfunction = np.array(true_streanfunction)
-    print("true vorticity shape: ", true_vorticity.shape, "true streamfunction shape: ", true_streanfunction.shape)
     data = np.concatenate([true_vorticity, true_streanfunction], axis=0)
     if downsample_spatial[0] != (1,1):
         data = downsample_x(data, downsample_spatial)
@@ -91,7 +90,7 @@ def load_data(pred_path, h5_path=None, load_both=True):
 
 if __name__ == "__main__":
     pred_path = '/scratch3/wan410/operator_learning_model/FNO_ns2d_dedalus_ntrain4968/test_data_prediction.npz'
-    print("Loading data from ", pred_path)
+    print("Loading data from npz ", pred_path)
     load_data(pred_path, h5_path=None, load_both=True)
     
     print("Loading data from h5 path") # only if you have torch installed ,because the torch fft didn't get the same results as np fft
