@@ -25,6 +25,7 @@ def downsample_x(u, downsample_spatial=(1, 1)):
     freqs_w = torch.fft.rfftfreq(W, d=1/W)
     sel_h = torch.logical_and(freqs_h >= -N/2, freqs_h <= N/2-1)
     sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
+    print("sel_h shape", sel_h.shape, "sel_w shape", sel_w.shape)
     u_hat_down = u_hat[:, :, sel_h][:, :, sel_w]
     u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
     u_down = u_down.numpy()
