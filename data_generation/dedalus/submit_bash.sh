@@ -10,4 +10,5 @@
 #SBATCH --cpus-per-task=1        # cpu-cores per task (>1 if multi-threaded tasks)
 
 
-python3 preprocess.py
+# python3 preprocess.py
+python3 comparison.py

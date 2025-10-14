@@ -78,4 +78,8 @@ def load_data(pred_path, h5_path=None, load_both=True):
 
 if __name__ == "__main__":
     pred_path = '/scratch3/wan410/operator_learning_model/FNO_ns2d_dedalus_ntrain4968/test_data_prediction.npz'
+    print("Loading data from ", pred_path)
     load_data(pred_path, h5_path=None, load_both=False)
+
+    print("Loading data from h5 path")
+    load_data(pred_path, h5_path=None, load_both=True)
