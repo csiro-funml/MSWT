@@ -1301,7 +1301,7 @@ class MemmapDedalusDataset2D(Dataset):
         self.dtype = np.float16 if meta.get('dtype', 'float16') == 'float16' else np.float32
         shape = meta['shape']  # {'T':..., 'C':..., 'H':..., 'W':...}
         self.T_total = int(shape['T'])
-        self.C_all = int(shape['C'])
+        self.C_all = 5 # always 5 for NS2D
         self.H = int(shape['H'])
         self.W = int(shape['W'])
         self.shards = meta['shards']
