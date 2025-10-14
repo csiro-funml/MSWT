@@ -19,7 +19,7 @@ from timeit import default_timer
 from torch.utils.tensorboard import SummaryWriter
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
 
-from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, TemporalDataset2D_multiscale, LocalTemporalDataset2D, MemmapDedalusDataset2D
+from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D
 from utils.make_master_file import DATASET_DICT
 from models.fno import FNO2d
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
