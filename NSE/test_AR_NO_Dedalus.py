@@ -264,7 +264,13 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
                          }
             }
             print("save_data_numpy shape", save_data_numpy['input']['vorticity'].shape, save_data_numpy['output']['vorticity'].shape, save_data_numpy['pred']['vorticity'].shape)
-            np.savez(f'{log_path}/test_data_prediction.npz', **save_data_numpy)
+            # Save
+            np.savez(f'{log_path}/test_data_prediction.npz',
+                pred_vorticity=save_data_numpy['pred']['vorticity'],
+                pred_streamfunction=save_data_numpy['pred']['streamfunction'],
+                output_vorticity=save_data_numpy['output']['vorticity'],
+                output_streamfunction=save_data_numpy['output']['streamfunction'])
+            # np.savez(f'{log_path}/test_data_prediction.npz', **save_data_numpy)
             # torch.save(save_data, f'{log_path}/test_long_data_prediction.pth')
         return save_data
 
