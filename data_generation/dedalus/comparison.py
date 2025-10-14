@@ -11,6 +11,9 @@ def get_groundtruth_from_h5(h5_path, snapshot_idx, downsample_spatial):
 
 def load_data(pred_path, h5_path=None, load_both=True):
     data = np.load(pred_path)
+    print("data keys: ", data.keys())
+    print("data['pred'] keys: ", data['pred'].keys())
+    print("values of data['pred'] keys: ", data['pred']['vorticity'].shape, data['pred']['streamfunction'].shape)
     pred_vorticity = data['pred']['vorticity'] # (T, Nx, Ny) (243, 128, 128)
     pred_streanfunction = data['pred']['streamfunction'] # (T, Nx, Ny) (243, 128, 128)
     if load_both:    
