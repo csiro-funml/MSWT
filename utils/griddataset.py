@@ -1364,7 +1364,7 @@ class MemmapDedalusDataset2D(Dataset):
             mm = self._get_mmap(relpath)
             # reshape memmap view to (T_shard, C, H, W)
             Tsh = shard_len
-            view = np.ndarray(shape=(Tsh, self.C, self.H, self.W), dtype=self.dtype, buffer=mm)
+            view = np.ndarray(shape=(Tsh, self.C_all, self.H, self.W), dtype=self.dtype, buffer=mm)
             chunks.append(view[local_t:local_t+take])
             remaining -= take
             cur_t += take
