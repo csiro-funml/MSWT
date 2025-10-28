@@ -1452,7 +1452,7 @@ class MemmapDedalusDataset2D(Dataset):
         # Memmap objects close automatically when dereferenced
         self._mmaps.clear()
 
-    def get_normalizer(self):
+    def get_normalizer(self, strategy='zscore'):
         """
         Use 100 timesteps from the training range to compute Min-Max per selected channel.
         Returns (mean=min, std=max-min) as torch tensors matching DedalusDataset2D.
@@ -1471,11 +1471,18 @@ class MemmapDedalusDataset2D(Dataset):
             data_norm.append(arr.astype(np.float32))
             count += 1
         data_norm = np.stack(data_norm)  # (N, C, H, W)
-        data_min = np.min(data_norm, axis=(0, 2, 3))  # (C,)
-        data_std = np.max(data_norm, axis=(0, 2, 3)) - data_min  # (C,)
-        data_min = torch.from_numpy(data_min).type(torch.float32)
-        data_std = torch.from_numpy(data_std).type(torch.float32)
-        return data_min, data_std
+        data_norm = torch.from_numpy(data_norm).type(torch.float32)
+        if strategy == 'zscore':
+            data_mean = torch.mean(data_norm, dim=(0, 2, 3))
+            data_std = torch.std(data_norm, dim=(0, 2, 3))
+        elif strategy == 'minmax':
+            data_min = torch.amin(data_norm, dim=(0, 2, 3))
+            data_max = torch.amax(data_norm, dim=(0, 2, 3))
+            data_mean = data_min # fake mean
+            data_std = data_max - data_min # fake std
+        else:
+            raise ValueError(f"Invalid strategy: {strategy}")
+        return data_mean, data_std
 
     def normalize_x(self, x):
         if self.norm_mean is None or self.norm_std is None:
