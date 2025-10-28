@@ -1438,8 +1438,8 @@ class MemmapDedalusDataset2D(Dataset):
         # shape of data (N, C, H, W)
         print("time duration from %s to %s, shape of data: %s"%(t0_global, t1_global, data.shape))
         # get min/max/ mean/std for each channel
-        data_min = torch.min(data, dim=(0, 2, 3))  # (C,)
-        data_max = torch.max(data, dim=(0, 2, 3))
+        data_min = torch.amin(data, dim=(0, 2, 3))  # (C,)
+        data_max = torch.amax(data, dim=(0, 2, 3))
         data_mean = torch.mean(data, dim=(0, 2, 3))
         data_std = torch.std(data, dim=(0, 2, 3))
         for i in range(data_min.shape[0]):
