@@ -138,6 +138,9 @@ elif args.dataset == 'ns2d_dedalus':
     train_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
     test_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test')
     val_dataset= MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='val')
+    train_dataset.predict_normalizing_statistics()
+    test_dataset.predict_normalizing_statistics()
+    val_dataset.predict_normalizing_statistics()
 else:
     # load data and dataloader
     train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)

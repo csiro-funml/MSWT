@@ -1394,6 +1394,12 @@ class MemmapDedalusDataset2D(Dataset):
         return x, y
     
     def get_all_sequence(self):
+        """
+        Get all the sequence from the dataset, used for autoregressive testing
+        Returns:
+            x: (T, C, H, W)
+            y: (T, C, H, W)
+        """
         t0_global = self.start_idx
         t1_global = self.end_idx    
         data = self._read_window(t0_global, t1_global - t0_global)
@@ -1409,6 +1415,28 @@ class MemmapDedalusDataset2D(Dataset):
         y = data[..., self.t_in:, :].unsqueeze(0)
         print("x shape", x.shape, "y shape", y.shape)
         return x, y
+
+
+    def predict_normalizing_statistics(self):
+        """
+        Get the normalizing statistics for the prediction, used for autoregressive testing
+        Returns:
+            norm_mean: (C,)
+            norm_std: (C,)
+        """
+        t0_global = self.start_idx
+        t1_global = self.end_idx    
+        data = self._read_window(t0_global, t1_global - t0_global)
+        data_dowmsample = data[::self.temporal_downsample]
+        data = data_dowmsample[:, self.channel_indices]
+        print("total time steps to predict", data.shape[0])
+        data = torch.from_numpy(data.astype(np.float32)) 
+        if self.downsample != (1, 1):
+            target_N = self.H // self.downsample[0]
+            data = self.downsample_x(data, target_N)
+        # shape of data
+        print("time duration from %s to %s, shape of data: %s"%(t0_global, t1_global, data.shape))
+
 
     def __len__(self):
         return max(0, self.num_samples)
