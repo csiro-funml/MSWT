@@ -1434,9 +1434,15 @@ class MemmapDedalusDataset2D(Dataset):
         if self.downsample != (1, 1):
             target_N = self.H // self.downsample[0]
             data = self.downsample_x(data, target_N)
-        # shape of data
+        # shape of data (N, C, H, W)
         print("time duration from %s to %s, shape of data: %s"%(t0_global, t1_global, data.shape))
-
+        # get min/max/ mean/std for each channel
+        data_min = torch.min(data, axis=(0, 2, 3))  # (C,)
+        data_max = torch.max(data, axis=(0, 2, 3))
+        data_mean = torch.mean(data, axis=(0, 2, 3))
+        data_std = torch.std(data, axis=(0, 2, 3))
+        for i in range(data_min.shape[0]):
+            print("channel %d: (min, max): (%.4f, %.4f), (mean, std): (%.4f, %.4f)"%(i, data_min[i], data_max[i], data_mean[i], data_std[i]))
 
     def __len__(self):
         return max(0, self.num_samples)
