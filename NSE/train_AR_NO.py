@@ -141,6 +141,7 @@ elif args.dataset == 'ns2d_dedalus':
     train_dataset.predict_normalizing_statistics()
     test_dataset.predict_normalizing_statistics()
     val_dataset.predict_normalizing_statistics()
+    exit()
 else:
     # load data and dataloader
     train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
