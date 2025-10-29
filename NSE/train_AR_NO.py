@@ -185,11 +185,19 @@ print('Train num {} train len {} test num {}'.format(train_dataset.n_size, ntrai
 # load model
 ################################################################
 if args.model == "FNO":
-    model = FNO2d(args.modes, args.modes, width=args.width,
+    if args.dataset == 'ns2d_dedalus':
+        model = FNO2d(args.modes, args.modes, width=args.width,
                   n_channels=train_dataset.n_channels,
                   in_timesteps = args.T_in, out_timesteps=1, 
                   n_layers = args.n_layers, 
-                # normalize=args.normalize, 
+                  normalize=args.normalize
+                 ).to(device)
+    else:
+        model = FNO2d(args.modes, args.modes, width=args.width,
+                  n_channels=train_dataset.n_channels,
+                  in_timesteps = args.T_in, out_timesteps=1, 
+                  n_layers = args.n_layers, 
+                # normalize=args.normalize
                  ).to(device)
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
