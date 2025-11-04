@@ -37,13 +37,78 @@ sys.path.insert(0, str(parent_dir))
 # Import spectral functions directly to avoid Dedalus dependency
 # We use importlib to bypass the ns2d.__init__.py which imports domain (needs Dedalus)
 import importlib.util
-spec = importlib.util.spec_from_file_location("spectral_module", parent_dir / "ns2d" / "spectral.py")
-spectral_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(spectral_module)
 
-compute_spectra = spectral_module.compute_spectra
-compute_energy_flux = spectral_module.compute_energy_flux
-compute_enstrophy_flux = spectral_module.compute_enstrophy_flux
+
+# compute_spectra = spectral_module.compute_spectra
+# compute_energy_flux = spectral_module.compute_energy_flux
+# compute_enstrophy_flux = spectral_module.compute_enstrophy_flux
+
+
+def compute_spectra(ux_grid, uy_grid, Lx, Ly):
+    """
+    Compute isotropic 1D energy and enstrophy spectra from 2D velocity field.
+
+    Uses shell-averaging in Fourier space to compute spectra as a function
+    of wavenumber magnitude |k|.
+
+    Args:
+        ux_grid (ndarray): x-velocity in physical space (Nx, Ny)
+        uy_grid (ndarray): y-velocity in physical space (Nx, Ny)
+        Lx (float): Domain length in x
+        Ly (float): Domain length in y
+
+    Returns:
+        tuple: (k_bins, E_k, Z_k)
+            - k_bins: Physical wavenumber bins (rad/length)
+            - E_k: Energy spectrum E(k) = 0.5 <|û|²>_shell
+            - Z_k: Enstrophy spectrum Z(k) = <|ω̂|²>_shell
+
+    Notes:
+        - Assumes Lx ≈ Ly for isotropic shell averaging
+        - Accounts for rfft symmetry factors
+        - Shell index n corresponds to physical wavenumber n*k0 where k0=2π/L
+    """
+    Nx, Ny = ux_grid.shape
+    N = Nx * Ny
+    assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly"
+    k0 = 2 * np.pi / Lx
+
+    # Transform to spectral space
+    uxh = np.fft.rfft2(ux_grid)
+    uyh = np.fft.rfft2(uy_grid)
+
+    # Energy per mode (normalised)
+    E_mode = 0.5 * (np.abs(uxh)**2 + np.abs(uyh)**2) / (N * N)
+
+    # Vorticity in spectral space
+    kx = 2 * np.pi * np.fft.fftfreq(Nx, d=Lx / Nx)
+    ky = 2 * np.pi * np.fft.rfftfreq(Ny, d=Ly / Ny)
+    KX, KY = np.meshgrid(kx, ky, indexing='ij')
+    omegah = 1j * (KX * uyh - KY * uxh)
+    Z_mode = (np.abs(omegah)**2) / (N * N)
+
+    # rfft symmetry weight: double ky>0 interior modes
+    weight = 2.0 * np.ones_like(E_mode)
+    weight[:, 0] = 1.0  # ky=0 is not doubled
+    if Ny % 2 == 0:
+        weight[:, -1] = 1.0  # Nyquist is real-valued
+
+    E_mode *= weight
+    Z_mode *= weight
+
+    # Shell indices (integer radius in index space)
+    ix = np.fft.fftfreq(Nx, d=1.0 / Nx)
+    iy = np.arange(0, Ny // 2 + 1)
+    IX, IY = np.meshgrid(ix, iy, indexing='ij')
+    shell_idx = np.floor(np.sqrt(IX**2 + IY**2)).astype(int)
+
+    # Bin into shells
+    mmax = shell_idx.max()
+    Ek = np.bincount(shell_idx.ravel(), weights=E_mode.ravel(), minlength=mmax + 1)
+    Zk = np.bincount(shell_idx.ravel(), weights=Z_mode.ravel(), minlength=mmax + 1)
+
+    k_bins = np.arange(mmax + 1) * k0
+    return k_bins, Ek, Zk
 
 
 def get_args():
