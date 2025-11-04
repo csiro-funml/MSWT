@@ -311,7 +311,7 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
         print("evaluating step .....", step)
         print("pred shape", pred.shape, "target shape", target.shape)
         if 'energy_enstropy_spectrum_error' in loss_dict.keys():
-            loss_metric = loss_dict['energy_enstropy_spectrum_error'](pred[..., step, :], target[..., step, :], save_plot=True)
+            loss_metric = loss_dict['energy_enstropy_spectrum_error'](pred[..., step, :], target[..., step, :], save_plot=True, time_step=step)
             continue
         for c in range(pred.shape[-1]):
             # evaluate different metrics per channel
