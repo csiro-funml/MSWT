@@ -229,12 +229,12 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
             # plot the energy and enstropy spectra
             font_size = 16
             fig, axs = plt.subplots(2, 1, figsize=(10, 10))
-            cutoff_idx= 65
+            cutoff_idx= 64
             # increase the font size
             axs[0].loglog(y_dict['k_bins'][:cutoff_idx], y_dict['y_Ek'][:cutoff_idx], 'X-',markersize=2, label='target', linewidth=2)
             axs[0].loglog(y_dict['k_bins'][:cutoff_idx], y_dict['pred_Ek'][:cutoff_idx], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
             axs[0].set_xlabel('Wavenumber', fontsize=font_size)
-            axs[0].set_ylim(1e-10, 1e-3) # TODO: remove this later
+            # axs[0].set_ylim(1e-10, 1e-2) # TODO: remove this later
             axs[0].set_ylabel('Energy', fontsize=font_size)
             axs[0].set_title('Energy Spectrum', fontsize=font_size)
 
