@@ -13,8 +13,8 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar, fsolve
 import os
-from compute_physical_statistics import compute_spectra
-from compute_diagnostics import streamfunction_to_velocity
+from utils.compute_physical_statistics import compute_spectra
+from utils.compute_diagnostics import streamfunction_to_velocity
 
 def get_loss_func(name, component, normalizer):
     if name == 'rel2':
