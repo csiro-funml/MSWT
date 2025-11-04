@@ -233,6 +233,7 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
             # increase the font size
             axs[0].loglog(y_dict['k_bins'][:cutoff_idx], y_dict['y_Ek'][:cutoff_idx], 'X-',markersize=2, label='target', linewidth=2)
             axs[0].loglog(y_dict['k_bins'][:cutoff_idx], y_dict['pred_Ek'][:cutoff_idx], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
+            axs[0].set_ylim(-1e-10, 1e-4) # TODO: remove this later
             axs[0].set_xlabel('Wavenumber', fontsize=font_size)
             axs[0].set_ylabel('Energy', fontsize=font_size)
             axs[0].set_title('Energy Spectrum', fontsize=font_size)
