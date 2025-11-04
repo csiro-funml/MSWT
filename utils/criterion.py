@@ -230,14 +230,14 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
             font_size = 16
             fig, axs = plt.subplots(2, 1, figsize=(10, 10))
             # increase the font size
-            axs[0].loglog(y_dict['k_bins'][1:], y_dict['y_Ek'][1:], 'X-',markersize=2, label='target', linewidth=2)
-            axs[0].loglog(y_dict['k_bins'][1:], y_dict['pred_Ek'][1:], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
+            axs[0].loglog(y_dict['k_bins'][:-1], y_dict['y_Ek'][:-1], 'X-',markersize=2, label='target', linewidth=2)
+            axs[0].loglog(y_dict['k_bins'][:-1], y_dict['pred_Ek'][:-1], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
             axs[0].set_xlabel('Wavenumber', fontsize=font_size)
             axs[0].set_ylabel('Energy', fontsize=font_size)
             axs[0].set_title('Energy Spectrum', fontsize=font_size)
 
-            axs[1].loglog(y_dict['k_bins'][1:], y_dict['y_Zk'][1:], 'X-',markersize=2, label='target', linewidth=2)
-            axs[1].loglog(y_dict['k_bins'][1:], y_dict['pred_Zk'][1:], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
+            axs[1].loglog(y_dict['k_bins'][:-1], y_dict['y_Zk'][:-1], 'X-',markersize=2, label='target', linewidth=2)
+            axs[1].loglog(y_dict['k_bins'][:-1], y_dict['pred_Zk'][:-1], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
             axs[1].set_xlabel('Wavenumber', fontsize=font_size)
             axs[1].set_ylabel('Enstropy', fontsize=font_size)
             axs[1].set_title('Enstropy Spectrum', fontsize=font_size)
