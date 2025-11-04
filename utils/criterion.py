@@ -251,7 +251,7 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
                 os.makedirs(f'{self.save_path}/spectral_error')
             plt.savefig(f'{self.save_path}/spectral_error/energy_enstropy_spectra_{self.model_name}_t{time_step}.png')
             plt.clf()
-
+            
 
 def compute_frequency_spectrum(y_pred, y):
     # y_pred: (B, H, W, T, C), y: (B, H, W, T, C)
