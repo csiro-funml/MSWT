@@ -13,6 +13,8 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar, fsolve
 import os
+from compute_physical_statistics import compute_spectra
+from compute_diagnostics import streamfunction_to_velocity
 
 def get_loss_func(name, component, normalizer):
     if name == 'rel2':
@@ -198,6 +200,56 @@ class SpectralError(_WeightedLoss):
         # plt.show()
 
         return {'spec_low': low_err, 'spec_mid': mid_err, 'spec_high': high_err, 'k_low': self.k_low, 'k_high': self.k_high}
+
+
+class Energy_Enstropy_SpectrumError(_WeightedLoss):
+    def __init__(self, model_name, save_path):
+        super(Energy_Enstropy_SpectrumError, self).__init__()
+        self.model_name = model_name
+        self.save_path = save_path
+
+    def forward(self, pred, y, Lx=2*np.pi, Ly=2*np.pi, channel=None, time_step=None, save_plot=False):
+        B, H, W, T, C = y.shape
+        y_dict = {'pred': pred, 'y': y}
+        # Get fields at this time
+        for y_key, y_value in y_dict.items(): # pred and y
+            psi_grid = y_value[..., 0, 1]  # streamfunction
+            omega_grid = y_value[..., 0, 0] # vorticity
+
+            # Compute velocity from streamfunction
+            ux_grid, uy_grid = streamfunction_to_velocity(psi_grid, Lx, Ly)
+            
+            # Spectra (every time step)
+            k_bins, Ek, Zk = compute_spectra(ux_grid, uy_grid, Lx, Ly)
+
+            y_dict[y_key+'_Ek'] = Ek
+            y_dict[y_key+'_Zk'] = Zk
+            y_dict['k_bins'] = k_bins
+        if save_plot:
+            # plot the energy and enstropy spectra
+            font_size = 16
+            fig, axs = plt.subplots(2, 1, figsize=(10, 10))
+            # increase the font size
+            axs[0].loglog(y_dict['k_bins'], y_dict['y_Ek'], 'X-',markersize=2, label='target', linewidth=2)
+            axs[0].loglog(y_dict['k_bins'], y_dict['pred_Ek'], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
+            axs[0].set_xlabel('Wavenumber', fontsize=font_size)
+            axs[0].set_ylabel('Energy', fontsize=font_size)
+            axs[0].set_title('Energy Spectrum', fontsize=font_size)
+
+            axs[1].loglog(y_dict['k_bins'], y_dict['y_Zk'], 'X-',markersize=2, label='target', linewidth=2)
+            axs[1].loglog(y_dict['k_bins'], y_dict['pred_Zk'], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
+            axs[1].set_xlabel('Wavenumber', fontsize=font_size)
+            axs[1].set_ylabel('Enstropy', fontsize=font_size)
+            axs[1].set_title('Enstropy Spectrum', fontsize=font_size)
+           
+            plt.legend(fontsize=font_size)
+            # set the font size for x tick and y tick labels
+            plt.xticks(fontsize=font_size)
+            plt.yticks(fontsize=font_size)
+            if not os.path.exists(f'{self.save_path}/spectral_error'):
+                os.makedirs(f'{self.save_path}/spectral_error')
+            plt.savefig(f'{self.save_path}/spectral_error/energy_enstropy_spectra_{self.model_name}_{self.method}_c{channel}_t{time_step}.png')
+            plt.clf()
 
 
 def compute_frequency_spectrum(y_pred, y):

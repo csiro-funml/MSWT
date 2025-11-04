@@ -30,7 +30,7 @@ from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
-from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
+from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError, Energy_Enstropy_SpectrumError
 from visualizations import plot_enstrophy_spectrum, spectrum_2d
 warnings.filterwarnings("ignore")
 
@@ -289,13 +289,14 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
 
     loss_dict = {}
     loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
-    loss_dict['rmse'] = RMSE()
-    loss_dict['boundary_rmse'] = BoundaryRMSE()
-    loss_dict['max_avg'] = MaxAbsError()
-    loss_dict['max_global'] = GlobalMaxAbsError()
-    loss_dict['spectral_error_radial'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='radial')
-    loss_dict['spectral_error_square'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='square approximation')
-    loss_dict['spectral_error_cfd'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='cfd')
+    # loss_dict['rmse'] = RMSE()
+    # loss_dict['boundary_rmse'] = BoundaryRMSE()
+    # loss_dict['max_avg'] = MaxAbsError()
+    # loss_dict['max_global'] = GlobalMaxAbsError()
+    # loss_dict['spectral_error_radial'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='radial')
+    # loss_dict['spectral_error_square'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='square approximation')
+    # loss_dict['spectral_error_cfd'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='cfd')
+    loss_dict['energy_enstropy_spectrum_error'] = Energy_Enstropy_SpectrumError(model_name=model_name, save_path=log_path)
     if 'ns2d' in log_path and 'torchcf' not in log_path: # NS equation
         step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
     else:
@@ -308,6 +309,10 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
     
     for step in step_dict.keys(): # first step and last step
         print("evaluating step .....", step)
+        print("pred shape", pred.shape, "target shape", target.shape)
+        if 'energy_enstropy_spectrum_error' in loss_dict.keys():
+            loss_metric = loss_dict['energy_enstropy_spectrum_error'](pred[..., step], target[..., step], save_plot=True)
+            continue
         for c in range(pred.shape[-1]):
             # evaluate different metrics per channel
             for key, loss_func in loss_dict.items():
@@ -324,7 +329,6 @@ def compute_evalutation_metrics(save_data, model_name='', log_path=''):
                         new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": band_key, f"{model_name}": val,
                                              "k_low": loss_metric['k_low'], "k_high": loss_metric['k_high']}).to_frame().T
                         save_df = pd.concat([save_df, new_row], ignore_index=True)
-                    
                 else:
                     
                     loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
@@ -479,11 +483,11 @@ def plot_spectral_error(save_data, model_name='', log_path=''):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     # #### 2. load the save_data
-    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     # #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
