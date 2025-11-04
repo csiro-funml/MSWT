@@ -265,11 +265,11 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
             }
             print("save_data_numpy shape", save_data_numpy['input']['vorticity'].shape, save_data_numpy['output']['vorticity'].shape, save_data_numpy['pred']['vorticity'].shape)
             # Save
-            np.savez(f'{log_path}/test_data_prediction.npz',
-                pred_vorticity=save_data_numpy['pred']['vorticity'],
-                pred_streamfunction=save_data_numpy['pred']['streamfunction'],
-                output_vorticity=save_data_numpy['output']['vorticity'],
-                output_streamfunction=save_data_numpy['output']['streamfunction'])
+            # np.savez(f'{log_path}/test_data_prediction.npz',
+            #     pred_vorticity=save_data_numpy['pred']['vorticity'],
+            #     pred_streamfunction=save_data_numpy['pred']['streamfunction'],
+            #     output_vorticity=save_data_numpy['output']['vorticity'],
+            #     output_streamfunction=save_data_numpy['output']['streamfunction'])
             # np.savez(f'{log_path}/test_data_prediction.npz', **save_data_numpy)
             # torch.save(save_data, f'{log_path}/test_long_data_prediction.pth')
         return save_data
@@ -483,11 +483,11 @@ def plot_spectral_error(save_data, model_name='', log_path=''):
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=True)
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=False)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     # #### 2. load the save_data
-    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     # #### 3. compute different types of metrics
     compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
