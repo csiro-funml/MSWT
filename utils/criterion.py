@@ -209,12 +209,12 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
         self.save_path = save_path
 
     def forward(self, pred, y, Lx=2*np.pi, Ly=2*np.pi, channel=None, time_step=None, save_plot=False):
-        B, H, W, T, C = y.shape
+        B, H, W, C = y.shape
         y_dict = {'pred': pred, 'y': y}
         # Get fields at this time
         for y_key, y_value in y_dict.items(): # pred and y
-            psi_grid = y_value[0,..., 0, 1].detach().cpu().numpy()  # streamfunction
-            omega_grid = y_value[0,..., 0, 0].detach().cpu().numpy() # vorticity
+            psi_grid = y_value[0,..., 1].detach().cpu().numpy()  # streamfunction
+            omega_grid = y_value[0,..., 0].detach().cpu().numpy() # vorticity
 
             # Compute velocity from streamfunction
             ux_grid, uy_grid = streamfunction_to_velocity(psi_grid, Lx, Ly)
