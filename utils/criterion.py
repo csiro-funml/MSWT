@@ -237,7 +237,7 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
             # sort y_temp and return the indices
             y_temp_sorted_indices = np.argsort(y_temp)
             y_temp_sorted = y_temp[y_temp_sorted_indices]
-            print('y temp sorted min', np.min(y_temp_sorted), 'y temp sorted max', np.max(y_temp_sorted))
+            print('index', y_temp_sorted_indices, "top 5", y_temp_sorted[:5], "bottom 5", y_temp_sorted[-5:])
             # increase the font size
             axs[0].loglog(y_dict['k_bins'][:k_nyquist], y_dict['y_Ek'][:k_nyquist], 'X-',markersize=2, label='target', linewidth=2)
             axs[0].loglog(y_dict['k_bins'][:k_nyquist], y_dict['pred_Ek'][:k_nyquist], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
