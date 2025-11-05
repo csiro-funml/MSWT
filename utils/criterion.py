@@ -231,23 +231,25 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
             fig, axs = plt.subplots(2, 1, figsize=(10, 10))
 
             k_nyquist = int((np.pi * H) // Lx)
-            print('k_nyquist', k_nyquist)
-            y_temp = y_dict['y_Ek'][:k_nyquist]
-            print('y temp min', np.min(y_temp), 'y temp max', np.max(y_temp))
-            # sort y_temp and return the indices
-            y_temp_sorted_indices = np.argsort(y_temp)
-            y_temp_sorted = y_temp[y_temp_sorted_indices]
-            print('index', y_temp_sorted_indices, "top 5", y_temp_sorted[:5], "bottom 5", y_temp_sorted[-5:])
+            # print('k_nyquist', k_nyquist)
+            # y_temp = y_dict['y_Ek'][:k_nyquist]
+            # print('y temp min', np.min(y_temp), 'y temp max', np.max(y_temp))
+            # # sort y_temp and return the indices
+            # y_temp_sorted_indices = np.argsort(y_temp)
+            # y_temp_sorted = y_temp[y_temp_sorted_indices]
+            # print('index', y_temp_sorted_indices, "top 5", y_temp_sorted[:5], "bottom 5", y_temp_sorted[-5:])
+
+            start_truth = 1
             # increase the font size
-            axs[0].loglog(y_dict['k_bins'][:k_nyquist], y_dict['y_Ek'][:k_nyquist], 'X-',markersize=2, label='target', linewidth=2)
-            axs[0].loglog(y_dict['k_bins'][:k_nyquist], y_dict['pred_Ek'][:k_nyquist], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
+            axs[0].loglog(y_dict['k_bins'][start_truth:k_nyquist], y_dict['y_Ek'][start_truth:k_nyquist], 'X-',markersize=2, label='target', linewidth=2)
+            axs[0].loglog(y_dict['k_bins'][start_truth:k_nyquist], y_dict['pred_Ek'][start_truth:k_nyquist], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
             # axs[0].set_xlabel('Wavenumber', fontsize=font_size)
             # axs[0].set_ylim(1e-10, 1e-2) # TODO: remove this later
             axs[0].set_ylabel('Energy', fontsize=font_size)
             axs[0].set_title('Energy Spectrum', fontsize=font_size)
 
-            axs[1].loglog(y_dict['k_bins'][:k_nyquist], y_dict['y_Zk'][:k_nyquist], 'X-',markersize=2, label='target', linewidth=2)
-            axs[1].loglog(y_dict['k_bins'][:k_nyquist], y_dict['pred_Zk'][:k_nyquist], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
+            axs[1].loglog(y_dict['k_bins'][start_truth:k_nyquist], y_dict['y_Zk'][start_truth:k_nyquist], 'X-',markersize=2, label='target', linewidth=2)
+            axs[1].loglog(y_dict['k_bins'][start_truth:k_nyquist], y_dict['pred_Zk'][start_truth:k_nyquist], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
             axs[1].set_xlabel('Wavenumber', fontsize=font_size)
             axs[1].set_ylabel('Enstropy', fontsize=font_size)
             axs[1].set_title('Enstropy Spectrum', fontsize=font_size)
