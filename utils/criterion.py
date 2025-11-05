@@ -247,14 +247,16 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
             # axs[0].set_ylim(1e-10, 1e-2) # TODO: remove this later
             axs[0].set_ylabel('Energy', fontsize=font_size)
             axs[0].set_title('Energy Spectrum', fontsize=font_size)
+            axs[0].legend(fontsize=font_size)
+            axs[0].grid(True)
 
             axs[1].loglog(y_dict['k_bins'][start_truth:k_nyquist], y_dict['y_Zk'][start_truth:k_nyquist], 'X-',markersize=2, label='target', linewidth=2)
             axs[1].loglog(y_dict['k_bins'][start_truth:k_nyquist], y_dict['pred_Zk'][start_truth:k_nyquist], 'o-',markersize=2, label=f'{self.model_name} pred', linewidth=2)
             axs[1].set_xlabel('Wavenumber', fontsize=font_size)
             axs[1].set_ylabel('Enstropy', fontsize=font_size)
             axs[1].set_title('Enstropy Spectrum', fontsize=font_size)
-           
-            plt.legend(fontsize=font_size)
+            axs[1].legend(fontsize=font_size)
+            axs[1].grid(True)
             # set the font size for x tick and y tick labels
             plt.xticks(fontsize=font_size)
             plt.yticks(fontsize=font_size)
