@@ -230,7 +230,8 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
             font_size = 16
             fig, axs = plt.subplots(2, 1, figsize=(10, 10))
 
-            k_nyquist = (np.pi * H) // Lx
+            k_nyquist = int((np.pi * H) // Lx)
+            print('k_nyquist', k_nyquist)
             y_temp = y_dict['y_Ek'][:k_nyquist]
             print('y temp min', np.min(y_temp), 'y temp max', np.max(y_temp))
             # sort y_temp and return the indices
