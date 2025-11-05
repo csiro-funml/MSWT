@@ -54,7 +54,7 @@ parser.add_argument('--T_ar', type=int, default=1)
 parser.add_argument('--T_bundle', type=int, default=1)
 parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
-
+parser.add_argument('--normalize_strategy',type=str, default='zscore')
 
 # ### FNO/UNO params 
 parser.add_argument('--n_layers',type=int, default=8)
@@ -131,12 +131,18 @@ def load_data_model(just_load_path=False):
     if not args.pad:
         args.res = train_dataset.res  # use original dataset  resolution to train the model
 
-    comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
-    log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
-    if not os.path.exists(log_path):# running tests locallt
-        log_path = './logs/' + comment
+    testing_mode = 'FNO_testing'
+    if testing_mode == 'FNO_testing':
+        comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy)
+        log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
+        # model_path = log_path + '/model.pth'
+        model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
+    else:
+        comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
+        log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
+        # model_path = log_path + '/model.pth'
+        model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
     # model_path = log_path + '/model.pth' # for testing, note: to be deleted later
-    model_path = log_path + f'/model_epochs_{args.epochs}.pth'
     print(model_path)
     
     # if just_load_path, return the log_path
