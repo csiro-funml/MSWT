@@ -384,8 +384,10 @@ for ep in pbar:
                 # write the pred and target as RGB images for TensorBoard
                 pred_img = _to_rgb_minmax(pred_denorm[0, :, :, 0, 0])
                 target_img = _to_rgb_minmax(target_denorm[0, :, :, 0, 0])
+                error_img = _to_rgb_minmax(pred_denorm[0, :, :, 0, 0] - target_denorm[0, :, :, 0, 0])
                 writer.add_image("model pred", pred_img, ep)
                 writer.add_image("ground truth", target_img, ep)
+                writer.add_image("error", error_img, ep)
         if test_rel_l2_loss < best_loss:
             best_loss = test_rel_l2_loss
             best_loss_epoch = ep
