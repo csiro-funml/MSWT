@@ -63,8 +63,8 @@ source $HOME/.venvs/pytorch/bin/activate
 
 ###############################################################NSE TORCHCFD ############################################################
 # Training
-CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='minmax'
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='minmax'
+CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='HFS' --use_writer --lr_method='cossin' --T_in=7 --epochs=3000
 
 # Testing
