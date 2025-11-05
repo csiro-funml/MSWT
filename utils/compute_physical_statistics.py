@@ -77,6 +77,7 @@ def compute_spectra(ux_grid, uy_grid, Lx, Ly):
     Zk = np.bincount(shell_idx.ravel(), weights=Z_mode.ravel(), minlength=mmax + 1)
 
     k_bins = np.arange(mmax + 1) * k0
+    print("min Ek", np.min(Ek), "max Ek", np.max(Ek))
     return k_bins, Ek, Zk
 
 
