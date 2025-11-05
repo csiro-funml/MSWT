@@ -67,10 +67,10 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='HFS' --use_writer --lr_method='cossin' --T_in=7 --epochs=3000
 
 # Testing
-CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO_Dedalus.py --dataset='ns2d_dedalus' --model='HFS' --lr_method='cossin' --T_in=7 --epochs=3000
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO_Dedalus.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000
 
 
-# CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_dedalus' --model='FNO' 
+CUDA_VISIBLE_DEVICES=0 python3 NSE/utils_plot.py --dataset='ns2d_dedalus' --model='FNO' 
 
 #################################################################################################################################
 
