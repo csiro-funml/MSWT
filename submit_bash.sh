@@ -65,7 +65,8 @@ source $HOME/.venvs/pytorch/bin/activate
 # Training
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --use_writer --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='minmax'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --use_writer --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'
-CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --use_writer --modes=16 --width=32 --n_layers=4 --lr=3e-4 --lr_method='cossin' --T_in=7 --epochs=5000 --normalize_strategy='zscore'
+CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --use_writer --modes=32 --width=32 --n_layers=4  --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'
+# CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --use_writer --modes=16 --width=32 --n_layers=4 --lr=3e-4 --lr_method='cossin' --T_in=7 --epochs=5000 --normalize_strategy='zscore'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='HFS' --use_writer --lr_method='cossin' --T_in=7 --epochs=3000
 
 # Testing
