@@ -1274,7 +1274,7 @@ class MemmapDedalusDataset2D(Dataset):
 
     Provides (x, y) where shapes are (H, W, t_in, C) and (H, W, t_out, C).
     """
-    def __init__(self, data_name, memmap_dir=None, t_in=10, t_ar=1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=None):
+    def __init__(self, data_name, memmap_dir=None, t_in=10, t_ar=1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=None, strategy='zscore'):
         super().__init__()
         self.data_name = data_name
         self.memmap_dir = DATASET_DICT[data_name]['data_path'] if memmap_dir is None else memmap_dir
@@ -1283,7 +1283,7 @@ class MemmapDedalusDataset2D(Dataset):
         self.t_out = t_ar
         self.form = form
         self.normalize = normalize
-
+        self.strategy = strategy
         # Read dataset config
         self.temporal_downsample = DATASET_DICT[data_name]['temporal_downsample'] if temporal_downsample is None else temporal_downsample
         self.downsample = DATASET_DICT[data_name]['downsample'] if downsample is None else downsample
@@ -1452,12 +1452,13 @@ class MemmapDedalusDataset2D(Dataset):
         # Memmap objects close automatically when dereferenced
         self._mmaps.clear()
 
-    def get_normalizer(self, strategy='zscore'):
+    def get_normalizer(self):
         """
         Use 100 timesteps from the training range to compute Min-Max per selected channel.
         Returns (mean=min, std=max-min) as torch tensors matching DedalusDataset2D.
         """
         data_norm = []
+        strategy = self.strategy
         # Sample 100 evenly within the train range
         num_samples = min(100, self.n_size)
         step = max(1, self.n_size // num_samples)

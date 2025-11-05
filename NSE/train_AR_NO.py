@@ -76,7 +76,7 @@ parser.add_argument('--T_ar', type=int, default=1)
 parser.add_argument('--T_bundle', type=int, default=1)
 parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
-
+parser.add_argument('--normalize_strategy',type=str, default='zscore')
 
 # ### FNO/UNO params 
 parser.add_argument('--n_layers',type=int, default=8)
@@ -135,9 +135,9 @@ elif args.dataset == 'ns2d_dedalus':
     # train_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
     # test_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='test')
     # val_dataset= DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='val')
-    train_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
-    test_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test')
-    val_dataset= MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='val')
+    train_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train', strategy=args.normalize_strategy)
+    test_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test', strategy=args.normalize_strategy)
+    val_dataset= MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='val', strategy=args.normalize_strategy)
     # Mean/STD statistics are more consitent between training/validation/test sets
     train_dataset.predict_normalizing_statistics()
     test_dataset.predict_normalizing_statistics()
@@ -158,11 +158,17 @@ val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_siz
 ntrain, ntest = len(train_dataset), len(test_dataset)
 # if not args.pad:
 #     args.res = train_dataset.res  # use original dataset  resolution to train the model
-
-comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
-log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
-# model_path = log_path + '/model.pth'
-model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
+testing_mode = 'FNO_testing'
+if testing_mode == 'FNO_testing':
+    comment = args.comment + '{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}'.format(args.model, args.modes, args.width, args.n_layers, args.dataset, ntrain, args.normalize_strategy)
+    log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
+    # model_path = log_path + '/model.pth'
+    model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
+else:
+    comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
+    log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
+    # model_path = log_path + '/model.pth'
+    model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
 # model_path = log_path + f'/model_epochs_{args.epochs}_patchsize_{args.patch_size}.pth'
 print(model_path)
 if args.use_writer:
