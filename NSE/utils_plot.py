@@ -1276,8 +1276,20 @@ if __name__ == '__main__':
     else:
         ntrain = 1000
 
-    comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
-    log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
+    # comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
+    # log_path = args.log_path + comment if len(args.log_path) > 0 else './logs/' + comment
+    testing_mode = 'FNO_testing'
+    if testing_mode == 'FNO_testing':
+        comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy)
+        log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
+        # model_path = log_path + '/model.pth'
+        model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
+    else:
+        comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
+        log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
+        # model_path = log_path + '/model.pth'
+        model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
+
     # FNO/Wavelet/HFS/PDERefiner test data
     pred_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     # pred_data = torch.load(f'{log_path}/test_long_data_prediction.pth', map_location=device)
