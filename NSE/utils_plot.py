@@ -95,6 +95,7 @@ parser.add_argument('--T_ar', type=int, default=1)
 parser.add_argument('--T_bundle', type=int, default=1)
 parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
+parser.add_argument('--normalize_strategy',type=str, default='zscore')
 
 
 # ### FNO/UNO params 
