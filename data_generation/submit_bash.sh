@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=04:00:00          # Increased time for processing 40k timesteps (4 hours)
+#SBATCH --time=01:00:00          # Increased time for processing 40k timesteps (0.3 hours)
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
