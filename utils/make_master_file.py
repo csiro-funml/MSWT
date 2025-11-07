@@ -397,9 +397,14 @@ DATASET_DICT[name]['downsample'] = (1, 1)
 
 name = 'ns2d_dedalus'
 if not torch.cuda.is_available():
-    DATASET_DICT[name] = {'train_path': './data/large/pdearena/sw2d_pda/train', 
-                            'test_path': './data/large/pdearena/sw2d_pda/test',
-                            'val_path': './data/large/pdearena/sw2d_pda/val',
+    # DATASET_DICT[name] = {'train_path': './data/large/pdearena/sw2d_pda/train', 
+                            # 'test_path': './data/large/pdearena/sw2d_pda/test',
+                            # 'val_path': './data/large/pdearena/sw2d_pda/val',
+    DATASET_DICT[name] = {'data_path': '/scratch3/wan410/operator_learning_data/Dedalus/Forcing', 
+                            'train_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_000%i/snapshots'%i for i in range(8)],
+                            'val_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0008/snapshots/'],
+                            'test_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0009/snapshots/'],
+                       
                           }
 else:
     DATASET_DICT[name] =  {'data_path': '/scratch3/wan410/operator_learning_data/Dedalus/', 
