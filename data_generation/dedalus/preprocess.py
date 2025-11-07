@@ -268,8 +268,9 @@ if __name__ == '__main__':
     # Print data structure 
     dirc_path = '/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0000/snapshots/'
     print_data_structure(dirc_path)
+
     # load 1000 steps of variables (vorticity, streamfunction, pressure, velocity, timestep) and save to h5 file
-    load_real_data(dirc_path, truncate_time=100, max_time=200, save_path=out_root)
+    # load_real_data(dirc_path, truncate_time=100, max_time=200, save_path=out_root)
                                                                                          
 
     # Preprocess the data

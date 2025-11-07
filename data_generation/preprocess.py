@@ -477,8 +477,7 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
     np_dtype = np.float16 if str(dtype) == 'float16' else np.float32
 
     # Streaming min/std (per-channel) - accumulate across all realizations
-    ch_mean = {'vorticity': [], 'streamfunction': [], 'velocity_x': [], 'velocity_y': [], 'pressure': [], 'forcing_x': [], 'forcing_y': []}
-    ch_std = {'vorticity': [], 'streamfunction': [], 'velocity_x': [], 'velocity_y': [], 'pressure': [], 'forcing_x': [], 'forcing_y': []}
+    ch = {'vorticity': [], 'streamfunction': [], 'velocity_x': [], 'velocity_y': [], 'pressure': [], 'forcing_x': [], 'forcing_y': []}
 
     # Initialize shard variables (shared across all realizations)
     shard_index = 0
@@ -556,20 +555,13 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
                     forcing_y_full = np.concatenate(forcing_y_slices, axis=1)    # (H, W)
                     
                     # Update stats
-                    ch_mean['vorticity'].append(np.mean(vorticity_full))
-                    ch_std['vorticity'].append(np.std(vorticity_full))  
-                    ch_mean['streamfunction'].append(np.mean(stream_full))
-                    ch_std['streamfunction'].append(np.std(stream_full))
-                    ch_mean['velocity_x'].append(np.mean(velocity_x_full))
-                    ch_std['velocity_x'].append(np.std(velocity_x_full))
-                    ch_mean['velocity_y'].append(np.mean(velocity_y_full))
-                    ch_std['velocity_y'].append(np.std(velocity_y_full))
-                    ch_mean['pressure'].append(np.mean(pressure_full))
-                    ch_std['pressure'].append(np.std(pressure_full))
-                    ch_mean['forcing_x'].append(np.mean(forcing_x_full))
-                    ch_std['forcing_x'].append(np.std(forcing_x_full))
-                    ch_mean['forcing_y'].append(np.mean(forcing_y_full))
-                    ch_std['forcing_y'].append(np.std(forcing_y_full))
+                    ch['vorticity'].append(np.mean(vorticity_full)) # avg over the domain
+                    ch['streamfunction'].append(np.mean(stream_full))
+                    ch['velocity_x'].append(np.mean(velocity_x_full))
+                    ch['velocity_y'].append(np.mean(velocity_y_full))
+                    ch['pressure'].append(np.mean(pressure_full))
+                    ch['forcing_x'].append(np.mean(forcing_x_full))
+                    ch['forcing_y'].append(np.mean(forcing_y_full))
 
                     # Write to shard (T, C, H, W)
                     shard_mm[t_written_in_shard, 0] = vorticity_full.astype(np_dtype, copy=False)
@@ -712,39 +704,27 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
         'source': data_path,
         'dtype': str(dtype),
         'axis_order': 'TCHW',
-        'shape': {'T': int(T_total_all), 'C': len(ch_mean.keys()), 'H': int(H), 'W': int(W_full)},
+        'shape': {'T': int(T_total_all), 'C': len(ch.keys()), 'H': int(H), 'W': int(W_full)},
         'shard_size': int(shard_size),
         'num_shards': int(len(shard_files)),
         'shards': shard_files,
         'normalizer': {
             'type': 'zscore',
             'vorticity': {
-                'mean': float(np.mean(ch_mean['vorticity'])),
-                'std': float(np.std(ch_mean['vorticity']))
+                'mean': float(np.mean(ch['vorticity'])),
+                'std': float(np.std(ch['vorticity']))
             },
             'streamfunction': {
-                'mean': float(np.mean(ch_mean['streamfunction'])),
-                'std': float(np.std(ch_mean['streamfunction']))
-            },
-            'velocity_x': {
-                'mean': float(np.mean(ch_mean['velocity_x'])),
-                'std': float(np.std(ch_mean['velocity_x']))
-            },
-            'velocity_y': {
-                'mean': float(np.mean(ch_mean['velocity_y'])),
-                'std': float(np.std(ch_mean['velocity_y']))
-            },
-            'pressure': {
-                'mean': float(np.mean(ch_mean['pressure'])),
-                'std': float(np.std(ch_mean['pressure']))
+                'mean': float(np.mean(ch['streamfunction'])),
+                'std': float(np.std(ch['streamfunction']))
             },
             'forcing_x': {
-                'mean': float(np.mean(ch_mean['forcing_x'])),
-                'std': float(np.std(ch_mean['forcing_x']))
+                'mean': float(np.mean(ch['forcing_x'])),
+                'std': float(np.std(ch['forcing_x']))
             },
             'forcing_y': {
-                'mean': float(np.mean(ch_mean['forcing_y'])),
-                'std': float(np.std(ch_mean['forcing_y']))
+                'mean': float(np.mean(ch['forcing_y'])),
+                'std': float(np.std(ch['forcing_y']))
             }
             }
     }
