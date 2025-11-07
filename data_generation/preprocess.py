@@ -1055,4 +1055,4 @@ if __name__ == '__main__':
     #### Dedalus datasets
     states = ['train', 'val', 'test']
     for state in states:
-        preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus/', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/Forcing/'+state, shard_size=2048, dtype='float16', state=state)
+        preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/Forcing/'+state, shard_size=2048, dtype='float16', state=state)
