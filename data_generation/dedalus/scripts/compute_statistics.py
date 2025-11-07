@@ -25,6 +25,7 @@ import sys
 import numpy as np
 import os
 import h5py
+from tqdm import tqdm
 # Add parent directory to path
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
@@ -234,27 +235,119 @@ def main():
     print("\n" + "=" * 70)
 
 
-def compute_mean_std_from_h5():
+def compute_mean_std_from_h5(chunk_size=100):
+    """
+    Compute mean and std from HDF5 file using streaming/chunked reading.
+    This avoids loading the entire dataset into memory.
+    
+    Uses vectorized batch updates for efficiency.
+    
+    Args:
+        chunk_size: Number of timesteps to process at once (default: 100)
+    """
     folder = '/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0000/snapshots'
     data_file = os.path.join(folder, 'snapshots_s1.h5')
 
     with h5py.File(data_file, 'r') as f:
         for key in f['tasks'].keys():
-            print(key)
-            var = np.array(f['tasks'][key][:])
-            # print(f"shape: {var.shape}")
-            if len(var.shape) == 4: # (T, C, H, W)
-                for c in range(var.shape[1]):
-                    var_c = var[:, c, :, :]
-                    print(f"shape: {var_c.shape} for channel {c}")
-                    print(f"mean: {var_c.mean()}")
-                    print(f"std: {var_c.std()}")
-            else: # (T, H, W)
-                print(f"shape: {var.shape}")
-                print(f"mean: {var.mean()}")
-                print(f"std: {var.std()}")
+            print(f"\n{key}")
+            dataset = f['tasks'][key]
+            shape = dataset.shape
+            
+            if len(shape) == 4:  # (T, C, H, W)
+                T, C, H, W = shape
+                print(f"  Shape: {shape}")
+                
+                for c in range(C):
+                    # Initialize statistics
+                    mean = 0.0
+                    M2 = 0.0  # Sum of squares of differences
+                    count = 0
+                    
+                    # Process in chunks to avoid memory issues
+                    n_chunks = (T + chunk_size - 1) // chunk_size
+                    for t_start in tqdm(range(0, T, chunk_size), desc=f"  Channel {c}", total=n_chunks, leave=False):
+                        t_end = min(t_start + chunk_size, T)
+                        # Read chunk: (chunk_size, H, W)
+                        chunk = dataset[t_start:t_end, c, :, :]
+                        chunk_flat = chunk.flatten()  # Flatten for vectorized computation
+                        n_samples = len(chunk_flat)
+                        
+                        # Vectorized batch update using Welford's algorithm
+                        if count == 0:
+                            # First chunk
+                            mean = chunk_flat.mean()
+                            M2 = ((chunk_flat - mean) ** 2).sum()
+                        else:
+                            # Update with new chunk
+                            old_mean = mean
+                            new_mean = chunk_flat.mean()
+                            mean = (count * mean + n_samples * new_mean) / (count + n_samples)
+                            
+                            # Update M2 (sum of squared differences)
+                            # M2_new = sum((x - new_mean)^2) for new chunk
+                            M2_new = ((chunk_flat - new_mean) ** 2).sum()
+                            # Correction term for combining batches
+                            correction = count * n_samples * ((old_mean - new_mean) ** 2) / (count + n_samples)
+                            M2 = M2 + M2_new + correction
+                        
+                        count += n_samples
+                    
+                    # Compute final std
+                    if count > 1:
+                        std = np.sqrt(M2 / count)
+                    else:
+                        std = 0.0
+                    
+                    print(f"  Channel {c}:")
+                    print(f"    mean: {mean:.6e}")
+                    print(f"    std:  {std:.6e}")
+                    
+            elif len(shape) == 3:  # (T, H, W)
+                T, H, W = shape
+                print(f"  Shape: {shape}")
+                
+                # Initialize statistics
+                mean = 0.0
+                M2 = 0.0
+                count = 0
+                
+                # Process in chunks
+                n_chunks = (T + chunk_size - 1) // chunk_size
+                for t_start in tqdm(range(0, T, chunk_size), desc="  Processing", total=n_chunks, leave=False):
+                    t_end = min(t_start + chunk_size, T)
+                    # Read chunk: (chunk_size, H, W)
+                    chunk = dataset[t_start:t_end, :, :]
+                    chunk_flat = chunk.flatten()
+                    n_samples = len(chunk_flat)
+                    
+                    # Vectorized batch update
+                    if count == 0:
+                        mean = chunk_flat.mean()
+                        M2 = ((chunk_flat - mean) ** 2).sum()
+                    else:
+                        old_mean = mean
+                        new_mean = chunk_flat.mean()
+                        mean = (count * mean + n_samples * new_mean) / (count + n_samples)
+                        
+                        M2_new = ((chunk_flat - new_mean) ** 2).sum()
+                        correction = count * n_samples * ((old_mean - new_mean) ** 2) / (count + n_samples)
+                        M2 = M2 + M2_new + correction
+                    
+                    count += n_samples
+                
+                # Compute final std
+                if count > 1:
+                    std = np.sqrt(M2 / count)
+                else:
+                    std = 0.0
+                
+                print(f"  mean: {mean:.6e}")
+                print(f"  std:  {std:.6e}")
+            else:
+                print(f"  Shape: {shape} (unexpected dimensionality)")
 
 
 if __name__ == "__main__":
-    compute_mean_std_from_h5()
-    main()
+    compute_mean_std_from_h5(chunk_size=200)
+    # main()
