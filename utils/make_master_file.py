@@ -403,6 +403,9 @@ if not torch.cuda.is_available():
                           }
 else:
     DATASET_DICT[name] =  {'data_path': '/scratch3/wan410/operator_learning_data/Dedalus/', 
+                            'train_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_000%i/snapshots'%i for i in range(8)],
+                            'val_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0008/snapshots/'],
+                            'test_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0009/snapshots/'],
                           }
 DATASET_DICT[name]['train_range'] = (2000, 7000)  # 5k samples (100-350 s)
 DATASET_DICT[name]['test_range'] = (7500, 8500) # 1k samples (375s - 425s)

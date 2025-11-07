@@ -15,6 +15,9 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import json
 import sys
+from multiprocessing import Pool, cpu_count
+from functools import partial
+import time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.make_master_file import DATASET_DICT
 # from data_generation.cfdbench import get_auto_dataset
@@ -409,7 +412,20 @@ def preprocess_ns2d_longrollout(load_path='data/large/pdearena/NavierStokes-2D',
         # continue
 
 
-def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/large/dedalus_memmap', shard_size=2048, dtype='float16'):
+def _read_slice_from_file(args):
+    """Helper function to read a single slice from a file (for multiprocessing)."""
+    file_path, t = args
+    with h5py.File(file_path, 'r') as f:
+        vorticity_slice = np.array(f['tasks/vorticity'][t], dtype=np.float32)
+        stream_slice = np.array(f['tasks/streamfunction'][t], dtype=np.float32)
+        velocity_x_slice = np.array(f['tasks/velocity'][t, 0], dtype=np.float32)
+        velocity_y_slice = np.array(f['tasks/velocity'][t, 1], dtype=np.float32)
+        pressure_slice = np.array(f['tasks/pressure'][t], dtype=np.float32)
+        forcing_slice = np.array(f['tasks/forcing'][t], dtype=np.float32)
+    return (vorticity_slice, stream_slice, velocity_x_slice, velocity_y_slice, pressure_slice, forcing_slice)
+
+
+def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/large/dedalus_memmap', shard_size=2048, dtype='float16', state='train', num_workers=None):
     """
     Preprocess Dedalus virtual dataset (p0–p15 spatial slices) into memmap shards.
 
@@ -422,123 +438,298 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
       - Source at DATASET_DICT[dataset_name]['data_path'] points to snapshots_s1.h5 (virtual dataset root)
       - 16 slice files exist alongside it: snapshots_s1_p00.h5 ... snapshots_s1_p15.h5
       - Channels: vorticity, streamfunction → C=2
+    
+    Args:
+        num_workers: Number of parallel workers for reading files. If None, uses cpu_count().
     """
     
+    if num_workers is None:
+        # Check for SLURM CPU allocation first, then NUM_WORKERS env var, then use all CPUs
+        num_workers = int(os.environ.get('SLURM_CPUS_PER_TASK', 
+                                         os.environ.get('NUM_WORKERS', 
+                                                       cpu_count())))
+    print(f"Using {num_workers} workers for parallel file reading")
 
     os.makedirs(save_dir, exist_ok=True)
     shards_dir = os.path.join(save_dir, 'shards')
     os.makedirs(shards_dir, exist_ok=True)
     print("keys", DATASET_DICT[dataset_name].keys())
-    data_path = DATASET_DICT[dataset_name]['data_path']
-    base_path = data_path.replace('.h5', '')
-    file_paths = [f"{base_path}/snapshots_s1_p{i:d}.h5" for i in range(16)]
-
-    # Probe metadata
-    with h5py.File(file_paths[0], 'r') as f0:
-        T_total, H, W_partial = f0['tasks/vorticity'].shape
-        W_full = W_partial * 16
-
+    data_path = DATASET_DICT[dataset_name][state + '_raw_path'] # it is a list of folders with the data
+    
+    # Handle both list and single path for backward compatibility
+    if isinstance(data_path, str):
+        realization_paths = [data_path]
+    else:
+        realization_paths = data_path
+    
+    # Calculate total timesteps for global progress bar
+    total_timesteps = 0
+    for realization_path in realization_paths:
+        base_path = realization_path.replace('.h5', '')
+        first_file = f"{base_path}/snapshots_s1_p0.h5"
+        if os.path.exists(first_file):
+            with h5py.File(first_file, 'r') as f:
+                T_realization, _, _ = f['tasks/vorticity'].shape
+                total_timesteps += T_realization
+    
     # Configure dtype
     np_dtype = np.float16 if str(dtype) == 'float16' else np.float32
 
-    # Streaming min/max (per-channel)
-    ch_min = np.array([np.inf, np.inf, np.inf, np.inf, np.inf], dtype=np.float64)
-    ch_max = np.array([-np.inf, -np.inf, -np.inf, -np.inf, -np.inf], dtype=np.float64)
+    # Streaming min/std (per-channel) - accumulate across all realizations
+    ch_mean = {'vorticity': [], 'streamfunction': [], 'velocity_x': [], 'velocity_y': [], 'pressure': [], 'forcing': []}
+    ch_std = {'vorticity': [], 'streamfunction': [], 'velocity_x': [], 'velocity_y': [], 'pressure': [], 'forcing': []}
+
+    # Initialize shard variables (shared across all realizations)
+    shard_index = 0
+    t_written_in_shard = 0
+    shard_files = []
+    H = None
+    W_full = None
+    T_total_all = 0  # Total timesteps across all realizations
+    shard_path = None
+    shard_mm = None
+    curr_shard_len = None
 
     # Allocate shards on demand
     def open_shard(shard_index, shard_len):
         fname = os.path.join(shards_dir, f'shard_{shard_index:05d}.dat')
-        mm = np.memmap(fname, dtype=np_dtype, mode='w+', shape=(shard_len, 5, H, W_full))
+        mm = np.memmap(fname, dtype=np_dtype, mode='w+', shape=(shard_len, 6, H, W_full))
         return fname, mm
 
-    shard_index = 0
-    t_written_in_shard = 0
-    # Determine current shard length (last shard might be shorter)
-    curr_shard_len = min(shard_size, T_total)
-    shard_path, shard_mm = open_shard(shard_index, curr_shard_len)
+    # Create global progress bar (shared across all realizations)
+    print(f"Total timesteps to process: {total_timesteps}")
+    global_pbar = tqdm(total=total_timesteps, desc='Overall progress', unit='timestep', position=0, leave=True)
+    start_time = time.time()
 
-    shard_files = []
+    # Loop over all realizations
+    for realization_idx, realization_path in enumerate(realization_paths):
+        base_path = realization_path.replace('.h5', '')
+        file_paths = [f"{base_path}/snapshots_s1_p{i:d}.h5" for i in range(16)]
 
-    # Iterate over all timesteps and write contiguously
-    for t in tqdm(range(T_total), desc='Building memmap shards from Dedalus'):
-        vorticity_slices = []
-        stream_slices = []
-        velocity_x_slices = []
-        velocity_y_slices = []
-        pressure_slices = []
-        for fp in file_paths:
-            with h5py.File(fp, 'r') as f:
-                vorticity_slice = np.array(f['tasks/vorticity'][t], dtype=np.float32)
-                stream_slice = np.array(f['tasks/streamfunction'][t], dtype=np.float32)
-                velocity_x_slice = np.array(f['tasks/velocity'][t, 0], dtype=np.float32)
-                velocity_y_slice = np.array(f['tasks/velocity'][t, 1], dtype=np.float32)
-                pressure_slice = np.array(f['tasks/pressure'][t], dtype=np.float32)
-                vorticity_slices.append(vorticity_slice)
-                stream_slices.append(stream_slice)
-                velocity_x_slices.append(velocity_x_slice)
-                velocity_y_slices.append(velocity_y_slice)
-                pressure_slices.append(pressure_slice)
+        # Probe metadata (first time only, or verify consistency)
+        with h5py.File(file_paths[0], 'r') as f0:
+            T_realization, H_realization, W_partial = f0['tasks/vorticity'].shape
+            W_full_realization = W_partial * 16
+            
+            if H is None:
+                # First realization: initialize dimensions
+                H = H_realization
+                W_full = W_full_realization
+                # Initialize first shard
+                curr_shard_len = min(shard_size, T_realization)
+                shard_path, shard_mm = open_shard(shard_index, curr_shard_len)
+            else:
+                # Verify dimensions are consistent
+                assert H == H_realization, f"Height mismatch: {H} vs {H_realization}"
+                assert W_full == W_full_realization, f"Width mismatch: {W_full} vs {W_full_realization}"
 
-        vorticity_full = np.concatenate(vorticity_slices, axis=1)  # (H, W)
-        stream_full = np.concatenate(stream_slices, axis=1)        # (H, W)
-        velocity_x_full = np.concatenate(velocity_x_slices, axis=1)  # (H, W)
-        velocity_y_full = np.concatenate(velocity_y_slices, axis=1)  # (H, W)
-        pressure_full = np.concatenate(pressure_slices, axis=1)      # (H, W)
-        # print("vorticity_full.shape", vorticity_full.shape)
-        # print("stream_full.shape", stream_full.shape)
-        # print("velocity_x_full.shape", velocity_x_full.shape)
-        # print("velocity_y_full.shape", velocity_y_full.shape)
-        # print("pressure_full.shape", pressure_full.shape)
-        # Update stats
-        ch_min[0] = min(ch_min[0], float(vorticity_full.min()))
-        ch_max[0] = max(ch_max[0], float(vorticity_full.max()))
-        ch_min[1] = min(ch_min[1], float(stream_full.min()))
-        ch_max[1] = max(ch_max[1], float(stream_full.max()))
-        ch_min[2] = min(ch_min[2], float(velocity_x_full.min()))
-        ch_max[2] = max(ch_max[2], float(velocity_x_full.max()))
-        ch_min[3] = min(ch_min[3], float(velocity_y_full.min()))
-        ch_max[3] = max(ch_max[3], float(velocity_y_full.max()))
-        ch_min[4] = min(ch_min[4], float(pressure_full.min()))
-        ch_max[4] = max(ch_max[4], float(pressure_full.max()))
+        print(f"Processing realization {realization_idx + 1}/{len(realization_paths)}: {realization_path} ({T_realization} timesteps)")
+        
+        # Iterate over all timesteps in this realization and write contiguously
+        if num_workers > 1:
+            # Use multiprocessing to read files in parallel
+            with Pool(processes=num_workers) as pool:
+                for t in range(T_realization):
+                    # Prepare arguments for parallel reading: (file_path, timestep) for each of 16 files
+                    read_args = [(fp, t) for fp in file_paths]
+                    
+                    # Read all 16 slices in parallel
+                    results = pool.map(_read_slice_from_file, read_args)
+                    
+                    # Unpack results and organize by channel
+                    vorticity_slices = [r[0] for r in results]
+                    stream_slices = [r[1] for r in results]
+                    velocity_x_slices = [r[2] for r in results]
+                    velocity_y_slices = [r[3] for r in results]
+                    pressure_slices = [r[4] for r in results]
+                    forcing_slices = [r[5] for r in results]
+                    
+                    # Process this timestep (concatenate, compute stats, write to shard)
+                    vorticity_full = np.concatenate(vorticity_slices, axis=1)  # (H, W)
+                    stream_full = np.concatenate(stream_slices, axis=1)        # (H, W)
+                    velocity_x_full = np.concatenate(velocity_x_slices, axis=1)  # (H, W)
+                    velocity_y_full = np.concatenate(velocity_y_slices, axis=1)  # (H, W)
+                    pressure_full = np.concatenate(pressure_slices, axis=1)      # (H, W)
+                    forcing_full = np.concatenate(forcing_slices, axis=1)        # (H, W)
+                    
+                    # Update stats
+                    ch_mean['vorticity'].append(np.mean(vorticity_full))
+                    ch_std['vorticity'].append(np.std(vorticity_full))  
+                    ch_mean['streamfunction'].append(np.mean(stream_full))
+                    ch_std['streamfunction'].append(np.std(stream_full))
+                    ch_mean['velocity_x'].append(np.mean(velocity_x_full))
+                    ch_std['velocity_x'].append(np.std(velocity_x_full))
+                    ch_mean['velocity_y'].append(np.mean(velocity_y_full))
+                    ch_std['velocity_y'].append(np.std(velocity_y_full))
+                    ch_mean['pressure'].append(np.mean(pressure_full))
+                    ch_std['pressure'].append(np.std(pressure_full))
+                    ch_mean['forcing'].append(np.mean(forcing_full))
+                    ch_std['forcing'].append(np.std(forcing_full))
 
-        # Write to shard (T, C, H, W)
-        shard_mm[t_written_in_shard, 0] = vorticity_full.astype(np_dtype, copy=False)
-        shard_mm[t_written_in_shard, 1] = stream_full.astype(np_dtype, copy=False)
-        shard_mm[t_written_in_shard, 2] = velocity_x_full.astype(np_dtype, copy=False)
-        shard_mm[t_written_in_shard, 3] = velocity_y_full.astype(np_dtype, copy=False)
-        shard_mm[t_written_in_shard, 4] = pressure_full.astype(np_dtype, copy=False)
-        t_written_in_shard += 1
+                    # Write to shard (T, C, H, W)
+                    shard_mm[t_written_in_shard, 0] = vorticity_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 1] = stream_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 2] = velocity_x_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 3] = velocity_y_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 4] = pressure_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 5] = forcing_full.astype(np_dtype, copy=False)
+                    t_written_in_shard += 1
+                    T_total_all += 1
+                    
+                    # Update global progress bar
+                    global_pbar.update(1)
 
-        # Rotate shard if full
-        if t_written_in_shard == curr_shard_len and t != T_total - 1:
-            # finalize current shard
-            shard_mm.flush()
-            shard_files.append({'file': os.path.relpath(shard_path, start=save_dir), 'length': int(curr_shard_len)})
-            # open next shard
-            shard_index += 1
-            remaining = T_total - (shard_index * shard_size)
-            curr_shard_len = min(shard_size, remaining)
-            shard_path, shard_mm = open_shard(shard_index, curr_shard_len)
-            t_written_in_shard = 0
+                    # Rotate shard if full
+                    if t_written_in_shard == curr_shard_len:
+                        # finalize current shard
+                        shard_mm.flush()
+                        shard_files.append({'file': os.path.relpath(shard_path, start=save_dir), 'length': int(curr_shard_len)})
+                        # Check if there are more timesteps to process
+                        is_last_timestep = (realization_idx == len(realization_paths) - 1) and (t == T_realization - 1)
+                        if not is_last_timestep:
+                            # open next shard
+                            shard_index += 1
+                            # Calculate remaining timesteps if we're in the last realization
+                            if realization_idx == len(realization_paths) - 1:
+                                # Last realization: calculate remaining timesteps
+                                remaining_in_realization = T_realization - (t + 1)
+                                curr_shard_len = min(shard_size, remaining_in_realization)
+                            else:
+                                # Not last realization: use full shard_size
+                                curr_shard_len = shard_size
+                            shard_path, shard_mm = open_shard(shard_index, curr_shard_len)
+                            t_written_in_shard = 0
+        else:
+            # Sequential reading (no multiprocessing overhead)
+            h5_files = [h5py.File(fp, 'r') for fp in file_paths]
+            try:
+                for t in range(T_realization):
+                    vorticity_slices = []
+                    stream_slices = []
+                    velocity_x_slices = []
+                    velocity_y_slices = []
+                    pressure_slices = []
+                    forcing_slices = []
+                    for f in h5_files:
+                        vorticity_slice = np.array(f['tasks/vorticity'][t], dtype=np.float32)
+                        stream_slice = np.array(f['tasks/streamfunction'][t], dtype=np.float32)
+                        velocity_x_slice = np.array(f['tasks/velocity'][t, 0], dtype=np.float32)
+                        velocity_y_slice = np.array(f['tasks/velocity'][t, 1], dtype=np.float32)
+                        pressure_slice = np.array(f['tasks/pressure'][t], dtype=np.float32)
+                        forcing_slice = np.array(f['tasks/forcing'][t], dtype=np.float32)
+                        vorticity_slices.append(vorticity_slice)
+                        stream_slices.append(stream_slice)
+                        velocity_x_slices.append(velocity_x_slice)
+                        velocity_y_slices.append(velocity_y_slice)
+                        pressure_slices.append(pressure_slice)
+                        forcing_slices.append(forcing_slice)
+                    
+                    # Process this timestep (concatenate, compute stats, write to shard)
+                    vorticity_full = np.concatenate(vorticity_slices, axis=1)  # (H, W)
+                    stream_full = np.concatenate(stream_slices, axis=1)        # (H, W)
+                    velocity_x_full = np.concatenate(velocity_x_slices, axis=1)  # (H, W)
+                    velocity_y_full = np.concatenate(velocity_y_slices, axis=1)  # (H, W)
+                    pressure_full = np.concatenate(pressure_slices, axis=1)      # (H, W)
+                    forcing_full = np.concatenate(forcing_slices, axis=1)        # (H, W)
+                    
+                    # Update stats
+                    ch_mean['vorticity'].append(np.mean(vorticity_full))
+                    ch_std['vorticity'].append(np.std(vorticity_full))  
+                    ch_mean['streamfunction'].append(np.mean(stream_full))
+                    ch_std['streamfunction'].append(np.std(stream_full))
+                    ch_mean['velocity_x'].append(np.mean(velocity_x_full))
+                    ch_std['velocity_x'].append(np.std(velocity_x_full))
+                    ch_mean['velocity_y'].append(np.mean(velocity_y_full))
+                    ch_std['velocity_y'].append(np.std(velocity_y_full))
+                    ch_mean['pressure'].append(np.mean(pressure_full))
+                    ch_std['pressure'].append(np.std(pressure_full))
+                    ch_mean['forcing'].append(np.mean(forcing_full))
+                    ch_std['forcing'].append(np.std(forcing_full))
+
+                    # Write to shard (T, C, H, W)
+                    shard_mm[t_written_in_shard, 0] = vorticity_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 1] = stream_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 2] = velocity_x_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 3] = velocity_y_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 4] = pressure_full.astype(np_dtype, copy=False)
+                    shard_mm[t_written_in_shard, 5] = forcing_full.astype(np_dtype, copy=False)
+                    t_written_in_shard += 1
+                    T_total_all += 1
+                    
+                    # Update global progress bar
+                    global_pbar.update(1)
+
+                    # Rotate shard if full
+                    if t_written_in_shard == curr_shard_len:
+                        # finalize current shard
+                        shard_mm.flush()
+                        shard_files.append({'file': os.path.relpath(shard_path, start=save_dir), 'length': int(curr_shard_len)})
+                        # Check if there are more timesteps to process
+                        is_last_timestep = (realization_idx == len(realization_paths) - 1) and (t == T_realization - 1)
+                        if not is_last_timestep:
+                            # open next shard
+                            shard_index += 1
+                            # Calculate remaining timesteps if we're in the last realization
+                            if realization_idx == len(realization_paths) - 1:
+                                # Last realization: calculate remaining timesteps
+                                remaining_in_realization = T_realization - (t + 1)
+                                curr_shard_len = min(shard_size, remaining_in_realization)
+                            else:
+                                # Not last realization: use full shard_size
+                                curr_shard_len = shard_size
+                            shard_path, shard_mm = open_shard(shard_index, curr_shard_len)
+                            t_written_in_shard = 0
+            finally:
+                for f in h5_files:
+                    f.close()
+
+    # Close global progress bar
+    global_pbar.close()
+    elapsed_time = time.time() - start_time
+    print(f"\nCompleted processing {T_total_all} timesteps in {elapsed_time:.2f} seconds ({elapsed_time/3600:.2f} hours)")
+    print(f"Average speed: {T_total_all/elapsed_time:.2f} timesteps/second")
 
     # finalize last shard
-    shard_mm.flush()
-    shard_files.append({'file': os.path.relpath(shard_path, start=save_dir), 'length': int(t_written_in_shard) if T_total % shard_size != 0 else int(curr_shard_len)})
+    if shard_mm is not None and t_written_in_shard > 0:
+        shard_mm.flush()
+        shard_files.append({'file': os.path.relpath(shard_path, start=save_dir), 'length': int(t_written_in_shard)})
 
     # Write meta.json
     meta = {
         'source': data_path,
         'dtype': str(dtype),
         'axis_order': 'TCHW',
-        'shape': {'T': int(T_total), 'C': len(ch_min), 'H': int(H), 'W': int(W_full)},
+        'shape': {'T': int(T_total_all), 'C': len(ch_mean.keys()), 'H': int(H), 'W': int(W_full)},
         'shard_size': int(shard_size),
         'num_shards': int(len(shard_files)),
         'shards': shard_files,
         'normalizer': {
-            'type': 'minmax',
-            'min': [float(ch_min[0]), float(ch_min[1])],
-            'max': [float(ch_max[0]), float(ch_max[1])]
-        }
+            'type': 'zscore',
+            'vorticity': {
+                'mean': float(np.mean(ch_mean['vorticity'])),
+                'std': float(np.std(ch_mean['vorticity']))
+            },
+            'streamfunction': {
+                'mean': float(np.mean(ch_mean['streamfunction'])),
+                'std': float(np.std(ch_mean['streamfunction']))
+            },
+            'velocity_x': {
+                'mean': float(np.mean(ch_mean['velocity_x'])),
+                'std': float(np.std(ch_mean['velocity_x']))
+            },
+            'velocity_y': {
+                'mean': float(np.mean(ch_mean['velocity_y'])),
+                'std': float(np.std(ch_mean['velocity_y']))
+            },
+            'pressure': {
+                'mean': float(np.mean(ch_mean['pressure'])),
+                'std': float(np.std(ch_mean['pressure']))
+            },
+            'forcing': {
+                'mean': float(np.mean(ch_mean['forcing'])),
+                'std': float(np.std(ch_mean['forcing']))
+            }
+            }
     }
 
     # attach splits if present
@@ -862,4 +1053,6 @@ if __name__ == '__main__':
 
 
     #### Dedalus datasets
-    preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='/scratch3/wan410/operator_learning_data/Dedalus', shard_size=2048, dtype='float16')
+    states = ['train', 'val', 'test']
+    for state in states:
+        preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus/', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/Forcing/'+state, shard_size=2048, dtype='float16', state=state)
