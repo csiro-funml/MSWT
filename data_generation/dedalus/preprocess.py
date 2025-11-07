@@ -256,7 +256,7 @@ def load_real_data(data_path, truncate_time=100, max_time=200, save_path=None):
 
 if __name__ == '__main__':
     # dirc_path = '/datasets/work/oa-tcch/work/forXuesong/data/realisation_0000/'
-    dirc_path = '/scratch3/wan410/operator_learning_data/Dedalus/'
+    # dirc_path = '/scratch3/wan410/operator_learning_data/Dedalus/'
     out_root = "/datastore/wan410/ns2d_dedalus/data/realisation_0000/" # I do not have access to write dirc_path
     
     ## Read the scalars (energy, enstrophy, palinstrophy)
@@ -266,6 +266,7 @@ if __name__ == '__main__':
     # plot_time_series(times, series, out_root+"plots", dpi=300)
 
     # Print data structure 
+    dirc_path = '/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0000/'
     print_data_structure(dirc_path)
     # load 1000 steps of variables (vorticity, streamfunction, pressure, velocity, timestep) and save to h5 file
     load_real_data(dirc_path, truncate_time=100, max_time=200, save_path=out_root)
