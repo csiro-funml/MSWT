@@ -7,13 +7,22 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --account=OD-230881
 #SBATCH --cpus-per-task=16        # Use 16 CPUs for multiprocessing (adjust based on node availability)
+#SBATCH --output=slurm-%j.out     # Explicit output file (job ID will be inserted)
+#SBATCH --error=slurm-%j.err      # Explicit error file
 # Note: GPU not needed for preprocessing, removed --gres=gpu:1
 
 
 module load pytorch/2.5.1-py312-cu122-mpi
 source $HOME/.venvs/pytorch/bin/activate
 
-# SLURM_CPUS_PER_TASK is automatically set by SLURM based on --cpus-per-task
+# Print job info immediately (helps verify job started)
+echo "=========================================="
+echo "Job started at: $(date)"
+echo "Job ID: $SLURM_JOB_ID"
+echo "Node: $SLURM_NODELIST"
+echo "Working directory: $(pwd)"
 echo "SLURM allocated $SLURM_CPUS_PER_TASK CPUs for this job"
+echo "=========================================="
 
-python3 preprocess.py
+# Run Python with unbuffered output (-u) so output appears immediately
+python3 -u preprocess.py
