@@ -426,7 +426,8 @@ def _read_slice_from_file(args):
     return (vorticity_slice, stream_slice, velocity_x_slice, velocity_y_slice, pressure_slice, forcing_x_slice, forcing_y_slice)
 
 
-def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/large/dedalus_memmap', shard_size=2048, dtype='float16', state='train', num_workers=None):
+def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/large/dedalus_memmap', 
+                        start_time_id=100, end_time_id=500, shard_size=2048, dtype='float16', state='train', num_workers=None):
     """
     Preprocess Dedalus virtual dataset (p0–p15 spatial slices) into memmap shards.
 
@@ -530,7 +531,7 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
         if num_workers > 1:
             # Use multiprocessing to read files in parallel
             with Pool(processes=num_workers) as pool:
-                for t in range(T_realization):
+                for t in range(start_time_id,T_realization):
                     # Prepare arguments for parallel reading: (file_path, timestep) for each of 16 files
                     read_args = [(fp, t) for fp in file_paths]
                     
@@ -720,31 +721,31 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
             'type': 'zscore',
             'vorticity': {
                 'mean': float(np.mean(ch_mean['vorticity'])),
-                'std': float(np.std(ch_mean['vorticity']))
+                'std': float(np.mean(ch_mean['vorticity']))
             },
             'streamfunction': {
                 'mean': float(np.mean(ch_mean['streamfunction'])),
-                'std': float(np.std(ch_mean['streamfunction']))
+                'std': float(np.mean(ch_mean['streamfunction']))
             },
             'velocity_x': {
                 'mean': float(np.mean(ch_mean['velocity_x'])),
-                'std': float(np.std(ch_mean['velocity_x']))
+                'std': float(np.mean(ch_mean['velocity_x']))
             },
             'velocity_y': {
                 'mean': float(np.mean(ch_mean['velocity_y'])),
-                'std': float(np.std(ch_mean['velocity_y']))
+                'std': float(np.mean(ch_mean['velocity_y']))
             },
             'pressure': {
                 'mean': float(np.mean(ch_mean['pressure'])),
-                'std': float(np.std(ch_mean['pressure']))
+                'std': float(np.mean(ch_mean['pressure']))
             },
             'forcing_x': {
                 'mean': float(np.mean(ch_mean['forcing_x'])),
-                'std': float(np.std(ch_mean['forcing_x']))
+                'std': float(np.mean(ch_mean['forcing_x']))
             },
             'forcing_y': {
                 'mean': float(np.mean(ch_mean['forcing_y'])),
-                'std': float(np.std(ch_mean['forcing_y']))
+                'std': float(np.mean(ch_mean['forcing_y']))
             }
             }
     }
@@ -1072,4 +1073,6 @@ if __name__ == '__main__':
     #### Dedalus datasets
     states = ['val', 'test','train']
     for state in states:
-        preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/Forcing/'+state, shard_size=2048, dtype='float16', state=state)
+        preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/Forcing/'+state, 
+        start_time_id=1000, # skip 1000 steps to keep stable initial condition
+        shard_size=2048, dtype='float16', state=state)
