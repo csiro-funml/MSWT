@@ -12,7 +12,7 @@ import pathlib
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from dedalus.extras import plot_tools
+# from dedalus.extras import plot_tools
 
 # Use non-interactive backend by default for batch processing
 matplotlib.use("Agg")
