@@ -206,6 +206,86 @@ class FNO2d(nn.Module):
         x = x.permute(0, 2, 3, 1).unsqueeze(-2)
         return x
 
+class FNO2d_Tin1_Tout1(nn.Module): # only use one timestep input and one timestep output
+    def __init__(self, modes1, modes2, width, img_size = 64, in_channels=1,out_channels=1,in_timesteps = 1, out_timesteps=1, n_layers=4, patch_size = 1, use_ln=True, multi_channel=True, normalize=False, n_cls=0, meanstd=False):
+        super(FNO2d_Tin1_Tout1, self).__init__()
+
+        """
+        The overall network. It contains 4 layers of the Fourier layer.
+        1. Lift the input to the desire channel dimension by self.fc0 .
+        2. 4 layers of the integral operators u' = (W + K)(u).
+            W defined by self.w; K defined by self.conv .
+        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+
+        input: the solution of the previous 10 timesteps + 2 locations (u(t-10, x, y), ..., u(t-1, x, y),  x, y)
+        input shape: (batchsize, x=64, y=64, c=12)
+        output: the solution of the next timestep
+        output shape: (batchsize, x=64, y=64, c=1)
+        """
+
+        self.modes1 = modes1
+        self.modes2 = modes2
+        self.width = width
+        self.n_layers = n_layers
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.in_timesteps = in_timesteps
+        self.out_timesteps = out_timesteps
+        self.img_size = img_size
+        self.use_ln = use_ln
+        self.padding = 2  # pad the domain if input is non-periodic
+        # self.patch_size = patch_size
+
+        self.normalize = normalize
+        self.n_cls = n_cls
+        self.meanstd = meanstd
+        # input channel is 12: the solution of the previous 10 timesteps + 2 locations (u(t-10, x, y), ..., u(t-1, x, y),  x, y)
+        self.fc0 = nn.Linear(in_timesteps*in_channels, self.width)
+
+        self.spectral_convs = nn.ModuleList([SpectralConv2d_fast(self.width, self.width, self.modes1, self.modes2) for _ in range(self.n_layers)])
+        self.convs = nn.ModuleList([nn.Conv2d(self.width, self.width, 1) for _ in range(self.n_layers)])
+        # self.ln_layers = nn.ModuleList([nn.LayerNorm([ self.in_shape[0], self.in_shape[1]]) for _ in range(self.n_layers)])
+        if self.normalize:
+            self.scale_feats = nn.Linear(2 * in_channels, width)
+        if self.use_ln:
+            self.ln_layers = nn.ModuleList([nn.GroupNorm(4, self.width) for _ in range(self.n_layers)])
+
+        self.fc1 = nn.Linear(self.width, self.width)
+
+        if self.meanstd:
+            self.fc2 = nn.Linear(self.width, out_channels * out_timesteps * 2)
+        else:
+            self.fc2 = nn.Linear(self.width, out_channels * out_timesteps)
+
+    def input_proj(self, x):
+        x = x.permute(0, 2, 3, 1).contiguous() # (B, H, W, C)
+        x = self.fc0(x) 
+        x = x.permute(0, 3, 1, 2).contiguous() # (B, C, H, W)
+        return x
+
+    def forward(self, x):
+        """
+        x: (B, C, H, W)
+        
+        """
+        x = self.input_proj(x)
+
+        for i in range(self.n_layers):
+            x1 = self.spectral_convs[i](x)
+            x2 = self.convs[i](x)
+            x = x1 + x2
+            if self.use_ln:
+                x = self.ln_layers[i](x)
+            x = F.gelu(x)
+
+        x = x.permute(0, 2, 3, 1) # (B, H, W, C)
+        x = self.fc1(x) # mlp
+
+        x = F.gelu(x)
+        x = self.fc2(x)    # (B, H, W, C_out)
+        x = x.permute(0, 3, 1, 2) # (B, C_out, H, W)
+        return x
+
 if __name__ == "__main__":
     # x = torch.rand(1, 128, 128, 10, 1)
     # model = FNO2d(12, 12, 32, 128)
