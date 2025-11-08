@@ -1520,7 +1520,234 @@ class MemmapDedalusDataset2D(Dataset):
         return u_down
 
 
+class MemmapDedalusBigDataset2D(Dataset):
+    """
+    Dataset that reads Dedalus preprocessed memmap shards from the Forcing dataset.
+    Data is stored at "operator_learning_data/Dedalus/Forcing/{train|val|test}/shards"
     
+    Provides (x, y) where shapes are (H, W, t_in, C) and (H, W, t_out, C).
+    Uses 7 channels: [vorticity, streamfunction, velocity_x, velocity_y, pressure, forcing_x, forcing_y]
+    """
+    def __init__(self, data_name, memmap_dir=None, t_in=10, t_ar=1, form='vorticity', normalize=False, train='train', downsample=None, temporal_downsample=None, strategy=None):
+        super().__init__()
+        self.data_name = data_name
+        base_path = DATASET_DICT[data_name]['data_path'] if memmap_dir is None else memmap_dir
+        self.memmap_dir = os.path.join(base_path, train)  # e.g., .../Forcing/train
+        self.train = train
+        self.t_in = t_in
+        self.t_out = t_ar
+        self.form = form
+        self.normalize = normalize
+        # Read dataset config
+        self.temporal_downsample = DATASET_DICT[data_name]['temporal_downsample'] if temporal_downsample is None else temporal_downsample
+        self.downsample = DATASET_DICT[data_name]['downsample'] if downsample is None else downsample
+        in_size = DATASET_DICT[data_name]['in_size']
+        self.res = (in_size[0]//self.downsample[0], in_size[1]//self.downsample[1])
+
+        # Load meta.json from the train directory to get stats
+        train_meta_path = os.path.join(base_path, 'train', 'meta.json')
+        with open(train_meta_path, 'r') as fp:
+            train_meta = json.load(fp)
+        
+        # Load meta.json from current split to get shards and size
+        meta_path = os.path.join(self.memmap_dir, 'meta.json')
+        with open(meta_path, 'r') as fp:
+            meta = json.load(fp)
+
+        self.dtype = np.float16 if meta.get('dtype', 'float16') == 'float16' else np.float32
+        shape = meta['shape']  # {'T':..., 'C':..., 'H':..., 'W':...}
+        self.T_total = int(shape['T'])  # Total timesteps in this split
+        self.C_all = 7  # 7 channels: vorticity, streamfunction, velocity_x, velocity_y, pressure, forcing_x, forcing_y
+        self.H = int(shape['H'])
+        self.W = int(shape['W'])
+        self.shards = meta['shards']
+        self.axis_order = meta.get('axis_order', 'TCHW')
+
+        # Choose channels based on form
+        # Preprocess order: [vorticity, streamfunction, velocity_x, velocity_y, pressure, forcing_x, forcing_y]
+        if self.form == 'vorticity':
+            self.channel_indices = [0, 1, 5, 6]  # vorticity, streamfunction, forcing_x, forcing_y 
+        else:
+            self.channel_indices = [4, 2, 3, 5, 6]  # pressure, velocity_x, velocity_y
+        self.n_channels = len(self.channel_indices)
+
+        # Build shard index map: global t -> (shard_idx, local_t)
+        self._t_offsets = []
+        offset = 0
+        for s in self.shards:
+            self._t_offsets.append((offset, s['file'], int(s['length'])))
+            offset += int(s['length'])
+
+        # Use all available timesteps in this split (no predefined range)
+        self.start_idx = 0
+        self.end_idx = self.T_total
+        self.n_size = self.T_total
+
+        # Effective number of samples within the specified split
+        window = self.t_in + self.t_out
+        if self.temporal_downsample == 1:
+            self.num_samples = max(0, self.n_size - window)
+        else:
+            self.num_samples = max(0, self.n_size - self.temporal_downsample * window)
+
+        # Keep per-worker cache of open memmaps
+        self._mmaps = {}
+
+        # Load normalizer stats from train meta.json
+        self.norm_mean = None
+        self.norm_std = None
+        if self.normalize:
+            normalizer = train_meta.get('normalizer', {})
+            if normalizer.get('type') == 'zscore':
+                # Extract mean and std for selected channels
+                channel_names = ['vorticity', 'streamfunction', 'velocity_x', 'velocity_y', 'pressure', 'forcing_x', 'forcing_y']
+                means = []
+                stds = []
+                for idx in self.channel_indices:
+                    ch_name = channel_names[idx]
+                    if ch_name in normalizer:
+                        means.append(float(normalizer[ch_name]['mean']))
+                        stds.append(float(normalizer[ch_name]['std']))
+                    else:
+                        means.append(0.0)
+                        stds.append(1.0)
+                self.norm_mean = torch.tensor(means, dtype=torch.float32)
+                self.norm_std = torch.tensor(stds, dtype=torch.float32)
+                print(f"Loaded normalizer stats from {train_meta_path}")
+                print(f"  Mean: {self.norm_mean}")
+                print(f"  Std: {self.norm_std}")
+
+    def _locate(self, t):
+        # Find shard containing timestep t
+        for idx, (offset, relpath, length) in enumerate(self._t_offsets):
+            if t < offset + length:
+                return idx, offset, relpath, length
+        raise IndexError(f'timestep {t} out of range (max: {self._t_offsets[-1][0] + self._t_offsets[-1][2] - 1})')
+
+    def _get_mmap(self, relpath):
+        if relpath not in self._mmaps:
+            # relpath already includes "shards/" prefix from meta.json
+            path = os.path.join(self.memmap_dir, relpath)
+            # Open memmap as read-only
+            mm = np.memmap(path, dtype=self.dtype, mode='r')
+            self._mmaps[relpath] = mm
+        return self._mmaps[relpath]
+
+    def _read_window(self, t0, length):
+        # Read [t0, t0+length) across shards, concatenate along time
+        chunks = []
+        remaining = length
+        cur_t = t0
+        while remaining > 0:
+            shard_idx, shard_offset, relpath, shard_len = self._locate(cur_t)
+            local_t = cur_t - shard_offset
+            take = min(remaining, shard_len - local_t)
+            mm = self._get_mmap(relpath)
+            # reshape memmap view to (T_shard, C, H, W)
+            Tsh = shard_len
+            view = np.ndarray(shape=(Tsh, self.C_all, self.H, self.W), dtype=self.dtype, buffer=mm)
+            chunks.append(view[local_t:local_t+take])
+            remaining -= take
+            cur_t += take
+        return np.concatenate(chunks, axis=0)
+
+    def __getitem__(self, index):
+        # Compute global start timestep in the selected split
+        t0_global = self.start_idx + index
+        # Read the full temporal window
+        if self.temporal_downsample == 1:
+            # No temporal downsampling, use full window directly
+            total_window = self.t_in + self.t_out
+            data_tc_hw_full = self._read_window(t0_global, total_window)  # (T, C_all, H, W)
+            data_tc_hw = data_tc_hw_full
+        else:
+            # Apply temporal downsampling
+            total_window = self.temporal_downsample * (self.t_in + self.t_out)
+            data_tc_hw_full = self._read_window(t0_global, total_window)  # (T_full, C_all, H, W)
+            data_tc_hw = data_tc_hw_full[::self.temporal_downsample]  # (T, C_all, H, W) where T = t_in + t_out
+        
+        # Select channels
+        data_tc_hw = data_tc_hw[:, self.channel_indices]
+
+        # Downsample spatially (FFT-based) if needed
+        data_tc_hw = torch.from_numpy(data_tc_hw.astype(np.float32))  # (T, C, H, W)
+        if self.downsample != (1, 1):
+            target_N = self.H // self.downsample[0]
+            data_tc_hw = self.downsample_x(data_tc_hw, target_N)
+        
+        # To (H, W, T, C)
+        data = data_tc_hw.permute(2, 3, 0, 1)
+
+        x = data[..., :self.t_in, :]
+        y = data[..., self.t_in:self.t_in + self.t_out, :-2] # remove the last 2 channels (they are forcing terms)
+        return x, y
+    
+    def get_all_sequence(self):
+        """
+        Get all the sequence from the dataset, used for autoregressive testing
+        Returns:
+            x: (1, H, W, T_in, C)
+            y: (1, H, W, T_out, C)
+        """
+        t0_global = self.start_idx
+        t1_global = self.end_idx    
+        data = self._read_window(t0_global, t1_global - t0_global)
+        if self.temporal_downsample == 1:
+            data_dowmsample = data
+        else:
+            data_dowmsample = data[::self.temporal_downsample]
+        data = data_dowmsample[:, self.channel_indices]
+        print("total time steps to predict", data.shape[0])
+        data = torch.from_numpy(data.astype(np.float32)) 
+        if self.downsample != (1, 1):
+            target_N = self.H // self.downsample[0]
+            data = self.downsample_x(data, target_N)
+        data = data.permute(2, 3, 0, 1) # (H, W, T, C)
+        x = data[..., :self.t_in, :].unsqueeze(0)
+        y = data[..., self.t_in:, :].unsqueeze(0)
+        print("x shape", x.shape, "y shape", y.shape)
+        return x, y
+
+    def __len__(self):
+        return max(0, self.num_samples)
+
+    def __del__(self):
+        # Memmap objects close automatically when dereferenced
+        self._mmaps.clear()
+
+    def normalize_x(self, x):
+        if self.norm_mean is None or self.norm_std is None:
+            return x
+        if len(self.norm_mean.shape) > 1 and len(self.norm_mean.shape) != len(x.shape):
+            self.norm_mean = self.norm_mean[None, :, :, None, :]
+            self.norm_std = self.norm_std[None, :, :, None, :]
+        x = (x - self.norm_mean.to(x.device)) / (self.norm_std.to(x.device) + 1e-6)
+        return x
+
+    def denormalize_x(self, x):
+        if self.norm_mean is None or self.norm_std is None:
+            return x
+        x = x * (self.norm_std.to(x.device) + 1e-6) + self.norm_mean.to(x.device)
+        return x
+
+    def downsample_x(self, u, N):
+        """
+        Downsample a real-valued input using FFT, matching DedalusDataset2D.
+        Args:
+            u: Input tensor of shape (T, C, H, W)
+            N: Target size for downsampling (assumes square target N x N)
+        Returns:
+            Downsampled tensor of shape (T, C, N, N)
+        """
+        T, C, H, W = u.shape
+        u_hat = torch.fft.rfft2(u, norm='forward')
+        freqs_h = torch.fft.fftfreq(H, d=1/H)
+        freqs_w = torch.fft.rfftfreq(W, d=1/W)
+        sel_h = torch.logical_and(freqs_h >= -N/2, freqs_h <= N/2-1)
+        sel_w = torch.logical_and(freqs_w >= -N/2, freqs_w <= N/2-1)
+        u_hat_down = u_hat[:, :, sel_h][:, :, :, sel_w]
+        u_down = torch.fft.irfft2(u_hat_down, s=(N, N), norm='forward')
+        return u_down
 
 
 class CNO_NavierStokes2D(Dataset):

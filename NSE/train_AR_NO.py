@@ -21,9 +21,10 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
 from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
-from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D
+from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D, MemmapDedalusBigDataset2D
 from utils.make_master_file import DATASET_DICT
-from models.fno import FNO2d
+# from models.fno import FNO2d
+from models.fno import FNO2d_Tin1_Tout1 as FNO2d
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
 from models.wavelet_transform_exploration import WaveletTransformer
 from models.high_frequency_scaling import ResUNet
@@ -64,14 +65,14 @@ def _to_rgb_minmax(image_2d: torch.Tensor) -> torch.Tensor:
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
 parser.add_argument('--model', type=str, default='FNO') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
-parser.add_argument('--dataset',type=str, default='ns2d_dedalus') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
+parser.add_argument('--dataset',type=str, default='ns2d_dedalus_big') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
-
+parser.add_argument('--form',type=str, default='vorticity', choices=['vorticity', 'velocity'])
 
 
 # ### dataset details
-parser.add_argument('--T_in', type=int, default=7)
+parser.add_argument('--T_in', type=int, default=1)
 parser.add_argument('--T_ar', type=int, default=1)
 parser.add_argument('--T_bundle', type=int, default=1)
 parser.add_argument('--pad', type=int, default=0)
@@ -131,7 +132,7 @@ if not torch.cuda.is_available() and args.dataset != 'ns2d_dedalus':
     train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, n_channels=3, normalize=args.normalize, train='train')
     test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels=3, normalize=args.normalize, train='test')
     val_dataset= test_dataset
-elif args.dataset == 'ns2d_dedalus':
+elif args.dataset == 'ns2d_dedalus_small':
     # train_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
     # test_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='test')
     # val_dataset= DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='val')
@@ -142,7 +143,10 @@ elif args.dataset == 'ns2d_dedalus':
     train_dataset.predict_normalizing_statistics()
     test_dataset.predict_normalizing_statistics()
     val_dataset.predict_normalizing_statistics()
-
+elif args.dataset == 'ns2d_dedalus_big':
+    train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train', strategy=args.normalize_strategy)
+    test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test', strategy=args.normalize_strategy)
+    val_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='val', strategy=args.normalize_strategy)
 else:
     # load data and dataloader
     train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
@@ -192,12 +196,20 @@ print('Train num {} train len {} test num {}'.format(train_dataset.n_size, ntrai
 ################################################################
 if args.model == "FNO":
     # if args.dataset == 'ns2d_dedalus':
+    # model = FNO2d(args.modes, args.modes, width=args.width,
+    #             n_channels=train_dataset.n_channels,
+    #             in_timesteps = args.T_in, out_timesteps=1, 
+    #             n_layers = args.n_layers, 
+    #         #   normalize=args.normalize
+    #             ).to(device)
     model = FNO2d(args.modes, args.modes, width=args.width,
-                n_channels=train_dataset.n_channels,
+                img_size=train_dataset.res,
+                in_channels=train_dataset.n_channels_in[args.form],out_channels=train_dataset.n_channels_out[args.form],
                 in_timesteps = args.T_in, out_timesteps=1, 
-                n_layers = args.n_layers, 
-            #   normalize=args.normalize
-                ).to(device)
+                n_layers = args.n_layers,
+                use_ln=True,
+                # normalize=args.normalize, 
+                 ).to(device)
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'HFS':

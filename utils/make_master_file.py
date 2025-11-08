@@ -395,7 +395,7 @@ DATASET_DICT[name]['n_channels'] = 2
 DATASET_DICT[name]['downsample'] = (1, 1)
 
 
-name = 'ns2d_dedalus'
+name = 'ns2d_dedalus_small'
 if not torch.cuda.is_available():
     # DATASET_DICT[name] = {'train_path': './data/large/pdearena/sw2d_pda/train', 
                             # 'test_path': './data/large/pdearena/sw2d_pda/test',
@@ -423,3 +423,32 @@ DATASET_DICT[name]['in_size'] = (256, 256)
 DATASET_DICT[name]['n_channels'] = 3
 DATASET_DICT[name]['downsample'] = (2, 2)
 DATASET_DICT[name]['temporal_downsample'] = 4
+
+
+
+name = 'ns2d_dedalus_big'
+if not torch.cuda.is_available():
+    # DATASET_DICT[name] = {'train_path': './data/large/pdearena/sw2d_pda/train', 
+                            # 'test_path': './data/large/pdearena/sw2d_pda/test',
+                            # 'val_path': './data/large/pdearena/sw2d_pda/val',
+    DATASET_DICT[name] = {'data_path': '/scratch3/wan410/operator_learning_data/Dedalus/Forcing', 
+                            'train_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_000%i/snapshots/snapshots_s1'%i for i in range(8)],
+                            'val_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0008/snapshots/snapshots_s1'],
+                            'test_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0009/snapshots/snapshots_s1'],
+                       
+                          }
+else:
+    DATASET_DICT[name] =  {'data_path': '/scratch3/wan410/operator_learning_data/Dedalus/', 
+                            'train_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_000%i/snapshots/snapshots_s1'%i for i in range(8)],
+                            'val_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0008/snapshots/snapshots_s1'],
+                            'test_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0009/snapshots/snapshots_s1'],
+                          } 
+DATASET_DICT[name]['scatter_storage'] = True
+DATASET_DICT[name]['t_test'] = 4000   ## predict 10 timesteps for testing
+DATASET_DICT[name]['t_in'] = 1     ## use 10 as prefix steps, not necessary used
+DATASET_DICT[name]['t_total'] = 4001
+DATASET_DICT[name]['in_size'] = (256, 256)
+DATASET_DICT[name]['n_channels_in'] = {'vorticity': 4, 'velocity': 5} 
+DATASET_DICT[name]['n_channels_out'] = {'vorticity': 2, 'velocity': 3}
+DATASET_DICT[name]['downsample'] = (1, 1)
+DATASET_DICT[name]['temporal_downsample'] = 1

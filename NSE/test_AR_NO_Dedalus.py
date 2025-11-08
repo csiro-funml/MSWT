@@ -21,7 +21,8 @@ from utils.utilities import count_parameters, get_grid, load_model_from_checkpoi
 
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D
 from utils.make_master_file import DATASET_DICT
-from models.fno import FNO2d
+# from models.fno import FNO2d
+from models.fno import FNO2d_Tin1_Tout1 as FNO2d
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
 from models.wavelet_transform_exploration import WaveletTransformer
 from models.high_frequency_scaling import ResUNet
