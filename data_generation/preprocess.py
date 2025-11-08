@@ -477,9 +477,43 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
     # Configure dtype
     np_dtype = np.float16 if str(dtype) == 'float16' else np.float32
 
-    # Streaming min/std (per-channel) - accumulate across all realizations
-    ch_mean = {'vorticity': [], 'streamfunction': [], 'velocity_x': [], 'velocity_y': [], 'pressure': [], 'forcing_x': [], 'forcing_y': []}
-    ch_std = {'vorticity': [], 'streamfunction': [], 'velocity_x': [], 'velocity_y': [], 'pressure': [], 'forcing_x': [], 'forcing_y': []}
+    # Streaming mean/std computation using Welford's online algorithm
+    # Store running statistics: {channel: {'mean': float, 'M2': float, 'count': int}}
+    ch_stats = {
+        'vorticity': {'mean': 0.0, 'M2': 0.0, 'count': 0},
+        'streamfunction': {'mean': 0.0, 'M2': 0.0, 'count': 0},
+        'velocity_x': {'mean': 0.0, 'M2': 0.0, 'count': 0},
+        'velocity_y': {'mean': 0.0, 'M2': 0.0, 'count': 0},
+        'pressure': {'mean': 0.0, 'M2': 0.0, 'count': 0},
+        'forcing_x': {'mean': 0.0, 'M2': 0.0, 'count': 0},
+        'forcing_y': {'mean': 0.0, 'M2': 0.0, 'count': 0}
+    }
+    
+    def update_stats(channel_name, data_flat):
+        """Update statistics using Welford's online algorithm (vectorized batch update)."""
+        stats = ch_stats[channel_name]
+        n_new = len(data_flat)
+        
+        if stats['count'] == 0:
+            # First batch
+            stats['mean'] = float(np.mean(data_flat))
+            stats['M2'] = float(np.sum((data_flat - stats['mean']) ** 2))
+            stats['count'] = n_new
+        else:
+            # Update with new batch
+            old_mean = stats['mean']
+            new_mean = float(np.mean(data_flat))
+            total_count = stats['count'] + n_new
+            
+            # Update mean
+            stats['mean'] = (stats['count'] * old_mean + n_new * new_mean) / total_count
+            
+            # Update M2 (sum of squared differences)
+            M2_new = float(np.sum((data_flat - new_mean) ** 2))
+            correction = stats['count'] * n_new * ((old_mean - new_mean) ** 2) / total_count
+            stats['M2'] = stats['M2'] + M2_new + correction
+            
+            stats['count'] = total_count
 
     # Initialize shard variables (shared across all realizations)
     shard_index = 0
@@ -556,21 +590,14 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
                     forcing_x_full = np.concatenate(forcing_x_slices, axis=1)   # (H, W)
                     forcing_y_full = np.concatenate(forcing_y_slices, axis=1)    # (H, W)
                     
-                    # Update stats
-                    ch_mean['vorticity'].append(np.mean(vorticity_full)) # mean over the domain for one snapshot
-                    ch_std['vorticity'].append(np.std(vorticity_full))  # std over the domain for one snapshot
-                    ch_mean['streamfunction'].append(np.mean(stream_full))
-                    ch_std['streamfunction'].append(np.std(stream_full))
-                    ch_mean['velocity_x'].append(np.mean(velocity_x_full))
-                    ch_std['velocity_x'].append(np.std(velocity_x_full))
-                    ch_mean['velocity_y'].append(np.mean(velocity_y_full))
-                    ch_std['velocity_y'].append(np.std(velocity_y_full))
-                    ch_mean['pressure'].append(np.mean(pressure_full))
-                    ch_std['pressure'].append(np.std(pressure_full))
-                    ch_mean['forcing_x'].append(np.mean(forcing_x_full))
-                    ch_std['forcing_x'].append(np.std(forcing_x_full))
-                    ch_mean['forcing_y'].append(np.mean(forcing_y_full))
-                    ch_std['forcing_y'].append(np.std(forcing_y_full))
+                    # Update stats across all timesteps and spatial points using online algorithm
+                    update_stats('vorticity', vorticity_full.flatten())
+                    update_stats('streamfunction', stream_full.flatten())
+                    update_stats('velocity_x', velocity_x_full.flatten())
+                    update_stats('velocity_y', velocity_y_full.flatten())
+                    update_stats('pressure', pressure_full.flatten())
+                    update_stats('forcing_x', forcing_x_full.flatten())
+                    update_stats('forcing_y', forcing_y_full.flatten())
 
                     # Write to shard (T, C, H, W)
                     shard_mm[t_written_in_shard, 0] = vorticity_full.astype(np_dtype, copy=False)
@@ -643,21 +670,14 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
                     forcing_x_full = np.concatenate(forcing_x_slices, axis=1)   # (H, W)
                     forcing_y_full = np.concatenate(forcing_y_slices, axis=1)    # (H, W)
                     
-                    # Update stats
-                    ch_mean['vorticity'].append(np.mean(vorticity_full))
-                    ch_std['vorticity'].append(np.mean(vorticity_full))  
-                    ch_mean['streamfunction'].append(np.mean(stream_full))
-                    ch_std['streamfunction'].append(np.mean(stream_full))
-                    ch_mean['velocity_x'].append(np.mean(velocity_x_full))
-                    ch_std['velocity_x'].append(np.mean(velocity_x_full))
-                    ch_mean['velocity_y'].append(np.mean(velocity_y_full))
-                    ch_std['velocity_y'].append(np.mean(velocity_y_full))
-                    ch_mean['pressure'].append(np.mean(pressure_full))
-                    ch_std['pressure'].append(np.mean(pressure_full))
-                    ch_mean['forcing_x'].append(np.mean(forcing_x_full))
-                    ch_std['forcing_x'].append(np.mean(forcing_x_full))
-                    ch_mean['forcing_y'].append(np.mean(forcing_y_full))
-                    ch_std['forcing_y'].append(np.mean(forcing_y_full))
+                    # Update stats across all timesteps and spatial points using online algorithm
+                    update_stats('vorticity', vorticity_full.flatten())
+                    update_stats('streamfunction', stream_full.flatten())
+                    update_stats('velocity_x', velocity_x_full.flatten())
+                    update_stats('velocity_y', velocity_y_full.flatten())
+                    update_stats('pressure', pressure_full.flatten())
+                    update_stats('forcing_x', forcing_x_full.flatten())
+                    update_stats('forcing_y', forcing_y_full.flatten())
 
                     # Write to shard (T, C, H, W)
                     shard_mm[t_written_in_shard, 0] = vorticity_full.astype(np_dtype, copy=False)
@@ -708,44 +728,56 @@ def preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='./data/l
         shard_mm.flush()
         shard_files.append({'file': os.path.relpath(shard_path, start=save_dir), 'length': int(t_written_in_shard)})
 
+    # Compute final statistics from accumulated stats
+    final_stats = {}
+    for channel_name in ch_stats.keys():
+        stats = ch_stats[channel_name]
+        mean = stats['mean']
+        if stats['count'] > 1:
+            std = np.sqrt(stats['M2'] / stats['count'])
+        else:
+            std = 0.0
+        final_stats[channel_name] = {'mean': float(mean), 'std': float(std)}
+        print(f"Final stats for {channel_name}: mean={mean:.6e}, std={std:.6e}, count={stats['count']}")
+    
     # Write meta.json
     meta = {
         'source': data_path,
         'dtype': str(dtype),
         'axis_order': 'TCHW',
-        'shape': {'T': int(T_total_all), 'C': len(ch_mean.keys()), 'H': int(H), 'W': int(W_full)},
+        'shape': {'T': int(T_total_all), 'C': len(ch_stats.keys()), 'H': int(H), 'W': int(W_full)},
         'shard_size': int(shard_size),
         'num_shards': int(len(shard_files)),
         'shards': shard_files,
         'normalizer': {
             'type': 'zscore',
             'vorticity': {
-                'mean': float(np.mean(ch_mean['vorticity'])),
-                'std': float(np.mean(ch_mean['vorticity']))
+                'mean': final_stats['vorticity']['mean'],
+                'std': final_stats['vorticity']['std']
             },
             'streamfunction': {
-                'mean': float(np.mean(ch_mean['streamfunction'])),
-                'std': float(np.mean(ch_mean['streamfunction']))
+                'mean': final_stats['streamfunction']['mean'],
+                'std': final_stats['streamfunction']['std']
             },
             'velocity_x': {
-                'mean': float(np.mean(ch_mean['velocity_x'])),
-                'std': float(np.mean(ch_mean['velocity_x']))
+                'mean': final_stats['velocity_x']['mean'],
+                'std': final_stats['velocity_x']['std']
             },
             'velocity_y': {
-                'mean': float(np.mean(ch_mean['velocity_y'])),
-                'std': float(np.mean(ch_mean['velocity_y']))
+                'mean': final_stats['velocity_y']['mean'],
+                'std': final_stats['velocity_y']['std']
             },
             'pressure': {
-                'mean': float(np.mean(ch_mean['pressure'])),
-                'std': float(np.mean(ch_mean['pressure']))
+                'mean': final_stats['pressure']['mean'],
+                'std': final_stats['pressure']['std']
             },
             'forcing_x': {
-                'mean': float(np.mean(ch_mean['forcing_x'])),
-                'std': float(np.mean(ch_mean['forcing_x']))
+                'mean': final_stats['forcing_x']['mean'],
+                'std': final_stats['forcing_x']['std']
             },
             'forcing_y': {
-                'mean': float(np.mean(ch_mean['forcing_y'])),
-                'std': float(np.mean(ch_mean['forcing_y']))
+                'mean': final_stats['forcing_y']['mean'],
+                'std': final_stats['forcing_y']['std']
             }
             }
     }
