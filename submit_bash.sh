@@ -1,14 +1,14 @@
 #!/bin/bash
 
 
-#SBATCH --time=00:30:00
+#SBATCH --time=04:00:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --account=OD-230881
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=9        # cpu-cores per task (>1 if multi-threaded tasks)
+#SBATCH --cpus-per-task=32        # Increased CPUs for DataLoader workers (H100 can handle more)
 #SBATCH --output=slurm-%j.out     # Explicit output file (job ID will be inserted)
 #SBATCH --error=slurm-%j.err      # Explicit error file
 
@@ -78,7 +78,8 @@ echo "=========================================="
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --use_writer --modes=32 --width=32 --n_layers=4  --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --use_writer --modes=16 --width=32 --n_layers=4 --lr=3e-4 --lr_method='cossin' --T_in=7 --epochs=5000 --normalize_strategy='zscore'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='HFS' --use_writer --lr_method='cossin' --T_in=7 --epochs=3000
-CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO_Dedalus.py \
+# Optimized training command for H100 GPU
+CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py \
     --dataset ns2d_dedalus_big \
     --model FNO \
     --T_in 1 \
@@ -86,8 +87,14 @@ CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO_Dedalus.py \
     --form vorticity \
     --normalize 1 \
     --normalize_strategy zscore \
-    --batch_size 64 \
-    --epochs 3000
+    --batch_size 256 \
+    --epochs 3000 \
+    --use_amp \
+    --use_compile \
+    --num_workers 16 \
+    --pin_memory \
+    --prefetch_factor 2 \
+    --use_writer
 # Testing
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO_Dedalus.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'
 

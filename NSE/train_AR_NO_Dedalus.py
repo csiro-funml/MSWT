@@ -114,6 +114,14 @@ parser.add_argument('--step_size', type=int, default=20)
 parser.add_argument('--step_gamma', type=float, default=0.5)
 parser.add_argument('--warmup_epochs',type=int, default=100)
 
+# Performance optimization arguments
+parser.add_argument('--use_amp', action='store_true', default=False, help='Use automatic mixed precision (FP16/BF16)')
+parser.add_argument('--use_compile', action='store_true', default=False, help='Use torch.compile for faster training (PyTorch 2.0+)')
+parser.add_argument('--num_workers', type=int, default=None, help='Number of DataLoader workers (default: auto-detect)')
+parser.add_argument('--pin_memory', action='store_true', default=True, help='Pin memory for faster CPU->GPU transfers')
+parser.add_argument('--prefetch_factor', type=int, default=2, help='Number of batches to prefetch')
+parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help='Gradient accumulation steps (effective batch size = batch_size * steps)')
+
 parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
 
@@ -121,6 +129,15 @@ args = parser.parse_args()
 
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+# Performance optimizations
+if torch.cuda.is_available():
+    # Enable cuDNN benchmark for consistent input sizes (faster convolutions)
+    torch.backends.cudnn.benchmark = True
+    # Enable TF32 for faster training on Ampere+ GPUs (H100)
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    print(f"CUDA optimizations enabled: benchmark={torch.backends.cudnn.benchmark}, TF32={torch.backends.cuda.matmul.allow_tf32}")
 
 print(f"Current working directory: {os.getcwd()}")
 
@@ -155,9 +172,46 @@ else:
 
 
 
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0 if not torch.cuda.is_available() else 8)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8)
-val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8)
+# Determine number of workers
+if args.num_workers is None:
+    if torch.cuda.is_available():
+        # Auto-detect: use min(CPU count, 16) for optimal performance
+        import os
+        num_workers = min(os.cpu_count() or 8, 16)
+    else:
+        num_workers = 0
+else:
+    num_workers = args.num_workers
+
+print(f"DataLoader settings: num_workers={num_workers}, pin_memory={args.pin_memory}, prefetch_factor={args.prefetch_factor}")
+
+train_loader = torch.utils.data.DataLoader(
+    train_dataset, 
+    batch_size=args.batch_size, 
+    shuffle=True, 
+    num_workers=num_workers,
+    pin_memory=args.pin_memory if torch.cuda.is_available() else False,
+    prefetch_factor=args.prefetch_factor if num_workers > 0 else None,
+    persistent_workers=num_workers > 0  # Keep workers alive between epochs
+)
+test_loader = torch.utils.data.DataLoader(
+    test_dataset, 
+    batch_size=args.batch_size, 
+    shuffle=False,
+    num_workers=num_workers,
+    pin_memory=args.pin_memory if torch.cuda.is_available() else False,
+    prefetch_factor=args.prefetch_factor if num_workers > 0 else None,
+    persistent_workers=num_workers > 0
+)
+val_loader = torch.utils.data.DataLoader(
+    val_dataset, 
+    batch_size=args.batch_size, 
+    shuffle=False,
+    num_workers=num_workers,
+    pin_memory=args.pin_memory if torch.cuda.is_available() else False,
+    prefetch_factor=args.prefetch_factor if num_workers > 0 else None,
+    persistent_workers=num_workers > 0
+)
 
 ntrain, ntest = len(train_dataset), len(test_dataset)
 # if not args.pad:
@@ -237,27 +291,67 @@ else:
     optimizer = Adam(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), weight_decay=1e-6)
 
 
+# Calculate effective number of steps (accounts for gradient accumulation)
+# With gradient accumulation, we step the optimizer less frequently
+effective_steps_per_epoch = len(train_loader) // args.gradient_accumulation_steps
+total_effective_steps = args.epochs * effective_steps_per_epoch
+
 if args.lr_method == 'cycle':
     print('Using cycle learning rate schedule')
-    scheduler = OneCycleLR(optimizer, max_lr=args.lr, div_factor=1e4, pct_start=(args.warmup_epochs / args.epochs), final_div_factor=1e4, steps_per_epoch=len(train_loader), epochs=args.epochs)
+    scheduler = OneCycleLR(optimizer, max_lr=args.lr, div_factor=1e4, pct_start=(args.warmup_epochs / args.epochs), final_div_factor=1e4, steps_per_epoch=effective_steps_per_epoch, epochs=args.epochs)
 elif args.lr_method == 'step':
     print('Using step learning rate schedule')
-    scheduler = StepLR(optimizer, step_size=args.step_size * len(train_loader), gamma=args.step_gamma)
+    scheduler = StepLR(optimizer, step_size=args.step_size * effective_steps_per_epoch, gamma=args.step_gamma)
 elif args.lr_method == 'warmup':
     print('Using warmup learning rate schedule')
-    scheduler = LambdaLR(optimizer, lambda steps: min((steps + 1) / (args.warmup_epochs * len(train_loader)), np.power(args.warmup_epochs * len(train_loader) / float(steps + 1), 0.5)))
+    scheduler = LambdaLR(optimizer, lambda steps: min((steps + 1) / (args.warmup_epochs * effective_steps_per_epoch), np.power(args.warmup_epochs * effective_steps_per_epoch / float(steps + 1), 0.5)))
 elif args.lr_method == 'linear':
     print('Using warmup learning rate schedule')
-    scheduler = LambdaLR(optimizer, lambda steps: (1 - steps / (args.epochs * len(train_loader))))
+    scheduler = LambdaLR(optimizer, lambda steps: (1 - steps / total_effective_steps))
 elif args.lr_method == 'restart':
     print('Using cos anneal restart')
-    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=len(train_loader) * args.lr_step_size, eta_min=0.)
+    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=effective_steps_per_epoch * args.lr_step_size, eta_min=0.)
 elif args.lr_method == 'cyclic':
-    scheduler = CyclicLR(optimizer, base_lr=1e-5, max_lr=1e-3, step_size_up=args.lr_step_size * len(train_loader),mode='triangular2', cycle_momentum=False)
+    scheduler = CyclicLR(optimizer, base_lr=1e-5, max_lr=1e-3, step_size_up=args.lr_step_size * effective_steps_per_epoch, mode='triangular2', cycle_momentum=False)
 elif args.lr_method == 'cossin':
-    scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs * len(train_loader)) 
+    scheduler = CosineAnnealingLR(optimizer, T_max=total_effective_steps)
 else:
     raise NotImplementedError
+
+print(f"Scheduler steps per epoch: {effective_steps_per_epoch} (with gradient_accumulation_steps={args.gradient_accumulation_steps})")
+
+# Mixed precision training setup
+if args.use_amp:
+    # Use BF16 on H100 (better than FP16 for training stability)
+    # Check if BF16 is supported (H100 supports it)
+    try:
+        if torch.cuda.is_bf16_supported():
+            scaler = None  # BF16 doesn't need gradient scaling
+            dtype = torch.bfloat16
+            use_bf16 = True
+            print("Using BF16 mixed precision training (no gradient scaling needed)")
+        else:
+            raise AttributeError("BF16 not supported")
+    except (AttributeError, RuntimeError):
+        scaler = torch.cuda.amp.GradScaler()
+        dtype = torch.float16
+        use_bf16 = False
+        print("Using FP16 mixed precision training (with gradient scaling)")
+else:
+    scaler = None
+    dtype = torch.float32
+    use_bf16 = False
+    print("Using FP32 training (no mixed precision)")
+
+# Model compilation (PyTorch 2.0+)
+if args.use_compile:
+    try:
+        # Compile model for faster training
+        model = torch.compile(model, mode='reduce-overhead')  # or 'max-autotune' for best performance
+        print("Model compiled with torch.compile (mode=reduce-overhead)")
+    except Exception as e:
+        print(f"Warning: torch.compile failed ({e}), continuing without compilation")
+        args.use_compile = False
 
 start_epoch = 0
 best_loss_epoch = 0
@@ -300,12 +394,18 @@ for ep in pbar:
 
     loss_previous = 10000
 
+    # Zero gradients at the start of each epoch (for gradient accumulation)
+    optimizer.zero_grad()
+    
     for batch_id, (xx, yy) in enumerate(train_loader):
         t_load += default_timer() - t_1
         t_1 = default_timer()
         loss = 0.
-        xx = xx.to(device)  ## B, n, n, T_in, C
-        yy = yy.to(device)  ## B, n, n, T_ar, C
+        
+        # Non-blocking transfer for faster data loading
+        xx = xx.to(device, non_blocking=True)  ## B, n, n, T_in, C
+        yy = yy.to(device, non_blocking=True)  ## B, n, n, T_ar, C
+        
         # range check
         if ep == 0 and batch_id == 0:
             C = xx.shape[-1]
@@ -316,28 +416,65 @@ for ep in pbar:
         # normalize it before the autoregressive predicting
         xx = train_dataset.normalize_x(xx)
         yy_norm = train_dataset.normalize_x(yy)
-        for t in range(0, yy_norm.shape[-2], args.T_bundle):
-            y = yy_norm[..., t:t + args.T_bundle, :]
-            # print('input shape', xx.shape)
-            pred = model(xx)  # give the normalized output to the autoregressive predicting
-            # print("pred shape", pred.shape, "y shape", y.shape)
-            loss += myloss(pred, y)
-
-        train_l2_norm += loss.item() * y.shape[0]
+        
+        # Mixed precision forward pass
+        with torch.cuda.amp.autocast(enabled=args.use_amp, dtype=dtype if args.use_amp else None):
+            for t in range(0, yy_norm.shape[-2], args.T_bundle):
+                y = yy_norm[..., t:t + args.T_bundle, :]
+                # print('input shape', xx.shape)
+                pred = model(xx)  # give the normalized output to the autoregressive predicting
+                # print("pred shape", pred.shape, "y shape", y.shape)
+                loss += myloss(pred, y)
+        
+        # Scale loss for gradient accumulation
+        scaled_loss = loss / args.gradient_accumulation_steps
+        train_l2_norm += loss.item() * y.shape[0]  # Store unscaled loss for logging
 
         pbar.set_postfix(loss=f"{loss.item():.4f}", epoch=f"{ep}/{args.epochs}")
         # print("train input shape", xx.shape, "output shape", yy.shape, "pred shape", pred.shape, "mask shape", msk.shape)
-        pred_denorm = train_dataset.denormalize_x(pred)
-        loss_denorm = myloss(pred_denorm, yy)
-        train_l2_denorm += loss_denorm.item() * y.shape[0]
+        
+        # Denormalize for monitoring (keep in full precision)
+        with torch.no_grad():
+            pred_denorm = train_dataset.denormalize_x(pred.float() if args.use_amp else pred)
+            loss_denorm = myloss(pred_denorm, yy)
+            train_l2_denorm += loss_denorm.item() * y.shape[0]
 
-        optimizer.zero_grad()
-        total_loss = loss
-        total_loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-        optimizer.step()
-        scheduler.step()
+        # Backward pass with mixed precision (use scaled loss for gradient accumulation)
+        if scaler is not None:
+            # FP16 with gradient scaling
+            scaler.scale(scaled_loss).backward()
+        else:
+            # BF16 or FP32: no scaling needed
+            scaled_loss.backward()
+
+        # Gradient accumulation: only step optimizer every N steps
+        if (batch_id + 1) % args.gradient_accumulation_steps == 0:
+            if scaler is not None:
+                # FP16: unscale gradients before clipping
+                scaler.unscale_(optimizer)
+                nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                # BF16 or FP32: clip and step directly
+                nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+                optimizer.step()
+            optimizer.zero_grad()
+            scheduler.step()
         # break # todo : to remove
+    
+    # Handle remaining gradients if gradient_accumulation_steps doesn't divide evenly
+    if len(train_loader) % args.gradient_accumulation_steps != 0:
+        if scaler is not None:
+            scaler.unscale_(optimizer)
+            nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            optimizer.step()
+        optimizer.zero_grad()
+        scheduler.step()
     train_l2_norm_avg, train_l2_denorm_avg = train_l2_norm/ntrain, train_l2_denorm/ntrain
 
 
