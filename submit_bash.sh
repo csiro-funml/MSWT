@@ -82,13 +82,13 @@ echo "=========================================="
 # Reduced batch size to avoid OOM, using gradient accumulation to maintain effective batch size
 # Set PYTORCH_CUDA_ALLOC_CONF to reduce memory fragmentation
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# Training command (use_writer disabled, epochs=1000)
 CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py \
     --dataset ns2d_dedalus_big \
     --model FNO \
-    # --use_writer
-    --modes=64\
-    --width=64\
-    --n_layers=4 \
+    --modes 64 \
+    --width 64 \
+    --n_layers 4 \
     --T_in 1 \
     --T_ar 1 \
     --form vorticity \
@@ -99,8 +99,8 @@ CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py \
     --epochs 1000 \
     --num_workers 8 \
     --pin_memory \
-    --prefetch_factor 1 \
-    --use_writer
+    --prefetch_factor 1
+    # --use_writer  # Disabled for now
 # Testing
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO_Dedalus.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'
 
