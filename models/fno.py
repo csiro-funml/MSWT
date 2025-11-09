@@ -47,30 +47,25 @@ class SpectralConv2d_fast(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-        # Store original dtype (FFT doesn't support BF16, so we cast to float32 for FFT)
-        # FP16 is supported but float32 is more stable, so we use float32 for all mixed precision
+        # FFT operations don't support BF16/FP16, so we must use float32
+        # Use to() method which is more compilation-friendly than conditional casting
         original_dtype = x.dtype
-        needs_cast = original_dtype != torch.float32
-        
-        if needs_cast:
-            x = x.float()
+        x_float = x.to(torch.float32)
         
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfft2(x)
+        x_ft = torch.fft.rfft2(x_float)
 
         # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, dtype=torch.cfloat, device=x.device)
+        out_ft = torch.zeros(batchsize, self.out_channels, x_float.size(-2), x_float.size(-1) // 2 + 1, dtype=torch.cfloat, device=x.device)
         out_ft[:, :, :self.modes1, :self.modes2] = self.compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
         out_ft[:, :, -self.modes1:, :self.modes2] = self.compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
 
         # Return to physical space
-        x = torch.fft.irfft2(out_ft, s=(x.size(-2), x.size(-1)))
+        x_out = torch.fft.irfft2(out_ft, s=(x_float.size(-2), x_float.size(-1)))
         
-        # Cast back to original dtype if needed (for mixed precision training)
-        if needs_cast:
-            x = x.to(original_dtype)
-        
-        return x
+        # Cast back to original dtype (preserves mixed precision training)
+        # If already float32, this is a no-op (efficient)
+        return x_out.to(original_dtype)
 
 
 class FNO2d(nn.Module):
