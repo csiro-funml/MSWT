@@ -418,7 +418,18 @@ for ep in pbar:
         yy_norm = train_dataset.normalize_x(yy)
         
         # Mixed precision forward pass
-        with torch.cuda.amp.autocast(enabled=args.use_amp, dtype=dtype if args.use_amp else None):
+        # Use new torch.amp.autocast API (replaces deprecated torch.cuda.amp.autocast)
+        if args.use_amp:
+            # Use new API: torch.amp.autocast(device_type='cuda', dtype=...)
+            with torch.amp.autocast(device_type='cuda', dtype=dtype):
+                for t in range(0, yy_norm.shape[-2], args.T_bundle):
+                    y = yy_norm[..., t:t + args.T_bundle, :]
+                    # print('input shape', xx.shape)
+                    pred = model(xx)  # give the normalized output to the autoregressive predicting
+                    # print("pred shape", pred.shape, "y shape", y.shape)
+                    loss += myloss(pred, y)
+        else:
+            # No mixed precision
             for t in range(0, yy_norm.shape[-2], args.T_bundle):
                 y = yy_norm[..., t:t + args.T_bundle, :]
                 # print('input shape', xx.shape)

@@ -48,24 +48,40 @@ class SpectralConv2d_fast(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # FFT operations don't support BF16/FP16, so we must use float32
-        # Use to() method which is more compilation-friendly than conditional casting
+        # Store original dtype for casting back
         original_dtype = x.dtype
+        
+        # Force cast to float32 for FFT (works around torch.compile tracing issues with BF16)
+        # Break the graph to prevent torch.compile from trying to trace FFT with BF16
+        try:
+            import torch._dynamo as dynamo
+            # Break graph to force torch.compile to treat this as a separate subgraph
+            # This prevents it from trying to trace FFT with BF16 fake tensors
+            dynamo.graph_break()
+        except (ImportError, AttributeError):
+            pass
+        
+        # Cast to float32 - this is required for FFT operations
         x_float = x.to(torch.float32)
         
-        # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfft2(x_float)
+        # Disable autocast for FFT operations to ensure they run in float32
+        # This prevents autocast from interfering with our explicit dtype conversion
+        with torch.amp.autocast(enabled=False, device_type='cuda'):
+            # Compute Fourier coeffcients up to factor of e^(- something constant)
+            x_ft = torch.fft.rfft2(x_float)
 
-        # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.out_channels, x_float.size(-2), x_float.size(-1) // 2 + 1, dtype=torch.cfloat, device=x.device)
-        out_ft[:, :, :self.modes1, :self.modes2] = self.compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_ft[:, :, -self.modes1:, :self.modes2] = self.compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
+            # Multiply relevant Fourier modes
+            out_ft = torch.zeros(batchsize, self.out_channels, x_float.size(-2), x_float.size(-1) // 2 + 1, dtype=torch.cfloat, device=x.device)
+            out_ft[:, :, :self.modes1, :self.modes2] = self.compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
+            out_ft[:, :, -self.modes1:, :self.modes2] = self.compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
 
-        # Return to physical space
-        x_out = torch.fft.irfft2(out_ft, s=(x_float.size(-2), x_float.size(-1)))
+            # Return to physical space
+            x_out = torch.fft.irfft2(out_ft, s=(x_float.size(-2), x_float.size(-1)))
         
         # Cast back to original dtype (preserves mixed precision training)
-        # If already float32, this is a no-op (efficient)
-        return x_out.to(original_dtype)
+        x_out = x_out.to(original_dtype)
+        
+        return x_out
 
 
 class FNO2d(nn.Module):
