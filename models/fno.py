@@ -258,16 +258,20 @@ class FNO2d_Tin1_Tout1(nn.Module): # only use one timestep input and one timeste
             self.fc2 = nn.Linear(self.width, out_channels * out_timesteps)
 
     def input_proj(self, x):
-        x = x.permute(0, 2, 3, 1).contiguous() # (B, H, W, C)
+        if len(x.shape) == 5: #(B, H, W, 1, C) -> (B, H, W, C)
+            x = x.squeeze(-2) # remove the time dimension
+        else:# (B, C, H, W)
+            x = x.permute(0, 2, 3, 1).contiguous() # (B, H, W, C)
         x = self.fc0(x) 
         x = x.permute(0, 3, 1, 2).contiguous() # (B, C, H, W)
         return x
 
     def forward(self, x):
         """
-        x: (B, C, H, W)
+        x: (B, H, W, 1, C)
         
         """
+        origial_shape = x.shape
         x = self.input_proj(x)
 
         for i in range(self.n_layers):
@@ -283,7 +287,10 @@ class FNO2d_Tin1_Tout1(nn.Module): # only use one timestep input and one timeste
 
         x = F.gelu(x)
         x = self.fc2(x)    # (B, H, W, C_out)
-        x = x.permute(0, 3, 1, 2) # (B, C_out, H, W)
+        if len(origial_shape) == 5:
+            x = x.unsqueeze(-2) # (B, H, W, 1, C_out)
+        else:
+            x = x.permute(0, 3, 1, 2) # (B, C_out, H, W)
         return x
 
 if __name__ == "__main__":
