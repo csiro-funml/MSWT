@@ -9,11 +9,21 @@
 #SBATCH --account=OD-230881
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=9        # cpu-cores per task (>1 if multi-threaded tasks)
-
+#SBATCH --output=slurm-%j.out     # Explicit output file (job ID will be inserted)
+#SBATCH --error=slurm-%j.err      # Explicit error file
 
 module load pytorch/2.5.1-py312-cu122-mpi
 source $HOME/.venvs/pytorch/bin/activate
 
+
+# Print job info immediately (helps verify job started)
+echo "=========================================="
+echo "Job started at: $(date)"
+echo "Job ID: $SLURM_JOB_ID"
+echo "Node: $SLURM_NODELIST"
+echo "Working directory: $(pwd)"
+echo "SLURM allocated $SLURM_CPUS_PER_TASK CPUs for this job"
+echo "=========================================="
 
 ################################################################ NSE #################################################################
 ## Train the model
