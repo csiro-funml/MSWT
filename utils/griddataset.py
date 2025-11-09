@@ -1704,7 +1704,7 @@ class MemmapDedalusBigDataset2D(Dataset):
             data = self.downsample_x(data, target_N)
         data = data.permute(2, 3, 0, 1) # (H, W, T, C)
         x = data[..., :self.t_in, :].unsqueeze(0)
-        y = data[..., self.t_in:, :].unsqueeze(0)
+        y = data[..., self.t_in:, :-2].unsqueeze(0)  # remove the last 2 channels (forcing terms)
         print("x shape", x.shape, "y shape", y.shape)
         return x, y
 
