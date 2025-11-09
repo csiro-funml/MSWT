@@ -1567,9 +1567,24 @@ class MemmapDedalusBigDataset2D(Dataset):
         # Preprocess order: [vorticity, streamfunction, velocity_x, velocity_y, pressure, forcing_x, forcing_y]
         if self.form == 'vorticity':
             self.channel_indices = [0, 1, 5, 6]  # vorticity, streamfunction, forcing_x, forcing_y 
+            # Input: 4 channels (vorticity, streamfunction, forcing_x, forcing_y)
+            # Output: 2 channels (vorticity, streamfunction) - forcing removed in __getitem__
         else:
-            self.channel_indices = [4, 2, 3, 5, 6]  # pressure, velocity_x, velocity_y
+            self.channel_indices = [4, 2, 3, 5, 6]  # pressure, velocity_x, velocity_y, forcing_x, forcing_y
+            # Input: 5 channels (pressure, velocity_x, velocity_y, forcing_x, forcing_y)
+            # Output: 3 channels (pressure, velocity_x, velocity_y) - forcing removed in __getitem__
         self.n_channels = len(self.channel_indices)
+        
+        # Add n_channels_in and n_channels_out for compatibility with training script
+        # These match the input/output channel counts (output has forcing channels removed)
+        self.n_channels_in = {
+            'vorticity': 4,  # vorticity, streamfunction, forcing_x, forcing_y
+            'velocity': 5    # pressure, velocity_x, velocity_y, forcing_x, forcing_y
+        }
+        self.n_channels_out = {
+            'vorticity': 2,  # vorticity, streamfunction (forcing removed)
+            'velocity': 3    # pressure, velocity_x, velocity_y (forcing removed)
+        }
 
         # Build shard index map: global t -> (shard_idx, local_t)
         self._t_offsets = []
@@ -1596,10 +1611,12 @@ class MemmapDedalusBigDataset2D(Dataset):
         # Load normalizer stats from train meta.json
         self.norm_mean = None
         self.norm_std = None
+        self.norm_mean_out = None  # Stats for output (without forcing channels)
+        self.norm_std_out = None
         if self.normalize:
             normalizer = train_meta.get('normalizer', {})
             if normalizer.get('type') == 'zscore':
-                # Extract mean and std for selected channels
+                # Extract mean and std for selected channels (input: all selected channels)
                 channel_names = ['vorticity', 'streamfunction', 'velocity_x', 'velocity_y', 'pressure', 'forcing_x', 'forcing_y']
                 means = []
                 stds = []
@@ -1613,9 +1630,17 @@ class MemmapDedalusBigDataset2D(Dataset):
                         stds.append(1.0)
                 self.norm_mean = torch.tensor(means, dtype=torch.float32)
                 self.norm_std = torch.tensor(stds, dtype=torch.float32)
+                
+                # Output stats: first n_channels_out channels (forcing channels removed)
+                # For vorticity: first 2 channels (vorticity, streamfunction)
+                # For velocity: first 3 channels (pressure, velocity_x, velocity_y)
+                n_out = self.n_channels_out[self.form]
+                self.norm_mean_out = self.norm_mean[:n_out]
+                self.norm_std_out = self.norm_std[:n_out]
+                
                 print(f"Loaded normalizer stats from {train_meta_path}")
-                print(f"  Mean: {self.norm_mean}")
-                print(f"  Std: {self.norm_std}")
+                print(f"  Input channels: {len(self.norm_mean)}, Mean: {self.norm_mean}")
+                print(f"  Output channels: {len(self.norm_mean_out)}, Mean: {self.norm_mean_out}")
 
     def _locate(self, t):
         # Find shard containing timestep t
@@ -1718,16 +1743,45 @@ class MemmapDedalusBigDataset2D(Dataset):
     def normalize_x(self, x):
         if self.norm_mean is None or self.norm_std is None:
             return x
-        if len(self.norm_mean.shape) > 1 and len(self.norm_mean.shape) != len(x.shape):
-            self.norm_mean = self.norm_mean[None, :, :, None, :]
-            self.norm_std = self.norm_std[None, :, :, None, :]
-        x = (x - self.norm_mean.to(x.device)) / (self.norm_std.to(x.device) + 1e-6)
+        # Determine which stats to use based on number of channels in x
+        # x shape: (B, H, W, T, C) or (H, W, T, C)
+        n_channels = x.shape[-1]
+        
+        # Use appropriate stats: input channels use full stats, output channels use first n_channels
+        if n_channels == len(self.norm_mean):
+            # Input: use all stats (4 channels for vorticity, 5 for velocity)
+            mean = self.norm_mean
+            std = self.norm_std
+        elif n_channels == len(self.norm_mean_out) and self.norm_mean_out is not None:
+            # Output: use output stats (2 channels for vorticity, 3 for velocity)
+            mean = self.norm_mean_out
+            std = self.norm_std_out
+        else:
+            # Fallback: use first n_channels from input stats
+            mean = self.norm_mean[:n_channels]
+            std = self.norm_std[:n_channels]
+        
+        x = (x - mean.to(x.device)) / (std.to(x.device) + 1e-6)
         return x
 
     def denormalize_x(self, x):
         if self.norm_mean is None or self.norm_std is None:
             return x
-        x = x * (self.norm_std.to(x.device) + 1e-6) + self.norm_mean.to(x.device)
+        # Determine which stats to use based on number of channels in x
+        n_channels = x.shape[-1]
+        
+        # Use appropriate stats for denormalization
+        if n_channels == len(self.norm_mean):
+            mean = self.norm_mean
+            std = self.norm_std
+        elif n_channels == len(self.norm_mean_out) and self.norm_mean_out is not None:
+            mean = self.norm_mean_out
+            std = self.norm_std_out
+        else:
+            mean = self.norm_mean[:n_channels]
+            std = self.norm_std[:n_channels]
+        
+        x = x * (std.to(x.device) + 1e-6) + mean.to(x.device)
         return x
 
     def downsample_x(self, u, N):
