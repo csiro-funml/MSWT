@@ -115,7 +115,6 @@ parser.add_argument('--step_gamma', type=float, default=0.5)
 parser.add_argument('--warmup_epochs',type=int, default=100)
 
 # Performance optimization arguments
-parser.add_argument('--use_amp', action='store_true', default=False, help='Use automatic mixed precision (FP16/BF16)')
 parser.add_argument('--use_compile', action='store_true', default=False, help='Use torch.compile for faster training (PyTorch 2.0+)')
 parser.add_argument('--num_workers', type=int, default=None, help='Number of DataLoader workers (default: auto-detect)')
 parser.add_argument('--pin_memory', action='store_true', default=True, help='Pin memory for faster CPU->GPU transfers')
@@ -320,37 +319,17 @@ else:
 
 print(f"Scheduler steps per epoch: {effective_steps_per_epoch} (with gradient_accumulation_steps={args.gradient_accumulation_steps})")
 
-# Mixed precision training setup
-if args.use_amp:
-    # Use BF16 on H100 (better than FP16 for training stability)
-    # Check if BF16 is supported (H100 supports it)
-    try:
-        if torch.cuda.is_bf16_supported():
-            scaler = None  # BF16 doesn't need gradient scaling
-            dtype = torch.bfloat16
-            use_bf16 = True
-            print("Using BF16 mixed precision training (no gradient scaling needed)")
-        else:
-            raise AttributeError("BF16 not supported")
-    except (AttributeError, RuntimeError):
-        scaler = torch.cuda.amp.GradScaler()
-        dtype = torch.float16
-        use_bf16 = False
-        print("Using FP16 mixed precision training (with gradient scaling)")
-else:
-    scaler = None
-    dtype = torch.float32
-    use_bf16 = False
-    print("Using FP32 training (no mixed precision)")
-
 # Model compilation (PyTorch 2.0+)
+# Note: Requires Triton to be installed. If not available, compilation will be skipped.
 if args.use_compile:
     try:
         # Compile model for faster training
         model = torch.compile(model, mode='reduce-overhead')  # or 'max-autotune' for best performance
         print("Model compiled with torch.compile (mode=reduce-overhead)")
     except Exception as e:
-        print(f"Warning: torch.compile failed ({e}), continuing without compilation")
+        print(f"Warning: torch.compile failed ({e})")
+        print("Continuing without compilation. This is normal if Triton is not installed.")
+        print("To install Triton: pip install triton")
         args.use_compile = False
 
 start_epoch = 0
@@ -417,25 +396,13 @@ for ep in pbar:
         xx = train_dataset.normalize_x(xx)
         yy_norm = train_dataset.normalize_x(yy)
         
-        # Mixed precision forward pass
-        # Use new torch.amp.autocast API (replaces deprecated torch.cuda.amp.autocast)
-        if args.use_amp:
-            # Use new API: torch.amp.autocast(device_type='cuda', dtype=...)
-            with torch.amp.autocast(device_type='cuda', dtype=dtype):
-                for t in range(0, yy_norm.shape[-2], args.T_bundle):
-                    y = yy_norm[..., t:t + args.T_bundle, :]
-                    # print('input shape', xx.shape)
-                    pred = model(xx)  # give the normalized output to the autoregressive predicting
-                    # print("pred shape", pred.shape, "y shape", y.shape)
-                    loss += myloss(pred, y)
-        else:
-            # No mixed precision
-            for t in range(0, yy_norm.shape[-2], args.T_bundle):
-                y = yy_norm[..., t:t + args.T_bundle, :]
-                # print('input shape', xx.shape)
-                pred = model(xx)  # give the normalized output to the autoregressive predicting
-                # print("pred shape", pred.shape, "y shape", y.shape)
-                loss += myloss(pred, y)
+        # Forward pass (FP32)
+        for t in range(0, yy_norm.shape[-2], args.T_bundle):
+            y = yy_norm[..., t:t + args.T_bundle, :]
+            # print('input shape', xx.shape)
+            pred = model(xx)  # give the normalized output to the autoregressive predicting
+            # print("pred shape", pred.shape, "y shape", y.shape)
+            loss += myloss(pred, y)
         
         # Scale loss for gradient accumulation
         scaled_loss = loss / args.gradient_accumulation_steps
@@ -444,46 +411,27 @@ for ep in pbar:
         pbar.set_postfix(loss=f"{loss.item():.4f}", epoch=f"{ep}/{args.epochs}")
         # print("train input shape", xx.shape, "output shape", yy.shape, "pred shape", pred.shape, "mask shape", msk.shape)
         
-        # Denormalize for monitoring (keep in full precision)
+        # Denormalize for monitoring
         with torch.no_grad():
-            pred_denorm = train_dataset.denormalize_x(pred.float() if args.use_amp else pred)
+            pred_denorm = train_dataset.denormalize_x(pred)
             loss_denorm = myloss(pred_denorm, yy)
             train_l2_denorm += loss_denorm.item() * y.shape[0]
 
-        # Backward pass with mixed precision (use scaled loss for gradient accumulation)
-        if scaler is not None:
-            # FP16 with gradient scaling
-            scaler.scale(scaled_loss).backward()
-        else:
-            # BF16 or FP32: no scaling needed
-            scaled_loss.backward()
+        # Backward pass (use scaled loss for gradient accumulation)
+        scaled_loss.backward()
 
         # Gradient accumulation: only step optimizer every N steps
         if (batch_id + 1) % args.gradient_accumulation_steps == 0:
-            if scaler is not None:
-                # FP16: unscale gradients before clipping
-                scaler.unscale_(optimizer)
-                nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                # BF16 or FP32: clip and step directly
-                nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-                optimizer.step()
+            nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
         # break # todo : to remove
     
     # Handle remaining gradients if gradient_accumulation_steps doesn't divide evenly
     if len(train_loader) % args.gradient_accumulation_steps != 0:
-        if scaler is not None:
-            scaler.unscale_(optimizer)
-            nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-            optimizer.step()
+        nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+        optimizer.step()
         optimizer.zero_grad()
         scheduler.step()
     train_l2_norm_avg, train_l2_denorm_avg = train_l2_norm/ntrain, train_l2_denorm/ntrain
