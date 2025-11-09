@@ -47,6 +47,14 @@ class SpectralConv2d_fast(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
+        # Store original dtype (FFT doesn't support BF16, so we cast to float32 for FFT)
+        # FP16 is supported but float32 is more stable, so we use float32 for all mixed precision
+        original_dtype = x.dtype
+        needs_cast = original_dtype != torch.float32
+        
+        if needs_cast:
+            x = x.float()
+        
         # Compute Fourier coeffcients up to factor of e^(- something constant)
         x_ft = torch.fft.rfft2(x)
 
@@ -57,6 +65,11 @@ class SpectralConv2d_fast(nn.Module):
 
         # Return to physical space
         x = torch.fft.irfft2(out_ft, s=(x.size(-2), x.size(-1)))
+        
+        # Cast back to original dtype if needed (for mixed precision training)
+        if needs_cast:
+            x = x.to(original_dtype)
+        
         return x
 
 
