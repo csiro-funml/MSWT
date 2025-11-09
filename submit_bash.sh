@@ -99,7 +99,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py \
     --epochs 1000 \
     --num_workers 8 \
     --pin_memory \
-    --prefetch_factor 1
+    --prefetch_factor 1\
     --use_writer  # Disabled for now
 # Testing
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO_Dedalus.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'
