@@ -79,6 +79,9 @@ echo "=========================================="
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='FNO' --use_writer --modes=16 --width=32 --n_layers=4 --lr=3e-4 --lr_method='cossin' --T_in=7 --epochs=5000 --normalize_strategy='zscore'
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='HFS' --use_writer --lr_method='cossin' --T_in=7 --epochs=3000
 # Optimized training command for H100 GPU (FP32, no mixed precision)
+# Reduced batch size to avoid OOM, using gradient accumulation to maintain effective batch size
+# Set PYTORCH_CUDA_ALLOC_CONF to reduce memory fragmentation
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py \
     --dataset ns2d_dedalus_big \
     --model FNO \
@@ -87,11 +90,12 @@ CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py \
     --form vorticity \
     --normalize 1 \
     --normalize_strategy zscore \
-    --batch_size 256 \
+    --batch_size 64 \
+    --gradient_accumulation_steps 4 \
     --epochs 3000 \
-    --num_workers 16 \
+    --num_workers 8 \
     --pin_memory \
-    --prefetch_factor 2 \
+    --prefetch_factor 1 \
     --use_writer
 # Testing
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/test_AR_NO_Dedalus.py --dataset='ns2d_dedalus' --model='FNO' --lr_method='cossin' --T_in=7 --epochs=3000 --normalize_strategy='zscore'

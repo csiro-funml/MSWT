@@ -136,7 +136,12 @@ if torch.cuda.is_available():
     # Enable TF32 for faster training on Ampere+ GPUs (H100)
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
+    # Clear cache at start to reduce fragmentation
+    torch.cuda.empty_cache()
     print(f"CUDA optimizations enabled: benchmark={torch.backends.cudnn.benchmark}, TF32={torch.backends.cuda.matmul.allow_tf32}")
+    print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB total")
+    print(f"GPU memory allocated: {torch.cuda.memory_allocated(0) / 1e9:.2f} GB")
+    print(f"GPU memory reserved: {torch.cuda.memory_reserved(0) / 1e9:.2f} GB")
 
 print(f"Current working directory: {os.getcwd()}")
 
@@ -337,6 +342,15 @@ best_loss_epoch = 0
 print(model)
 count_parameters(model)
 
+# Print memory usage after model initialization
+if torch.cuda.is_available():
+    torch.cuda.empty_cache()
+    allocated = torch.cuda.memory_allocated(0) / 1e9
+    reserved = torch.cuda.memory_reserved(0) / 1e9
+    total = torch.cuda.get_device_properties(0).total_memory / 1e9
+    print(f"Memory after model init: {allocated:.2f} GB allocated, {reserved:.2f} GB reserved, {total:.2f} GB total")
+    print(f"Available memory: {total - reserved:.2f} GB")
+
 if args.resume_path:
     print('Loading models and resume from {}'.format(model_path))
     args.resume_path = model_path
@@ -426,6 +440,10 @@ for ep in pbar:
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
+            
+            # Clear cache periodically to reduce memory fragmentation
+            if torch.cuda.is_available() and (batch_id + 1) % (args.gradient_accumulation_steps * 10) == 0:
+                torch.cuda.empty_cache()
         # break # todo : to remove
     
     # Handle remaining gradients if gradient_accumulation_steps doesn't divide evenly
@@ -434,6 +452,11 @@ for ep in pbar:
         optimizer.step()
         optimizer.zero_grad()
         scheduler.step()
+    
+    # Clear cache at end of epoch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
     train_l2_norm_avg, train_l2_denorm_avg = train_l2_norm/ntrain, train_l2_denorm/ntrain
 
 
