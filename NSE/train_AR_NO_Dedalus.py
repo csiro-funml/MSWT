@@ -19,7 +19,7 @@ from timeit import default_timer
 from torch.optim.lr_scheduler import OneCycleLR, StepLR, LambdaLR, CosineAnnealingWarmRestarts, CyclicLR,  CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
-from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
+from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint, log_tensorboard_images_and_spectra
 from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D, MemmapDedalusBigDataset2D
 from utils.make_master_file import DATASET_DICT
@@ -32,29 +32,6 @@ from models.high_frequency_scaling import ResUNet
 from models.hano import HANO2d
 import pickle
 from tqdm import tqdm
-
-
-################################################################
-# helper functions
-################################################################
-
-def _to_rgb_minmax(image_2d: torch.Tensor) -> torch.Tensor:
-    """Convert single-channel 2D field to 3-channel RGB with per-image min-max normalization.
-    
-    Args:
-        image_2d: (H, W) tensor
-        
-    Returns:
-        (3, H, W) tensor with RGB channels
-    """
-    img = image_2d.detach().float()
-    min_val = torch.amin(img)
-    max_val = torch.amax(img)
-    if torch.isfinite(min_val) and torch.isfinite(max_val) and (max_val > min_val):
-        img = (img - min_val) / (max_val - min_val)
-    else:
-        img = torch.zeros_like(img)
-    return img.unsqueeze(0).repeat(3, 1, 1)  # (3, H, W)
 
 
 ################################################################
@@ -505,6 +482,7 @@ for ep in pbar:
             # print("test_l2_step_avg", test_l2_step_avg.item())
             # print("test_l2_full_avg", test_l2_full_avg.item())
             if args.use_writer:
+                # Log scalar metrics
                 for key, loss_func in loss_dict.items():
                     loss_metric = loss_func(pred_denorm, target_denorm)
                     if key != 'spectral_error':
@@ -512,13 +490,16 @@ for ep in pbar:
                     else:
                         for band_key in list(loss_metric.keys()): # only save  spec_low, spec_mid, spec_high
                             writer.add_scalar(f"test_{key}_{band_key}", loss_metric[band_key], ep)
-                # write the pred and target as RGB images for TensorBoard
-                pred_img = _to_rgb_minmax(pred_denorm[0, :, :, 0, 0])
-                target_img = _to_rgb_minmax(target_denorm[0, :, :, 0, 0])
-                error_img = _to_rgb_minmax(pred_denorm[0, :, :, 0, 0] - target_denorm[0, :, :, 0, 0])
-                writer.add_image("model pred", pred_img, ep)
-                writer.add_image("ground truth", target_img)
-                writer.add_image("error", error_img, ep)
+                
+                # Log images and spectra using utility function
+                log_tensorboard_images_and_spectra(
+                    writer=writer,
+                    pred_denorm=pred_denorm,
+                    target_denorm=target_denorm,
+                    epoch=ep,
+                    form=args.form,
+                    model_name=args.model
+                )
         if test_rel_l2_loss < best_loss:
             best_loss = test_rel_l2_loss
             best_loss_epoch = ep
