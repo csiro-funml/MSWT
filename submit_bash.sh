@@ -70,6 +70,7 @@ source $HOME/.venvs/pytorch/bin/activate
 # CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO.py --dataset='ns2d_dedalus' --model='HFS' --use_writer --lr_method='cossin' --T_in=7 --epochs=3000
 CUDA_VISIBLE_DEVICES=0 python3 NSE/train_AR_NO_Dedalus.py \
     --dataset ns2d_dedalus_big \
+    --model FNO \
     --T_in 1 \
     --T_ar 1 \
     --form vorticity \
