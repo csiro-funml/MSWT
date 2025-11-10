@@ -316,6 +316,9 @@ def main():
         energy_metrics = compare_energies(ux_from_psi, uy_from_psi, ux_gt, uy_gt, args.Lx, args.Ly, verbose=True)
         all_energy_metrics.append(energy_metrics)
         
+        # Store resolution for plotting
+        H, W = ux_from_psi.shape
+        
         # Save plots for first sample
         if args.save_plots and i == 0:
             print("\nSaving comparison plots...")
@@ -368,12 +371,23 @@ def main():
             # Plot energy spectrum comparison
             fig, ax = plt.subplots(figsize=(10, 6))
             k_bins = energy_metrics['k_bins']
-            k_nyquist = len(k_bins) // 2
+            # Calculate physical Nyquist wavenumber: k_nyquist = π * N / L
+            # This is the maximum meaningful wavenumber (Nyquist-Shannon theorem)
+            k_nyquist_phys = np.pi * H / args.Lx
+            # Find the index in k_bins that corresponds to Nyquist
+            k_nyquist_idx = np.searchsorted(k_bins, k_nyquist_phys)
+            # Use Nyquist as cutoff (shells beyond Nyquist are aliased/meaningless)
+            # But also allow showing up to Nyquist if there are fewer bins
+            k_cutoff_idx = min(k_nyquist_idx + 1, len(k_bins))
             start_idx = 1
-            ax.loglog(k_bins[start_idx:k_nyquist], energy_metrics['Ek_psi'][start_idx:k_nyquist], 
+            ax.loglog(k_bins[start_idx:k_cutoff_idx], energy_metrics['Ek_psi'][start_idx:k_cutoff_idx], 
                      'o-', markersize=3, label='From streamfunction', linewidth=1.5)
-            ax.loglog(k_bins[start_idx:k_nyquist], energy_metrics['Ek_gt'][start_idx:k_nyquist], 
+            ax.loglog(k_bins[start_idx:k_cutoff_idx], energy_metrics['Ek_gt'][start_idx:k_cutoff_idx], 
                      'X--', markersize=3, label='Ground truth', linewidth=1.5)
+            # Add vertical line at Nyquist for reference
+            if k_nyquist_phys < k_bins[-1]:
+                ax.axvline(k_nyquist_phys, color='gray', linestyle='--', alpha=0.5, 
+                          label=f'Nyquist (k={k_nyquist_phys:.1f})')
             ax.set_xlabel('Wavenumber k', fontsize=12)
             ax.set_ylabel('Energy E(k)', fontsize=12)
             ax.set_title('Energy Spectrum Comparison', fontsize=14)
