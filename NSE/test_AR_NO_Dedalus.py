@@ -378,7 +378,9 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         # Use lazy loading to avoid loading entire dataset at once
         print("Loading initial input (lazy loading approach)...")
         if args.dataset == 'ns2d_dedalus_big':
-            x, get_forcing_at_timestep, get_target_at_timestep, channel_indices_in, channel_indices_out, max_steps = get_initial_input_and_forcing_loader(test_dataset)
+            x, get_forcing_at_timestep, get_target_at_timestep, channel_indices_in, channel_indices_out, max_steps_default = get_initial_input_and_forcing_loader(test_dataset)
+            if max_steps is None:
+                max_steps = max_steps_default
             has_forcing = True
             # Channel mapping for forcing
             if test_dataset.form == 'vorticity':
