@@ -15,7 +15,8 @@ import os
 import scipy
 import io
 from PIL import Image
-
+from utils.compute_diagnostics import streamfunction_to_velocity
+from utils.compute_physical_statistics import compute_spectra
 
 
 class MultipleTensors(Sequence):
@@ -476,10 +477,7 @@ def log_tensorboard_images_and_spectra(
     # Compute and plot energy and enstrophy spectra
     # Supports both vorticity and velocity forms
     if C >= 2:
-        try:
-            from utils.compute_diagnostics import streamfunction_to_velocity
-            from utils.compute_physical_statistics import compute_spectra
-            
+        try:            
             # Extract data for pred and target
             # Shape: (B, H, W, T, C) -> extract first batch, first time step
             pred_batch = pred_denorm[0, :, :, 0, :].detach().cpu().numpy()  # (H, W, C)
