@@ -19,7 +19,7 @@ from timeit import default_timer
 from torch.utils.tensorboard import SummaryWriter
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint
 
-from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D
+from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D, MemmapDedalusBigDataset2D
 from utils.make_master_file import DATASET_DICT
 # from models.fno import FNO2d
 from models.fno import FNO2d_Tin1_Tout1 as FNO2d
@@ -46,11 +46,12 @@ parser.add_argument('--model', type=str, default='FNO') # FNO, ViT, UNO, CNO, Of
 parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=int, default=0 if not torch.cuda.is_available() else 1) # use random weights if not cuda available
 parser.add_argument('--use_writer', action='store_true',default=False)
+parser.add_argument('--form',type=str, default='vorticity', choices=['vorticity', 'velocity'])
 
 
 
 # ### dataset details
-parser.add_argument('--T_in', type=int, default=7)
+parser.add_argument('--T_in', type=int, default=1)
 parser.add_argument('--T_ar', type=int, default=1)
 parser.add_argument('--T_bundle', type=int, default=1)
 parser.add_argument('--pad', type=int, default=0)
@@ -106,9 +107,13 @@ print(f"Current working directory: {os.getcwd()}")
 def load_data_model(just_load_path=False):
     ################################################################
     # load some toy data to run locally
-    if not torch.cuda.is_available():
+    if not torch.cuda.is_available() and args.dataset != 'ns2d_dedalus_big':
         train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, n_channels=3, normalize=args.normalize, train='train')
         test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels=3, normalize=args.normalize, train='test')
+    elif args.dataset == 'ns2d_dedalus_big':
+        # load data and dataloader for big dedalus dataset
+        train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='train', strategy=args.normalize_strategy)
+        test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
     elif args.dataset != 'ns2d_dedalus':
         # load data and dataloader
         train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
@@ -135,7 +140,10 @@ def load_data_model(just_load_path=False):
 
     testing_mode = 'FNO_testing'
     if testing_mode == 'FNO_testing':
-        comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy)
+        if args.dataset == 'ns2d_dedalus_big':
+            comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+        else:
+            comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy)
         log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
         # model_path = log_path + '/model.pth'
         model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
@@ -175,10 +183,20 @@ def load_data_model(just_load_path=False):
     # load model
     ################################################################
     if args.model == "FNO":
-        model = FNO2d(args.modes, args.modes, width=args.width,
-                    n_channels=train_dataset.n_channels,
-                    in_timesteps = args.T_in, out_timesteps=1, 
-                    n_layers = args.n_layers).to(device)
+        if args.dataset == 'ns2d_dedalus_big':
+            model = FNO2d(args.modes, args.modes, width=args.width,
+                        img_size=train_dataset.res,
+                        in_channels=train_dataset.n_channels_in[args.form],
+                        out_channels=train_dataset.n_channels_out[args.form],
+                        in_timesteps = args.T_in, out_timesteps=1, 
+                        n_layers = args.n_layers,
+                        use_ln=True,
+                        ).to(device)
+        else:
+            model = FNO2d(args.modes, args.modes, width=args.width,
+                        n_channels=train_dataset.n_channels,
+                        in_timesteps = args.T_in, out_timesteps=1, 
+                        n_layers = args.n_layers).to(device)
     elif args.model == 'UNO':
         model = UNO( width=args.width, n_channels=train_dataset.n_channels, in_timesteps = args.T_in,  out_timesteps=1).to(device)
     elif args.model == 'wavelet_transformer':
@@ -215,6 +233,57 @@ def load_data_model(just_load_path=False):
 ################################################################
 # Function 1 Report Average step, step-wise, and full prediction relative l2 norm
 ################################################################
+def get_full_sequence_with_forcing(test_dataset):
+    """
+    Get the full sequence including forcing channels for autoregressive prediction.
+    For MemmapDedalusBigDataset2D, we need to get the full data with forcing channels.
+    """
+    if hasattr(test_dataset, '_read_window') and hasattr(test_dataset, 'channel_indices'):
+        # This is MemmapDedalusBigDataset2D
+        t0_global = test_dataset.start_idx
+        t1_global = test_dataset.end_idx
+        data = test_dataset._read_window(t0_global, t1_global - t0_global)
+        if test_dataset.temporal_downsample == 1:
+            data_dowmsample = data
+        else:
+            data_dowmsample = data[::test_dataset.temporal_downsample]
+        # Get all channels including forcing (not just channel_indices)
+        # Channel order: [vorticity, streamfunction, velocity_x, velocity_y, pressure, forcing_x, forcing_y]
+        data = data_dowmsample  # (T, C_all, H, W) where C_all=7
+        data = torch.from_numpy(data.astype(np.float32))
+        if test_dataset.downsample != (1, 1):
+            target_N = test_dataset.H // test_dataset.downsample[0]
+            data = test_dataset.downsample_x(data, target_N)
+        data = data.permute(2, 3, 0, 1)  # (H, W, T, C_all)
+        
+        # Extract input and output based on form
+        t_in = test_dataset.t_in
+        x_full = data[..., :t_in, :].unsqueeze(0)  # (1, H, W, T_in, C_all)
+        y_full = data[..., t_in:, :].unsqueeze(0)  # (1, H, W, T_out, C_all)
+        
+        # Extract the channels we need based on form
+        if test_dataset.form == 'vorticity':
+            # Input: vorticity, streamfunction, forcing_x, forcing_y (indices 0, 1, 5, 6)
+            # Output: vorticity, streamfunction (indices 0, 1)
+            channel_indices_in = [0, 1, 5, 6]
+            channel_indices_out = [0, 1]
+        else:  # velocity
+            # Input: pressure, velocity_x, velocity_y, forcing_x, forcing_y (indices 4, 2, 3, 5, 6)
+            # Output: pressure, velocity_x, velocity_y (indices 4, 2, 3)
+            channel_indices_in = [4, 2, 3, 5, 6]
+            channel_indices_out = [4, 2, 3]
+        
+        x = x_full[..., channel_indices_in]  # (1, H, W, T_in, C_in)
+        y = y_full[..., channel_indices_out]  # (1, H, W, T_out, C_out)
+        # Also return full y with forcing for ground truth forcing
+        y_full_with_forcing = y_full  # (1, H, W, T_out, C_all=7)
+        
+        return x, y, y_full_with_forcing, channel_indices_in, channel_indices_out
+    else:
+        # For other datasets, use standard get_all_sequence
+        x, y = test_dataset.get_all_sequence()
+        return x, y, None, None, None
+
 def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=None):
     """
     test_error(model, test_loader, save=False)
@@ -228,58 +297,174 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
     with torch.no_grad():
         model.eval()
         test_dataset = test_loader.dataset
-        x, y = test_dataset.get_all_sequence()
+        
+        # Get full sequence with forcing if available
+        if args.dataset == 'ns2d_dedalus_big':
+            x, y, y_full_with_forcing, channel_indices_in, channel_indices_out = get_full_sequence_with_forcing(test_dataset)
+            has_forcing = True
+            # Channel mapping for forcing: forcing_x=5, forcing_y=6 in full data
+            if test_dataset.form == 'vorticity':
+                forcing_indices = [5, 6]  # forcing_x, forcing_y
+                main_var_indices = [0, 1]  # vorticity, streamfunction
+            else:  # velocity
+                forcing_indices = [5, 6]  # forcing_x, forcing_y
+                main_var_indices = [4, 2, 3]  # pressure, velocity_x, velocity_y
+        else:
+            x, y = test_dataset.get_all_sequence()
+            y_full_with_forcing = None
+            has_forcing = False
+            channel_indices_in = None
+            channel_indices_out = None
+        
         max_steps = y.shape[-2]
         
         save_data = {'input': [], 'output': [], 'pred': []}
         # autoregressive computing  
-        xx = x.to(device) #(1, H, W, T_in, C)
-        yy = y[..., :args.T_bundle, :].to(device) #(1, H, W, 1, C)
-        xx = test_dataset.normalize_x(xx) # normalize the input before the autoregressive predicting
-        for t in range(0, max_steps, args.T_bundle):
-            save_data['input']=xx
-            im = model(xx)
-            if t == 0:
-                pred = im
-            else:
-                pred = torch.cat((pred, im), -2)
-            xx = torch.cat((xx[..., args.T_bundle:,:], im), dim=-2) # move to the next step
-        # denormalize the pred at the final step (get better results)   
-        pred = test_dataset.denormalize_x(pred)    
+        xx = x.to(device)  # (1, H, W, T_in, C_in) - original input (not normalized)
+        yy = y.to(device)  # (1, H, W, T_out, C_out) - original output (not normalized)
         
-        # # save the data to np_data
-        # # print("save input and output shape", xx.shape, yy.shape)
-        save_data['output']= y.to(device)
-        save_data['pred']=pred
+        # Store original input for saving (before normalization)
+        x_original = xx.clone()
+        
+        # Normalize input for model prediction
+        xx = test_dataset.normalize_x(xx)  # normalize the input before the autoregressive predicting
+        
+        # Store predictions
+        pred = []
+        
+        for t in range(0, max_steps, args.T_bundle):
+            # Predict next step (outputs only main variables, no forcing)
+            im = model(xx)  # (1, H, W, T_bundle, C_out) where C_out doesn't include forcing
+            
+            # Store prediction (denormalized main variables only)
+            im_denorm = test_dataset.denormalize_x(im)
+            if t == 0:
+                pred = im_denorm
+            else:
+                pred = torch.cat((pred, im_denorm), -2)
+            
+            # Prepare input for next step: combine predicted vars with ground truth forcing
+            if has_forcing and y_full_with_forcing is not None:
+                # Get ground truth forcing for the NEXT step (the step we just predicted)
+                # t is the current prediction step index, so we use forcing at step t
+                if t < y_full_with_forcing.shape[-2]:
+                    # Get forcing for the timestep we just predicted
+                    gt_forcing = y_full_with_forcing[..., t:t+args.T_bundle, forcing_indices].to(device)
+                else:
+                    # If we're beyond available data, use last available forcing
+                    gt_forcing = y_full_with_forcing[..., -1:, forcing_indices].to(device)
+                    if args.T_bundle > 1:
+                        gt_forcing = gt_forcing.expand(-1, -1, -1, args.T_bundle, -1)
+                
+                # Normalize forcing using the same stats as input (forcing is in input channels)
+                # Get the forcing channel stats from input normalization
+                if test_dataset.form == 'vorticity':
+                    # Input channels are [vorticity, streamfunction, forcing_x, forcing_y]
+                    # So forcing is at indices 2, 3 in the input
+                    forcing_in_input_idx = [2, 3]
+                else:  # velocity
+                    # Input channels are [pressure, velocity_x, velocity_y, forcing_x, forcing_y]
+                    # So forcing is at indices 3, 4 in the input
+                    forcing_in_input_idx = [3, 4]
+                
+                # Normalize forcing (it should use the same normalization as input forcing channels)
+                forcing_mean = test_dataset.norm_mean[forcing_in_input_idx].to(device)
+                forcing_std = test_dataset.norm_std[forcing_in_input_idx].to(device)
+                gt_forcing_norm = (gt_forcing - forcing_mean) / (forcing_std + 1e-6)
+                
+                # The model output `im` is already normalized (model trained with normalized inputs/outputs)
+                # The model outputs normalized predictions that match the output normalization stats
+                # Since norm_mean_out = norm_mean[:n_out] for main variables, the normalization is consistent
+                # We can use `im` directly - it's already in the normalized output space
+                # which matches the normalized input space for the main variables
+                im_norm = im  # Already normalized, no need to normalize again
+                
+                # Concatenate predicted main vars (normalized) with ground truth forcing (normalized)
+                # This creates the input format: [main_vars (normalized), forcing (normalized)]
+                im_with_forcing = torch.cat([im_norm, gt_forcing_norm], dim=-1)  # (1, H, W, T_bundle, C_in)
+                
+                # Update xx for next step: shift window and add new prediction with forcing
+                xx = torch.cat((xx[..., args.T_bundle:, :], im_with_forcing), dim=-2)
+            else:
+                # No forcing: just use predicted values (already normalized)
+                xx = torch.cat((xx[..., args.T_bundle:, :], im), dim=-2)
+        
+        # Store data (use original input, not the modified xx)
+        save_data['input'] = x_original  # Original input (already denormalized)
+        save_data['output'] = yy  # Original output (already denormalized)
+        save_data['pred'] = pred  # Predictions (denormalized)
 
         # print the shape of the np_data
         print("save_data shape", save_data['input'].shape, save_data['output'].shape, save_data['pred'].shape)
 
         # save to npz
         if save:
+            os.makedirs(log_path, exist_ok=True)
             torch.save(save_data, f'{log_path}/test_data_prediction.pth')
             # save another version into numpy
-            save_data_numpy = {
-                'input': {'vorticity': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_in, C) -> (T_in, H, W)
-                          'streamfunction': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_in, C) -> (T_in, H, W)
-                          },
-                
-                'output': {'vorticity': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_out, C) -> (T_out, H, W)
-                            'streamfunction': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_out, C) -> (T_out, H, W)
-                            },
-                'pred': {'vorticity': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_out, C) -> (T_out, H, W)
-                         'streamfunction': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(), # (1, H, W, T_out, C) -> (T_out, H, W)
-                         }
-            }
-            print("save_data_numpy shape", save_data_numpy['input']['vorticity'].shape, save_data_numpy['output']['vorticity'].shape, save_data_numpy['pred']['vorticity'].shape)
-            # Save
-            # np.savez(f'{log_path}/test_data_prediction.npz',
-            #     pred_vorticity=save_data_numpy['pred']['vorticity'],
-            #     pred_streamfunction=save_data_numpy['pred']['streamfunction'],
-            #     output_vorticity=save_data_numpy['output']['vorticity'],
-            #     output_streamfunction=save_data_numpy['output']['streamfunction'])
-            # np.savez(f'{log_path}/test_data_prediction.npz', **save_data_numpy)
-            # torch.save(save_data, f'{log_path}/test_long_data_prediction.pth')
+            if args.dataset == 'ns2d_dedalus_big':
+                if test_dataset.form == 'vorticity':
+                    save_data_numpy = {
+                        'input': {
+                            'vorticity': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'streamfunction': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                            'forcing_x': save_data['input'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
+                            'forcing_y': save_data['input'][0, ..., 3].permute(2, 0, 1).cpu().numpy(),
+                        },
+                        'output': {
+                            'vorticity': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'streamfunction': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                        },
+                        'pred': {
+                            'vorticity': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'streamfunction': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                        }
+                    }
+                else:  # velocity
+                    save_data_numpy = {
+                        'input': {
+                            'pressure': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'velocity_x': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                            'velocity_y': save_data['input'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
+                            'forcing_x': save_data['input'][0, ..., 3].permute(2, 0, 1).cpu().numpy(),
+                            'forcing_y': save_data['input'][0, ..., 4].permute(2, 0, 1).cpu().numpy(),
+                        },
+                        'output': {
+                            'pressure': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'velocity_x': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                            'velocity_y': save_data['output'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
+                        },
+                        'pred': {
+                            'pressure': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'velocity_x': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                            'velocity_y': save_data['pred'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
+                        }
+                    }
+                print("save_data_numpy keys:", save_data_numpy.keys())
+                if test_dataset.form == 'vorticity':
+                    print("save_data_numpy shape", save_data_numpy['input']['vorticity'].shape, 
+                          save_data_numpy['output']['vorticity'].shape, 
+                          save_data_numpy['pred']['vorticity'].shape)
+                else:
+                    print("save_data_numpy shape", save_data_numpy['input']['pressure'].shape, 
+                          save_data_numpy['output']['pressure'].shape, 
+                          save_data_numpy['pred']['pressure'].shape)
+            else:
+                # Original format for other datasets
+                save_data_numpy = {
+                    'input': {'vorticity': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                              'streamfunction': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                              },
+                    'output': {'vorticity': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                                'streamfunction': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                                },
+                    'pred': {'vorticity': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                             'streamfunction': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
+                             }
+                }
+                print("save_data_numpy shape", save_data_numpy['input']['vorticity'].shape, 
+                      save_data_numpy['output']['vorticity'].shape, 
+                      save_data_numpy['pred']['vorticity'].shape)
         return save_data
 
 
@@ -498,7 +683,7 @@ if __name__ == '__main__':
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
     
     # #### 3. compute different types of metrics
-    compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
+    # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
 
     #### 4. postprocessing save the data for diffusion training
     # no_postprocessing_pred_save_data(args)
