@@ -515,9 +515,9 @@ def log_tensorboard_images_and_spectra(
             k_nyquist = int((np.pi * H) // Lx)
             start_truth = 1
             ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_target[start_truth:k_nyquist], 
-                          'X-', markersize=2, label='Ground Truth', linewidth=2, color='black')
+                          'X--', markersize=1, label='Ground Truth', linewidth=1, color='black')
             ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_pred[start_truth:k_nyquist], 
-                          'o-', markersize=2, label=f'{model_name} Prediction', linewidth=2, color='blue')
+                          'o-', markersize=1, label=f'{model_name} Prediction', linewidth=1, color='blue')
             ax_energy.set_xlabel('Wavenumber', fontsize=14)
             ax_energy.set_ylabel('Energy', fontsize=14)
             ax_energy.set_title('Energy Spectrum', fontsize=14)

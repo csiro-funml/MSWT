@@ -221,7 +221,7 @@ class Energy_Enstropy_SpectrumError(_WeightedLoss):
             
             # Spectra (every time step)
             k_bins, Ek, Zk = compute_spectra(ux_grid, uy_grid, Lx, Ly)
-
+    
             y_dict[y_key+'_Ek'] = Ek
             y_dict[y_key+'_Zk'] = Zk
             y_dict['k_bins'] = k_bins

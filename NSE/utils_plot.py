@@ -33,7 +33,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap, TwoSlopeNorm
-from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.animation import FuncAnimation, PillowWriter, FFMpegWriter
 
 
 class SimpleLpLoss(nn.Module):
@@ -1226,43 +1226,248 @@ def generate_gt_gif(pred_data, sample_id=0, channel_id=0, model_name='FNO', log_
 
     plt.close(fig)
 
-if __name__ == '__main__':
-    
+
+def animate_tensorboard_spectra(log_dir, output_dir=None, fps=2):
     """
-    Obsolete code, keep for reference
-
-    ################################################################
-    # Block 1: plot the single model results (no comparison with FNO)
-    ################################################################
-    # ntrain = 7000 if args.dataset == 'sw2d_pda' else 5200
-    # comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
-    # log_path = './logs/' + comment 
-    # np_data = np.load(f'{log_path}/test_data.npz')
-    # compare_multiscale_features(np_data, channel_id=0, log_path=log_path)
-    # draw_rollout_error(np_data)
-
-    ################################################################
-    # Block 2 (Plots in the paper): plot the comparison between FNO and the model
-    ################################################################
+    Create animations from energy and enstrophy spectrum images stored in TensorBoard logs.
     
-    ##  get ntrain from DATASET_DICT
-    # ntrain = DATASET_DICT[args.dataset]['train_size']
-    # sample_ids = [4] if args.dataset == 'ns2d_pda' else [4]
-    # model_name1 = 'FNO'
-    # model_name2 = 'wavelet_transformer'
-    # log_path1 = 'logs/{}_{}_ntrain{}'.format(model_name1, args.dataset, ntrain)    
-    # log_path2 = 'logs/{}_{}_ntrain{}'.format(model_name2, args.dataset, ntrain)
-    # np_data1 = np.load(f'{log_path1}/test_data.npz')
-    # np_data2 = np.load(f'{log_path2}/test_data.npz')
-    # model_name2 = 'Our'
-    # # # Function 1: plot rollout predictions, errors, and energy spectrum
-    # draw_rollout_error_comparison(np_data1, np_data2, channel_id=0, log_path1=log_path1, log_path2=log_path2, model_name1=model_name1, model_name2=model_name2, sample_ids=sample_ids, dataset=args.dataset)
-
-    # # # # Function 2: plot the energy spectrum of the ground truth and the prediction
-    # compare_multiscale_features_comparison(np_data1, np_data2, channel_id=0, log_path1=log_path1, log_path2=log_path2, sample_ids=sample_ids, dataset=args.dataset)
-
+    Args:
+        log_dir: Path to TensorBoard log directory containing event files
+        output_dir: Directory to save animation files (default: same as log_dir)
+        fps: Frames per second for the animation (default: 2)
+    
+    Creates two animation files:
+        - energy_spectrum_animation.gif/mp4
+        - enstrophy_spectrum_animation.gif/mp4
+    
+    Note: This function uses size_guidance=0 to extract ALL images from TensorBoard logs.
+    By default, TensorBoard's EventAccumulator limits images to ~10, but this function
+    removes that limitation to get all logged images (e.g., 100 images for 1000 epochs
+    if images are logged every 10 epochs).
     """
+    try:
+        from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+    except ImportError:
+        print("Error: tensorboard package is required. Install with: pip install tensorboard")
+        return
     
+    from pathlib import Path
+    import io
+    import subprocess
+    try:
+        from PIL import Image
+    except ImportError:
+        print("Error: PIL/Pillow package is required. Install with: pip install Pillow")
+        return
+    
+    # Check if ffmpeg is available for MP4 creation
+    try:
+        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+        ffmpeg_available = True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        ffmpeg_available = False
+        print("Note: ffmpeg not found. MP4 files will not be created. Install with: brew install ffmpeg (macOS)")
+    
+    if output_dir is None:
+        output_dir = log_dir
+    else:
+        os.makedirs(output_dir, exist_ok=True)
+    
+    log_path = Path(log_dir)
+    if not log_path.exists():
+        print(f"Error: Log directory does not exist: {log_dir}")
+        return
+    
+    # Find event files in the log directory
+    event_files = list(log_path.glob('events.out.tfevents.*'))
+    if not event_files:
+        print(f"Error: No event files found in {log_dir}")
+        return
+    
+    # Use the most recent event file (in case there are multiple)
+    event_file = sorted(event_files, key=lambda x: x.stat().st_mtime)[-1]
+    print(f"Reading event file: {event_file}")
+    
+    # Create EventAccumulator with size_guidance to load ALL images (0 = no limit)
+    # Default size_guidance limits images to ~10, which is why we only got 4 images
+    size_guidance = {
+        'images': 0,  # 0 means no limit - load all images
+        'scalars': 0,
+        'histograms': 0,
+        'tensors': 0,
+    }
+    ea = EventAccumulator(str(log_path), size_guidance=size_guidance)
+    ea.Reload()
+    
+    # Get available tags
+    tags = ea.Tags()
+    print(f"Available tags: {tags.keys()}")
+    
+    # Check if image tags exist
+    image_tags = tags.get('images', [])
+    if 'spectra/energy_spectrum' not in image_tags and 'spectra/enstrophy_spectrum' not in image_tags:
+        print(f"Warning: Expected tags 'spectra/energy_spectrum' and 'spectra/enstrophy_spectrum' not found.")
+        print(f"Available image tags: {image_tags}")
+        # Try to find tags that match
+        energy_tags = [tag for tag in image_tags if 'energy' in tag.lower()]
+        enstrophy_tags = [tag for tag in image_tags if 'enstrophy' in tag.lower()]
+        print(f"Tags containing 'energy': {energy_tags}")
+        print(f"Tags containing 'enstrophy': {enstrophy_tags}")
+        if not energy_tags and not enstrophy_tags:
+            return
+    
+    def extract_images(tag_name):
+        """Extract images from a TensorBoard tag."""
+        if tag_name not in image_tags:
+            print(f"Warning: Tag '{tag_name}' not found in event file")
+            return None
+        
+        # Get image events for this tag
+        image_events = ea.Images(tag_name)
+        
+        if not image_events:
+            print(f"Warning: No images found for tag '{tag_name}'")
+            return None
+        
+        # Sort by step
+        image_events.sort(key=lambda x: x.step)
+        
+        # Extract images and steps
+        images = []
+        steps = []
+        for event in image_events:
+            try:
+                # Decode image from encoded string
+                img_bytes = event.encoded_image_string
+                img = Image.open(io.BytesIO(img_bytes))
+                img_array = np.array(img)
+                
+                # Convert to RGB if needed
+                if len(img_array.shape) == 2:
+                    # Grayscale
+                    img_array = np.stack([img_array] * 3, axis=-1)
+                elif img_array.shape[2] == 4:
+                    # RGBA to RGB
+                    img_array = img_array[:, :, :3]
+                elif img_array.shape[2] == 1:
+                    # Single channel to RGB
+                    img_array = np.repeat(img_array, 3, axis=2)
+                
+                images.append(img_array)
+                steps.append(event.step)
+            except Exception as e:
+                print(f"Warning: Failed to decode image at step {event.step}: {e}")
+                continue
+        
+        if not images:
+            print(f"Warning: No valid images extracted for tag '{tag_name}'")
+            return None
+        
+        print(f"Extracted {len(images)} images for tag '{tag_name}' (steps: {min(steps)} to {max(steps)}, total {len(images)} frames)")
+        
+        return images, steps
+    
+    # Extract energy spectrum images
+    energy_data = extract_images('spectra/energy_spectrum')
+    if energy_data is None:
+        print("Skipping energy spectrum animation")
+    else:
+        energy_images, energy_steps = energy_data
+        print(f"Creating energy spectrum animation with {len(energy_images)} frames...")
+        
+        # Create animation
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.axis('off')
+        
+        # Display first image
+        im = ax.imshow(energy_images[0])
+        ax.set_title(f'Energy Spectrum - Step {energy_steps[0]}', fontsize=14)
+        
+        def update_energy(frame):
+            if frame < len(energy_images):
+                im.set_array(energy_images[frame])
+                ax.set_title(f'Energy Spectrum - Step {energy_steps[frame]}', fontsize=14)
+            return [im]
+        
+        anim = FuncAnimation(fig, update_energy, frames=len(energy_images), 
+                           interval=1000/fps, blit=False, repeat=True)
+        
+        # Save as GIF
+        gif_path = os.path.join(output_dir, 'energy_spectrum_animation.gif')
+        try:
+            anim.save(gif_path, writer=PillowWriter(fps=fps))
+            print(f"Saved energy spectrum animation to: {gif_path}")
+        except Exception as e:
+            print(f"Failed to save GIF: {e}")
+        
+        # Try to save as MP4 if ffmpeg is available
+        if ffmpeg_available:
+            mp4_path = os.path.join(output_dir, 'energy_spectrum_animation.mp4')
+            try:
+                # Use FFMpegWriter for MP4
+                writer_ffmpeg = FFMpegWriter(fps=fps, metadata=dict(artist='Me'), bitrate=1800)
+                anim.save(mp4_path, writer=writer_ffmpeg)
+                print(f"Saved energy spectrum animation to: {mp4_path}")
+            except Exception as e:
+                print(f"Failed to save MP4: {e}")
+        else:
+            print("Skipping MP4 creation (ffmpeg not available)")
+        
+        plt.close(fig)
+    
+    # Extract enstrophy spectrum images
+    enstrophy_data = extract_images('spectra/enstrophy_spectrum')
+    if enstrophy_data is None:
+        print("Skipping enstrophy spectrum animation")
+    else:
+        enstrophy_images, enstrophy_steps = enstrophy_data
+        print(f"Creating enstrophy spectrum animation with {len(enstrophy_images)} frames...")
+        
+        # Create animation
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.axis('off')
+        
+        # Display first image
+        im = ax.imshow(enstrophy_images[0])
+        ax.set_title(f'Enstrophy Spectrum - Step {enstrophy_steps[0]}', fontsize=14)
+        
+        def update_enstrophy(frame):
+            if frame < len(enstrophy_images):
+                im.set_array(enstrophy_images[frame])
+                ax.set_title(f'Enstrophy Spectrum - Step {enstrophy_steps[frame]}', fontsize=14)
+            return [im]
+        
+        anim = FuncAnimation(fig, update_enstrophy, frames=len(enstrophy_images), 
+                           interval=1000/fps, blit=False, repeat=True)
+        
+        # Save as GIF
+        gif_path = os.path.join(output_dir, 'enstrophy_spectrum_animation.gif')
+        try:
+            anim.save(gif_path, writer=PillowWriter(fps=fps))
+            print(f"Saved enstrophy spectrum animation to: {gif_path}")
+        except Exception as e:
+            print(f"Failed to save GIF: {e}")
+        
+        # Try to save as MP4 if ffmpeg is available
+        if ffmpeg_available:
+            mp4_path = os.path.join(output_dir, 'enstrophy_spectrum_animation.mp4')
+            try:
+                # Use FFMpegWriter for MP4
+                writer_ffmpeg = FFMpegWriter(fps=fps, metadata=dict(artist='Me'), bitrate=1800)
+                anim.save(mp4_path, writer=writer_ffmpeg)
+                print(f"Saved enstrophy spectrum animation to: {mp4_path}")
+            except Exception as e:
+                print(f"Failed to save MP4: {e}")
+        else:
+            print("Skipping MP4 creation (ffmpeg not available)")
+        
+        plt.close(fig)
+    
+    print("Animation creation complete!")
+
+
+
+def Block_1_plot():
 
     ################################################################
     # Block 1: Plot the prediction and ground truth and abs error
@@ -1305,7 +1510,59 @@ if __name__ == '__main__':
     # plot_prediction_gt_abserror(pred_data, sample_id=0, channel_id=0, model_name='FNO-Diffusion', log_path=log_path)
 
 
+
+
+def Block_2_plot():
+    # Create animations from TensorBoard logs
+    animate_tensorboard_spectra(
+        log_dir='logs/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_normalizer_zscore_form_vorticity/',
+        fps=2  # optional: frames per second (default: 2)
+    )
+
+    # animate_tensorboard_spectra(
+    #     log_dir='logs/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_normalizer_zscore_form_velocity/',
+    #     fps=2  # optional: frames per second (default: 2)
+    # )
+
+if __name__ == '__main__':
     
+    """
+    Obsolete code, keep for reference
+
+    ################################################################
+    # Block 1: plot the single model results (no comparison with FNO)
+    ################################################################
+    # ntrain = 7000 if args.dataset == 'sw2d_pda' else 5200
+    # comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
+    # log_path = './logs/' + comment 
+    # np_data = np.load(f'{log_path}/test_data.npz')
+    # compare_multiscale_features(np_data, channel_id=0, log_path=log_path)
+    # draw_rollout_error(np_data)
+
+    ################################################################
+    # Block 2 (Plots in the paper): plot the comparison between FNO and the model
+    ################################################################
+    
+    ##  get ntrain from DATASET_DICT
+    # ntrain = DATASET_DICT[args.dataset]['train_size']
+    # sample_ids = [4] if args.dataset == 'ns2d_pda' else [4]
+    # model_name1 = 'FNO'
+    # model_name2 = 'wavelet_transformer'
+    # log_path1 = 'logs/{}_{}_ntrain{}'.format(model_name1, args.dataset, ntrain)    
+    # log_path2 = 'logs/{}_{}_ntrain{}'.format(model_name2, args.dataset, ntrain)
+    # np_data1 = np.load(f'{log_path1}/test_data.npz')
+    # np_data2 = np.load(f'{log_path2}/test_data.npz')
+    # model_name2 = 'Our'
+    # # # Function 1: plot rollout predictions, errors, and energy spectrum
+    # draw_rollout_error_comparison(np_data1, np_data2, channel_id=0, log_path1=log_path1, log_path2=log_path2, model_name1=model_name1, model_name2=model_name2, sample_ids=sample_ids, dataset=args.dataset)
+
+    # # # # Function 2: plot the energy spectrum of the ground truth and the prediction
+    # compare_multiscale_features_comparison(np_data1, np_data2, channel_id=0, log_path1=log_path1, log_path2=log_path2, sample_ids=sample_ids, dataset=args.dataset)
+
+    """
+    
+    # Block_1_plot()
+    Block_2_plot()
     
     
     
