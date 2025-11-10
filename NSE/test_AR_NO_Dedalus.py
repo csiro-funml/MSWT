@@ -229,7 +229,41 @@ def load_data_model(just_load_path=False):
         model, optimizer, scheduler, start_epoch = resume_training_from_checkpoint(model, args.resume_path, device, optimizer=None, scheduler=None)
         print("resume training from epoch:", start_epoch)
         best_loss_epoch = start_epoch
+    
 
+
+
+    with torch.no_grad():
+            model.eval()
+            # compute spectrum once per epoch (first test batch)
+            pred, target = [], []
+            for xx, yy in test_loader:
+                xx = xx.to(device)
+                yy = yy.to(device)
+                # normalize it before the autoregressive predicting
+                xx = train_dataset.normalize_x(xx)
+                yy_norm = train_dataset.normalize_x(yy)
+                for t in range(0, yy_norm.shape[-2], args.T_bundle):
+                    # print("t", t)
+                    y = yy_norm[..., t:t + args.T_bundle, :]
+                    pred_step = model(xx)
+                    
+                    break # just test one step
+
+                pred.append(pred_step)
+                target.append(y)
+
+            pred = torch.cat(pred, dim=0)
+            target = torch.cat(target, dim=0)
+            
+            # denormalize the pred and target
+            pred_denorm = train_dataset.denormalize_x(pred)
+            target_denorm = train_dataset.denormalize_x(target)
+
+            # print("pred shape", pred.shape, "target shape", target.shape)
+            test_rel_l2_loss = RelL2Norm()(pred_denorm, target_denorm)
+            print(f"Test RelL2Norm: {test_rel_l2_loss.item()}")
+            exit(-1)
     return model, test_loader, log_path
 
 ################################################################
@@ -423,7 +457,8 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         rel_l2_loss = RelL2Norm()
         energy_enstropy_spectrum_error = Energy_Enstropy_SpectrumError(
             model_name=args.model, 
-            save_path=log_path if save else None
+            save_path=None
+            # save_path=log_path if save else None
         )
         
         # Domain size (default to 2*pi, can be adjusted if needed)
@@ -476,15 +511,6 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
                 # Compute spectral error for this timestep
                 if args.dataset == 'ns2d_dedalus_big' or 'ns2d' in args.dataset:
                     try:
-                        # Compute energy/enstrophy spectrum error
-                        spectral_error_result = energy_enstropy_spectrum_error(
-                            pred_step,  # (1, H, W, C_out)
-                            target_step,  # (1, H, W, C_out)
-                            Lx=Lx,
-                            Ly=Ly,
-                            time_step=time_step_actual,
-                            save_plot=save
-                        )
                         
                         # Extract spectral data for saving
                         if save and hasattr(test_dataset, 'form'):
