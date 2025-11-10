@@ -260,9 +260,127 @@ def load_data_model(just_load_path=False):
             pred_denorm = train_dataset.denormalize_x(pred)
             target_denorm = train_dataset.denormalize_x(target)
 
-            # print("pred shape", pred.shape, "target shape", target.shape)
+            print("pred shape", pred.shape, "target shape", target.shape)
+            
+            # Sanity checks
+            print("\n=== Sanity Checks ===")
+            # Check for NaN/Inf
+            pred_has_nan = torch.isnan(pred_denorm).any().item()
+            pred_has_inf = torch.isinf(pred_denorm).any().item()
+            target_has_nan = torch.isnan(target_denorm).any().item()
+            target_has_inf = torch.isinf(target_denorm).any().item()
+            
+            print(f"Prediction - Has NaN: {pred_has_nan}, Has Inf: {pred_has_inf}")
+            print(f"Target - Has NaN: {target_has_nan}, Has Inf: {target_has_inf}")
+            
+            # Check value ranges
+            if not pred_has_nan and not pred_has_inf:
+                print(f"Prediction range: [{pred_denorm.min().item():.6f}, {pred_denorm.max().item():.6f}]")
+            if not target_has_nan and not target_has_inf:
+                print(f"Target range: [{target_denorm.min().item():.6f}, {target_denorm.max().item():.6f}]")
+            
+            # Check shapes match
+            assert pred_denorm.shape == target_denorm.shape, f"Shape mismatch: pred {pred_denorm.shape} vs target {target_denorm.shape}"
+            print(f"Shape check passed: {pred_denorm.shape}")
+            
             test_rel_l2_loss = RelL2Norm()(pred_denorm, target_denorm)
-            print(f"Test RelL2Norm: {test_rel_l2_loss.item()}")
+            print(f"Test RelL2Norm: {test_rel_l2_loss.item():.6f}")
+            
+            # Compute and save energy spectrum comparison for first sample
+            if args.dataset == 'ns2d_dedalus_big' or 'ns2d' in args.dataset:
+                try:
+                    # Get first sample
+                    pred_first = pred_denorm[0, ...]  # (H, W, T, C)
+                    target_first = target_denorm[0, ...]  # (H, W, T, C)
+                    
+                    # Get first timestep
+                    pred_t0 = pred_first[..., 0, :]  # (H, W, C)
+                    target_t0 = target_first[..., 0, :]  # (H, W, C)
+                    
+                    # Domain size
+                    Lx = 2 * np.pi
+                    Ly = 2 * np.pi
+                    
+                    # Get velocity components based on form
+                    if hasattr(test_dataset, 'form') and test_dataset.form == 'vorticity':
+                        # For vorticity form: compute velocity from streamfunction
+                        psi_pred = pred_t0[..., 1].detach().cpu().numpy()  # streamfunction
+                        psi_target = target_t0[..., 1].detach().cpu().numpy()
+                        
+                        ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
+                        ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
+                    elif hasattr(test_dataset, 'form') and test_dataset.form == 'velocity':
+                        # For velocity form: use velocity components directly
+                        ux_pred = pred_t0[..., 1].detach().cpu().numpy()  # velocity_x
+                        uy_pred = pred_t0[..., 2].detach().cpu().numpy()  # velocity_y
+                        ux_target = target_t0[..., 1].detach().cpu().numpy()
+                        uy_target = target_t0[..., 2].detach().cpu().numpy()
+                    else:
+                        # Default: assume vorticity form (channels: vorticity, streamfunction)
+                        if pred_t0.shape[-1] >= 2:
+                            psi_pred = pred_t0[..., 1].detach().cpu().numpy()
+                            psi_target = target_t0[..., 1].detach().cpu().numpy()
+                            ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
+                            ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
+                        else:
+                            print("Warning: Cannot compute energy spectrum - insufficient channels")
+                            ux_pred = uy_pred = ux_target = uy_target = None
+                    
+                    if ux_pred is not None:
+                        # Compute energy spectra
+                        k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
+                        _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
+                        
+                        # Create comparison plot
+                        H = pred_t0.shape[0]
+                        k_nyquist = int((np.pi * H) // Lx)
+                        start_idx = 1
+                        end_idx = min(k_nyquist, len(Ek_pred))
+                        
+                        fig, axes = plt.subplots(2, 1, figsize=(10, 10))
+                        
+                        # Energy spectrum
+                        axes[0].loglog(k_bins[start_idx:end_idx], Ek_target[start_idx:end_idx], 
+                                     'X-', markersize=3, label='Ground Truth', linewidth=2, color='black')
+                        axes[0].loglog(k_bins[start_idx:end_idx], Ek_pred[start_idx:end_idx], 
+                                     'o-', markersize=3, label=f'{args.model} Prediction', linewidth=2, color='blue')
+                        axes[0].set_xlabel('Wavenumber', fontsize=12)
+                        axes[0].set_ylabel('Energy', fontsize=12)
+                        axes[0].set_title('Energy Spectrum Comparison (First Sample, t=0)', fontsize=14)
+                        axes[0].legend(fontsize=10)
+                        axes[0].grid(True)
+                        
+                        # Enstrophy spectrum
+                        axes[1].loglog(k_bins[start_idx:end_idx], Zk_target[start_idx:end_idx], 
+                                     'X-', markersize=3, label='Ground Truth', linewidth=2, color='black')
+                        axes[1].loglog(k_bins[start_idx:end_idx], Zk_pred[start_idx:end_idx], 
+                                     'o-', markersize=3, label=f'{args.model} Prediction', linewidth=2, color='blue')
+                        axes[1].set_xlabel('Wavenumber', fontsize=12)
+                        axes[1].set_ylabel('Enstrophy', fontsize=12)
+                        axes[1].set_title('Enstrophy Spectrum Comparison (First Sample, t=0)', fontsize=14)
+                        axes[1].legend(fontsize=10)
+                        axes[1].grid(True)
+                        
+                        plt.tight_layout()
+                        
+                        # Save plot
+                        os.makedirs(log_path, exist_ok=True)
+                        os.makedirs(os.path.join(log_path, 'sanity_check'), exist_ok=True)
+                        plot_path = os.path.join(log_path, 'sanity_check', 'energy_spectrum_comparison_first_sample.png')
+                        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+                        plt.close()
+                        print(f"\nSaved energy spectrum comparison to: {plot_path}")
+                        
+                        # Print relative error in spectra
+                        Ek_rel_error = np.sqrt(np.mean((Ek_pred[start_idx:end_idx] - Ek_target[start_idx:end_idx])**2)) / (np.sqrt(np.mean(Ek_target[start_idx:end_idx]**2)) + 1e-10)
+                        Zk_rel_error = np.sqrt(np.mean((Zk_pred[start_idx:end_idx] - Zk_target[start_idx:end_idx])**2)) / (np.sqrt(np.mean(Zk_target[start_idx:end_idx]**2)) + 1e-10)
+                        print(f"Energy Spectrum Rel Error: {Ek_rel_error:.6f}")
+                        print(f"Enstrophy Spectrum Rel Error: {Zk_rel_error:.6f}")
+                except Exception as e:
+                    print(f"Warning: Failed to compute energy spectrum comparison: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
             exit(-1)
     return model, test_loader, log_path
 
