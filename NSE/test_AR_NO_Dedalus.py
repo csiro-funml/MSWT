@@ -33,6 +33,8 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError, Energy_Enstropy_SpectrumError
 from visualizations import plot_enstrophy_spectrum, spectrum_2d
+from utils.compute_physical_statistics import compute_spectra
+from utils.compute_diagnostics import streamfunction_to_velocity
 warnings.filterwarnings("ignore")
 
 ################################################################
@@ -233,56 +235,131 @@ def load_data_model(just_load_path=False):
 ################################################################
 # Function 1 Report Average step, step-wise, and full prediction relative l2 norm
 ################################################################
-def get_full_sequence_with_forcing(test_dataset):
+def get_initial_input_and_forcing_loader(test_dataset):
     """
-    Get the full sequence including forcing channels for autoregressive prediction.
-    For MemmapDedalusBigDataset2D, we need to get the full data with forcing channels.
+    Get initial input and create a function to load forcing on-demand.
+    This avoids loading the entire dataset into memory at once.
+    
+    Returns:
+        x: Initial input (1, H, W, T_in, C_in)
+        y: Placeholder for output (will be built during prediction)
+        get_forcing_at_timestep: Function to get forcing at a specific timestep
+        channel_indices_in: Input channel indices
+        channel_indices_out: Output channel indices
     """
     if hasattr(test_dataset, '_read_window') and hasattr(test_dataset, 'channel_indices'):
         # This is MemmapDedalusBigDataset2D
+        # Only load the initial input window, not the entire sequence
+        t_in = test_dataset.t_in
         t0_global = test_dataset.start_idx
-        t1_global = test_dataset.end_idx
-        data = test_dataset._read_window(t0_global, t1_global - t0_global)
+        
+        # Load only the initial input window (much smaller!)
+        # Load t_in + 1 timesteps to get initial input and first forcing
+        initial_window = min(t_in + 1, test_dataset.end_idx - test_dataset.start_idx)
+        data_initial = test_dataset._read_window(t0_global, initial_window)
+        
         if test_dataset.temporal_downsample == 1:
-            data_dowmsample = data
+            data_initial = data_initial
         else:
-            data_dowmsample = data[::test_dataset.temporal_downsample]
-        # Get all channels including forcing (not just channel_indices)
-        # Channel order: [vorticity, streamfunction, velocity_x, velocity_y, pressure, forcing_x, forcing_y]
-        data = data_dowmsample  # (T, C_all, H, W) where C_all=7
-        data = torch.from_numpy(data.astype(np.float32))
+            data_initial = data_initial[::test_dataset.temporal_downsample]
+        
+        # Convert to torch and downsample if needed
+        data_initial = torch.from_numpy(data_initial.astype(np.float32))
         if test_dataset.downsample != (1, 1):
             target_N = test_dataset.H // test_dataset.downsample[0]
-            data = test_dataset.downsample_x(data, target_N)
-        data = data.permute(2, 3, 0, 1)  # (H, W, T, C_all)
+            data_initial = test_dataset.downsample_x(data_initial, target_N)
+        data_initial = data_initial.permute(2, 3, 0, 1)  # (H, W, T, C_all)
         
-        # Extract input and output based on form
-        t_in = test_dataset.t_in
-        x_full = data[..., :t_in, :].unsqueeze(0)  # (1, H, W, T_in, C_all)
-        y_full = data[..., t_in:, :].unsqueeze(0)  # (1, H, W, T_out, C_all)
-        
-        # Extract the channels we need based on form
+        # Extract channels based on form
         if test_dataset.form == 'vorticity':
-            # Input: vorticity, streamfunction, forcing_x, forcing_y (indices 0, 1, 5, 6)
-            # Output: vorticity, streamfunction (indices 0, 1)
-            channel_indices_in = [0, 1, 5, 6]
-            channel_indices_out = [0, 1]
+            channel_indices_in = [0, 1, 5, 6]  # vorticity, streamfunction, forcing_x, forcing_y
+            channel_indices_out = [0, 1]  # vorticity, streamfunction
+            forcing_indices = [5, 6]
         else:  # velocity
-            # Input: pressure, velocity_x, velocity_y, forcing_x, forcing_y (indices 4, 2, 3, 5, 6)
-            # Output: pressure, velocity_x, velocity_y (indices 4, 2, 3)
-            channel_indices_in = [4, 2, 3, 5, 6]
-            channel_indices_out = [4, 2, 3]
+            channel_indices_in = [4, 2, 3, 5, 6]  # pressure, velocity_x, velocity_y, forcing_x, forcing_y
+            channel_indices_out = [4, 2, 3]  # pressure, velocity_x, velocity_y
+            forcing_indices = [5, 6]
         
-        x = x_full[..., channel_indices_in]  # (1, H, W, T_in, C_in)
-        y = y_full[..., channel_indices_out]  # (1, H, W, T_out, C_out)
-        # Also return full y with forcing for ground truth forcing
-        y_full_with_forcing = y_full  # (1, H, W, T_out, C_all=7)
+        # Extract initial input (first t_in timesteps)
+        x = data_initial[..., :t_in, channel_indices_in].unsqueeze(0)  # (1, H, W, T_in, C_in)
         
-        return x, y, y_full_with_forcing, channel_indices_in, channel_indices_out
+        # Create a function to load forcing on-demand
+        def get_forcing_at_timestep(timestep):
+            """
+            Get forcing at a specific timestep (0-indexed relative to start_idx).
+            This loads only the needed timestep, not the entire dataset.
+            """
+            # Calculate actual global timestep
+            if test_dataset.temporal_downsample == 1:
+                global_t = test_dataset.start_idx + timestep
+            else:
+                global_t = test_dataset.start_idx + timestep * test_dataset.temporal_downsample
+            
+            # Check bounds
+            if global_t >= test_dataset.end_idx:
+                # Use last available timestep
+                global_t = test_dataset.end_idx - 1
+            
+            # Load only this single timestep
+            data_single = test_dataset._read_window(global_t, 1)  # (1, C_all, H, W)
+            data_single = torch.from_numpy(data_single[0].astype(np.float32))  # (C_all, H, W)
+            
+            # Downsample if needed
+            if test_dataset.downsample != (1, 1):
+                target_N = test_dataset.H // test_dataset.downsample[0]
+                data_single = data_single.unsqueeze(0)  # (1, C_all, H, W)
+                data_single = test_dataset.downsample_x(data_single, target_N)
+                data_single = data_single[0]  # (C_all, H, W)
+            
+            # Extract forcing channels and reshape to (H, W, 1, 2)
+            forcing = data_single[forcing_indices].permute(1, 2, 0).unsqueeze(2)  # (H, W, 1, 2)
+            return forcing
+        
+        # Create a function to get target output at a timestep (for metrics computation)
+        def get_target_at_timestep(timestep):
+            """
+            Get target output at a specific timestep for computing metrics.
+            """
+            # Calculate actual global timestep
+            if test_dataset.temporal_downsample == 1:
+                global_t = test_dataset.start_idx + timestep
+            else:
+                global_t = test_dataset.start_idx + timestep * test_dataset.temporal_downsample
+            
+            # Check bounds
+            if global_t >= test_dataset.end_idx:
+                global_t = test_dataset.end_idx - 1
+            
+            # Load only this single timestep
+            data_single = test_dataset._read_window(global_t, 1)  # (1, C_all, H, W)
+            data_single = torch.from_numpy(data_single[0].astype(np.float32))  # (C_all, H, W)
+            
+            # Downsample if needed
+            if test_dataset.downsample != (1, 1):
+                target_N = test_dataset.H // test_dataset.downsample[0]
+                data_single = data_single.unsqueeze(0)  # (1, C_all, H, W)
+                data_single = test_dataset.downsample_x(data_single, target_N)
+                data_single = data_single[0]  # (C_all, H, W)
+            
+            # Extract output channels and reshape to (1, H, W, 1, C_out)
+            output = data_single[channel_indices_out].permute(1, 2, 0).unsqueeze(0).unsqueeze(2)  # (1, H, W, 1, C_out)
+            return output
+        
+        # Calculate max_steps based on available data
+        max_steps = test_dataset.end_idx - test_dataset.start_idx
+        if test_dataset.temporal_downsample > 1:
+            max_steps = max_steps // test_dataset.temporal_downsample
+        
+        return x, get_forcing_at_timestep, get_target_at_timestep, channel_indices_in, channel_indices_out, max_steps
     else:
-        # For other datasets, use standard get_all_sequence
+        # For other datasets, use standard get_all_sequence (may still be slow)
         x, y = test_dataset.get_all_sequence()
-        return x, y, None, None, None
+        # Create dummy functions for compatibility
+        def dummy_get_forcing(t):
+            return None
+        def dummy_get_target(t):
+            return y[..., t:t+1, :] if t < y.shape[-2] else y[..., -1:, :]
+        return x, dummy_get_forcing, dummy_get_target, None, None, y.shape[-2]
 
 def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=None):
     """
@@ -298,30 +375,33 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         model.eval()
         test_dataset = test_loader.dataset
         
-        # Get full sequence with forcing if available
+        # Use lazy loading to avoid loading entire dataset at once
+        print("Loading initial input (lazy loading approach)...")
         if args.dataset == 'ns2d_dedalus_big':
-            x, y, y_full_with_forcing, channel_indices_in, channel_indices_out = get_full_sequence_with_forcing(test_dataset)
+            x, get_forcing_at_timestep, get_target_at_timestep, channel_indices_in, channel_indices_out, max_steps = get_initial_input_and_forcing_loader(test_dataset)
             has_forcing = True
-            # Channel mapping for forcing: forcing_x=5, forcing_y=6 in full data
+            # Channel mapping for forcing
             if test_dataset.form == 'vorticity':
-                forcing_indices = [5, 6]  # forcing_x, forcing_y
-                main_var_indices = [0, 1]  # vorticity, streamfunction
+                forcing_in_input_idx = [2, 3]  # forcing is at indices 2, 3 in input
             else:  # velocity
-                forcing_indices = [5, 6]  # forcing_x, forcing_y
-                main_var_indices = [4, 2, 3]  # pressure, velocity_x, velocity_y
+                forcing_in_input_idx = [3, 4]  # forcing is at indices 3, 4 in input
+            print(f"Loaded initial input. Max steps: {max_steps}")
         else:
+            # For other datasets, still use get_all_sequence (may be slow for large datasets)
             x, y = test_dataset.get_all_sequence()
-            y_full_with_forcing = None
+            max_steps = y.shape[-2]
             has_forcing = False
             channel_indices_in = None
             channel_indices_out = None
-        
-        max_steps = y.shape[-2]
+            # Create dummy functions
+            def get_forcing_at_timestep(t):
+                return None
+            def get_target_at_timestep(t):
+                return y[..., t:t+1, :].to(device) if t < y.shape[-2] else y[..., -1:, :].to(device)
         
         save_data = {'input': [], 'output': [], 'pred': []}
         # autoregressive computing  
         xx = x.to(device)  # (1, H, W, T_in, C_in) - original input (not normalized)
-        yy = y.to(device)  # (1, H, W, T_out, C_out) - original output (not normalized)
         
         # Store original input for saving (before normalization)
         x_original = xx.clone()
@@ -329,8 +409,29 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         # Normalize input for model prediction
         xx = test_dataset.normalize_x(xx)  # normalize the input before the autoregressive predicting
         
-        # Store predictions
+        # Store targets as we compute them (for final output saving)
+        target_outputs = []
+        
+        # Store predictions and metrics
         pred = []
+        rel_l2_errors = []  # Store RelL2Norm for each time step
+        spectral_data = []  # Store spectral data for each time step
+        
+        # Initialize loss functions
+        rel_l2_loss = RelL2Norm()
+        energy_enstropy_spectrum_error = Energy_Enstropy_SpectrumError(
+            model_name=args.model, 
+            save_path=log_path if save else None
+        )
+        
+        # Domain size (default to 2*pi, can be adjusted if needed)
+        Lx = 2 * np.pi
+        Ly = 2 * np.pi
+        
+        # Create directory for spectral plots if saving
+        if save:
+            os.makedirs(os.path.join(log_path, 'spectral_error'), exist_ok=True)
+            os.makedirs(os.path.join(log_path, 'rollout_metrics'), exist_ok=True)
         
         for t in range(0, max_steps, args.T_bundle):
             # Predict next step (outputs only main variables, no forcing)
@@ -343,44 +444,108 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
             else:
                 pred = torch.cat((pred, im_denorm), -2)
             
-            # Prepare input for next step: combine predicted vars with ground truth forcing
-            if has_forcing and y_full_with_forcing is not None:
-                # Get ground truth forcing for the NEXT step (the step we just predicted)
-                # t is the current prediction step index, so we use forcing at step t
-                if t < y_full_with_forcing.shape[-2]:
-                    # Get forcing for the timestep we just predicted
-                    gt_forcing = y_full_with_forcing[..., t:t+args.T_bundle, forcing_indices].to(device)
+            # Compute metrics for each timestep in the bundle
+            for bundle_idx in range(args.T_bundle):
+                time_step_actual = t + bundle_idx
+                if time_step_actual >= max_steps:
+                    break
+                
+                # Get prediction for this timestep
+                pred_step = im_denorm[..., bundle_idx, :]  # (1, H, W, C_out)
+                
+                # Load target on-demand (lazy loading)
+                target_step_tensor = get_target_at_timestep(time_step_actual)  # (1, H, W, 1, C_out)
+                target_step = target_step_tensor[..., 0, :]  # (1, H, W, C_out)
+                
+                # Store target for final output saving
+                if time_step_actual == 0:
+                    target_outputs = target_step_tensor
                 else:
-                    # If we're beyond available data, use last available forcing
-                    gt_forcing = y_full_with_forcing[..., -1:, forcing_indices].to(device)
-                    if args.T_bundle > 1:
-                        gt_forcing = gt_forcing.expand(-1, -1, -1, args.T_bundle, -1)
+                    target_outputs = torch.cat([target_outputs, target_step_tensor], dim=-2)
+                
+                # Compute RelL2Norm for this timestep
+                pred_step_expanded = pred_step.unsqueeze(-2)  # (1, H, W, 1, C_out)
+                rel_l2_err = rel_l2_loss(pred_step_expanded, target_step_tensor)
+                rel_l2_errors.append({
+                    'time_step': time_step_actual,
+                    'rel_l2_error': rel_l2_err.item()
+                })
+                
+                # Compute spectral error for this timestep
+                if args.dataset == 'ns2d_dedalus_big' or 'ns2d' in args.dataset:
+                    try:
+                        # Compute energy/enstrophy spectrum error
+                        spectral_error_result = energy_enstropy_spectrum_error(
+                            pred_step,  # (1, H, W, C_out)
+                            target_step,  # (1, H, W, C_out)
+                            Lx=Lx,
+                            Ly=Ly,
+                            time_step=time_step_actual,
+                            save_plot=save
+                        )
+                        
+                        # Extract spectral data for saving
+                        if save and hasattr(test_dataset, 'form'):
+                            # Get velocity components based on form
+                            if test_dataset.form == 'vorticity':
+                                # For vorticity form: compute velocity from streamfunction
+                                psi_pred = pred_step[0, ..., 1].detach().cpu().numpy()  # streamfunction
+                                psi_target = target_step[0, ..., 1].detach().cpu().numpy()
+                                
+                                ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
+                                ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
+                            elif test_dataset.form == 'velocity':
+                                # For velocity form: use velocity components directly
+                                ux_pred = pred_step[0, ..., 1].detach().cpu().numpy()  # velocity_x
+                                uy_pred = pred_step[0, ..., 2].detach().cpu().numpy()  # velocity_y
+                                ux_target = target_step[0, ..., 1].detach().cpu().numpy()
+                                uy_target = target_step[0, ..., 2].detach().cpu().numpy()
+                            else:
+                                ux_pred = uy_pred = ux_target = uy_target = None
+                            
+                            if ux_pred is not None:
+                                # Compute spectra
+                                k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
+                                _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
+                                
+                                spectral_data.append({
+                                    'time_step': time_step_actual,
+                                    'k_bins': k_bins,
+                                    'Ek_pred': Ek_pred,
+                                    'Ek_target': Ek_target,
+                                    'Zk_pred': Zk_pred,
+                                    'Zk_target': Zk_target
+                                })
+                    except Exception as e:
+                        print(f"Warning: Failed to compute spectral error at time step {time_step_actual}: {e}")
+                        import traceback
+                        traceback.print_exc()
+            
+            # Prepare input for next step: combine predicted vars with ground truth forcing
+            if has_forcing:
+                # Load forcing on-demand for the timesteps we just predicted
+                forcing_list = []
+                for bundle_idx in range(args.T_bundle):
+                    time_step_actual = t + bundle_idx
+                    if time_step_actual >= max_steps:
+                        # Use last available forcing if beyond bounds
+                        time_step_actual = max_steps - 1
+                    gt_forcing_single = get_forcing_at_timestep(time_step_actual)  # (H, W, 1, 2)
+                    forcing_list.append(gt_forcing_single)
+                
+                # Concatenate forcing for all timesteps in bundle
+                gt_forcing = torch.cat(forcing_list, dim=2)  # (H, W, T_bundle, 2)
+                gt_forcing = gt_forcing.unsqueeze(0).to(device)  # (1, H, W, T_bundle, 2)
                 
                 # Normalize forcing using the same stats as input (forcing is in input channels)
-                # Get the forcing channel stats from input normalization
-                if test_dataset.form == 'vorticity':
-                    # Input channels are [vorticity, streamfunction, forcing_x, forcing_y]
-                    # So forcing is at indices 2, 3 in the input
-                    forcing_in_input_idx = [2, 3]
-                else:  # velocity
-                    # Input channels are [pressure, velocity_x, velocity_y, forcing_x, forcing_y]
-                    # So forcing is at indices 3, 4 in the input
-                    forcing_in_input_idx = [3, 4]
-                
-                # Normalize forcing (it should use the same normalization as input forcing channels)
                 forcing_mean = test_dataset.norm_mean[forcing_in_input_idx].to(device)
                 forcing_std = test_dataset.norm_std[forcing_in_input_idx].to(device)
                 gt_forcing_norm = (gt_forcing - forcing_mean) / (forcing_std + 1e-6)
                 
-                # The model output `im` is already normalized (model trained with normalized inputs/outputs)
-                # The model outputs normalized predictions that match the output normalization stats
-                # Since norm_mean_out = norm_mean[:n_out] for main variables, the normalization is consistent
-                # We can use `im` directly - it's already in the normalized output space
-                # which matches the normalized input space for the main variables
+                # The model output `im` is already normalized
                 im_norm = im  # Already normalized, no need to normalize again
                 
                 # Concatenate predicted main vars (normalized) with ground truth forcing (normalized)
-                # This creates the input format: [main_vars (normalized), forcing (normalized)]
                 im_with_forcing = torch.cat([im_norm, gt_forcing_norm], dim=-1)  # (1, H, W, T_bundle, C_in)
                 
                 # Update xx for next step: shift window and add new prediction with forcing
@@ -391,32 +556,136 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         
         # Store data (use original input, not the modified xx)
         save_data['input'] = x_original  # Original input (already denormalized)
-        save_data['output'] = yy  # Original output (already denormalized)
-        save_data['pred'] = pred  # Predictions (denormalized)
+        save_data['output'] = target_outputs  # Target outputs (loaded on-demand, denormalized) - (1, H, W, T_out, C_out)
+        save_data['pred'] = pred  # Predictions (denormalized) - (1, H, W, T_out, C_out)
+
+        # Store metrics
+        save_data['rel_l2_errors'] = rel_l2_errors
+        save_data['spectral_data'] = spectral_data
 
         # print the shape of the np_data
         print("save_data shape", save_data['input'].shape, save_data['output'].shape, save_data['pred'].shape)
+        print(f"Computed metrics for {len(rel_l2_errors)} time steps")
+        print(f"Computed spectral data for {len(spectral_data)} time steps")
+        
+        # Print summary of errors
+        if rel_l2_errors:
+            errors_array = np.array([e['rel_l2_error'] for e in rel_l2_errors])
+            print(f"RelL2Norm - Mean: {errors_array.mean():.6f}, Std: {errors_array.std():.6f}, Min: {errors_array.min():.6f}, Max: {errors_array.max():.6f}")
 
         # save to npz
         if save:
             os.makedirs(log_path, exist_ok=True)
             torch.save(save_data, f'{log_path}/test_data_prediction.pth')
+            
+            # Save metrics to CSV
+            if rel_l2_errors:
+                metrics_df = pd.DataFrame(rel_l2_errors)
+                metrics_df.to_csv(f'{log_path}/rollout_metrics/rel_l2_errors_by_timestep.csv', index=False)
+                print(f"Saved RelL2Norm errors to {log_path}/rollout_metrics/rel_l2_errors_by_timestep.csv")
+            
+            # Save spectral data summary
+            spectral_summary = []  # Initialize outside if block
+            if spectral_data:
+                # Create a summary of spectral errors
+                for spec_data in spectral_data:
+                    t = spec_data['time_step']
+                    Ek_pred = spec_data['Ek_pred']
+                    Ek_target = spec_data['Ek_target']
+                    Zk_pred = spec_data['Zk_pred']
+                    Zk_target = spec_data['Zk_target']
+                    
+                    # Compute relative errors in energy and enstrophy spectra
+                    # Use a reasonable cutoff (Nyquist frequency)
+                    H = Ek_pred.shape[0]
+                    k_nyquist = int((np.pi * H) // Lx)
+                    start_idx = 1
+                    end_idx = min(k_nyquist, len(Ek_pred))
+                    
+                    if end_idx > start_idx:
+                        Ek_pred_trimmed = Ek_pred[start_idx:end_idx]
+                        Ek_target_trimmed = Ek_target[start_idx:end_idx]
+                        Zk_pred_trimmed = Zk_pred[start_idx:end_idx]
+                        Zk_target_trimmed = Zk_target[start_idx:end_idx]
+                        
+                        # Compute relative L2 error in spectra
+                        Ek_rel_error = np.sqrt(np.mean((Ek_pred_trimmed - Ek_target_trimmed)**2)) / (np.sqrt(np.mean(Ek_target_trimmed**2)) + 1e-10)
+                        Zk_rel_error = np.sqrt(np.mean((Zk_pred_trimmed - Zk_target_trimmed)**2)) / (np.sqrt(np.mean(Zk_target_trimmed**2)) + 1e-10)
+                        
+                        spectral_summary.append({
+                            'time_step': t,
+                            'energy_spectrum_rel_error': Ek_rel_error,
+                            'enstrophy_spectrum_rel_error': Zk_rel_error
+                        })
+                
+                if spectral_summary:
+                    spectral_df = pd.DataFrame(spectral_summary)
+                    spectral_df.to_csv(f'{log_path}/rollout_metrics/spectral_errors_by_timestep.csv', index=False)
+                    print(f"Saved spectral errors to {log_path}/rollout_metrics/spectral_errors_by_timestep.csv")
+                    
+                    # Print summary
+                    ek_errors = np.array([s['energy_spectrum_rel_error'] for s in spectral_summary])
+                    zk_errors = np.array([s['enstrophy_spectrum_rel_error'] for s in spectral_summary])
+                    print(f"Energy Spectrum Rel Error - Mean: {ek_errors.mean():.6f}, Std: {ek_errors.std():.6f}")
+                    print(f"Enstrophy Spectrum Rel Error - Mean: {zk_errors.mean():.6f}, Std: {zk_errors.std():.6f}")
+            
+            # Create a combined metrics plot
+            if rel_l2_errors:
+                try:
+                    n_plots = 1 if not spectral_summary else 2
+                    fig, axes = plt.subplots(n_plots, 1, figsize=(12, 6 * n_plots))
+                    if n_plots == 1:
+                        axes = [axes]  # Make it a list for consistent indexing
+                    
+                    # Plot RelL2Norm over time
+                    time_steps = [e['time_step'] for e in rel_l2_errors]
+                    rel_l2_values = [e['rel_l2_error'] for e in rel_l2_errors]
+                    axes[0].plot(time_steps, rel_l2_values, 'b-', linewidth=2, marker='o', markersize=4)
+                    axes[0].set_xlabel('Time Step', fontsize=12)
+                    axes[0].set_ylabel('RelL2Norm Error', fontsize=12)
+                    axes[0].set_title('Relative L2 Norm Error vs Time Step', fontsize=14)
+                    axes[0].grid(True)
+                    axes[0].set_yscale('log')
+                    
+                    # Plot spectral errors over time if available
+                    if spectral_summary:
+                        spec_time_steps = [s['time_step'] for s in spectral_summary]
+                        ek_errors = [s['energy_spectrum_rel_error'] for s in spectral_summary]
+                        zk_errors = [s['enstrophy_spectrum_rel_error'] for s in spectral_summary]
+                        axes[1].plot(spec_time_steps, ek_errors, 'r-', linewidth=2, marker='s', markersize=4, label='Energy Spectrum')
+                        axes[1].plot(spec_time_steps, zk_errors, 'g-', linewidth=2, marker='^', markersize=4, label='Enstrophy Spectrum')
+                        axes[1].set_xlabel('Time Step', fontsize=12)
+                        axes[1].set_ylabel('Relative Spectrum Error', fontsize=12)
+                        axes[1].set_title('Spectral Error vs Time Step', fontsize=14)
+                        axes[1].legend(fontsize=10)
+                        axes[1].grid(True)
+                        axes[1].set_yscale('log')
+                    
+                    plt.tight_layout()
+                    plt.savefig(f'{log_path}/rollout_metrics/metrics_vs_timestep.png', dpi=150, bbox_inches='tight')
+                    plt.close()
+                    print(f"Saved metrics plot to {log_path}/rollout_metrics/metrics_vs_timestep.png")
+                except Exception as e:
+                    print(f"Warning: Failed to create metrics plot: {e}")
+                    import traceback
+                    traceback.print_exc()
             # save another version into numpy
             if args.dataset == 'ns2d_dedalus_big':
+                # Convert output from (1, H, W, T, C) to (T, H, W) for each channel
                 if test_dataset.form == 'vorticity':
                     save_data_numpy = {
                         'input': {
-                            'vorticity': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'vorticity': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),  # (T_in, H, W)
                             'streamfunction': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
                             'forcing_x': save_data['input'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
                             'forcing_y': save_data['input'][0, ..., 3].permute(2, 0, 1).cpu().numpy(),
                         },
                         'output': {
-                            'vorticity': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'vorticity': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),  # (T_out, H, W)
                             'streamfunction': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
                         },
                         'pred': {
-                            'vorticity': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
+                            'vorticity': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),  # (T_out, H, W)
                             'streamfunction': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
                         }
                     }
