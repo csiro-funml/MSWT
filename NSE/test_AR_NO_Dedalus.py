@@ -433,7 +433,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
             os.makedirs(os.path.join(log_path, 'spectral_error'), exist_ok=True)
             os.makedirs(os.path.join(log_path, 'rollout_metrics'), exist_ok=True)
         
-        for t in range(0, max_steps, args.T_bundle):
+        for t in tqdm(range(0, max_steps, args.T_bundle), desc="Predicting and saving"):
             # Predict next step (outputs only main variables, no forcing)
             im = model(xx)  # (1, H, W, T_bundle, C_out) where C_out doesn't include forcing
             
