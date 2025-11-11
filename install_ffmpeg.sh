@@ -1,4 +1,12 @@
 #!/bin/bash
+#SBATCH --time=00:10:00
+#SBATCH --mem=2gb
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --account=OD-230881
+#SBATCH --cpus-per-task=1        # Increased CPUs for DataLoader workers (H100 can handle more)
+#SBATCH --output=slurm-%j.out     # Explicit output file (job ID will be inserted)
+#SBATCH --error=slurm-%j.err      # Explicit error file
 
 # Script to install ffmpeg on Linux server
 # Supports multiple Linux distributions
