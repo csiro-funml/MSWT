@@ -304,10 +304,14 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
                 target.append(yy)
                 x_next = y_pred  # Update for next iteration
         
-        pred = torch.cat(pred, dim=0)
-        target = torch.cat(target, dim=0)
+        pred = torch.stack(pred, dim=0)
+        target = torch.stack(target, dim=0)
         print("pred shape", pred.shape, "target shape", target.shape)
         
+
+        rel_l2_loss = RelL2Norm()
+        rel_l2_err = rel_l2_loss(pred, target)
+        print("rel_l2_error", rel_l2_err.item())
         # Create save_data dictionary in expected format
         # Note: pred and target are concatenated along dim=0 (sample dimension)
         # They should have shape (N, H, W, T, C) where N is number of samples
