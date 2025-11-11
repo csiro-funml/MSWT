@@ -422,7 +422,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
 ################################################################
 # Animation Functions
 ################################################################
-def animate_predictions(save_data, log_path=None, save_animation=True, fps=10):
+def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, num_steps=None):
     """
     Create animation showing target, prediction, and error for each channel.
     
@@ -436,7 +436,7 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10):
     target = save_data['output']  # (N, H, W, T, C)
     
     # Get number of steps, channels, and spatial dimensions
-    num_steps = pred.shape[0]
+    num_steps = pred.shape[0] if num_steps is None else min(num_steps, pred.shape[0])
     H, W = pred.shape[1], pred.shape[2]
     num_channels = pred.shape[-1]
     
@@ -533,7 +533,7 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10):
 
 
 def animate_spectral_comparison(save_data, log_path=None, save_animation=True, 
-                                fps=10, k_zoom_threshold=20):
+                                fps=10, k_zoom_threshold=20, num_steps=None):
     """
     Create animation comparing spectral energy and enstrophy between target and prediction.
     Includes zoomed view for high frequency components (k > k_zoom_threshold).
@@ -552,7 +552,7 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
         return None, None
     
     # Get number of steps
-    num_steps = len(spectral_data_list)
+    num_steps = len(spectral_data_list) if num_steps is None else min(num_steps, len(spectral_data_list))
     
     # Extract all k_bins (should be the same for all steps)
     k_bins = spectral_data_list[0]['k_bins']
@@ -725,7 +725,7 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     return anim, fig
 
 
-def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20):
+def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=None):
     """
     Load saved data and create both animations.
     
@@ -747,11 +747,11 @@ def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_t
     
     # Create animations
     print("\nCreating prediction animation...")
-    anim1, fig1 = animate_predictions(save_data, log_path, save_animation, fps)
+    anim1, fig1 = animate_predictions(save_data, log_path, save_animation, fps, num_steps)
     
     print("\nCreating spectral comparison animation...")
     anim2, fig2 = animate_spectral_comparison(save_data, log_path, save_animation, 
-                                              fps, k_zoom_threshold)
+                                              fps, k_zoom_threshold, num_steps)
     
     return anim1, anim2, fig1, fig2
 
@@ -759,12 +759,12 @@ def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_t
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
+    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     # #### 2. load the save_data and create animations
-    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
-    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20)
+    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
+    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=500)
     
     # #### 3. compute different types of metrics
     # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
