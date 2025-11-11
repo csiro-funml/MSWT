@@ -13,6 +13,7 @@
 #SBATCH --error=slurm-%j.err      # Explicit error file
 
 module load pytorch/2.5.1-py312-cu122-mpi
+module load ffmpeg
 source $HOME/.venvs/pytorch/bin/activate
 
 
