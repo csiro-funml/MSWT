@@ -380,6 +380,9 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
                     k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
                     _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
                     
+                    # Get grid resolution H from velocity field shape
+                    H = ux_pred.shape[0]  # Grid resolution in y direction
+                    
                     spectral_data_list.append({
                         'time_step': step_idx,
                         'timestep_in_output': t_idx,
@@ -387,7 +390,9 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
                         'Ek_pred': Ek_pred,
                         'Ek_target': Ek_target,
                         'Zk_pred': Zk_pred,
-                        'Zk_target': Zk_target
+                        'Zk_target': Zk_target,
+                        'H': H,  # Store grid resolution for Nyquist truncation
+                        'Lx': Lx  # Store domain size for Nyquist truncation
                     })
                 except Exception as e:
                     print(f"Warning: Failed to compute spectra at step {step_idx}, timestep {t_idx}: {e}")
@@ -451,17 +456,26 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     # Compute error
     error = pred - target  # (N, H, W, C)
     
-    # Find global min/max for consistent colorbar across all frames
-    # Use same range for target and prediction for better comparison
-    vmin_common = min(target.min(), pred.min())
-    vmax_common = max(target.max(), pred.max())
+    # Find min/max per channel for consistent colorbar across all frames
+    # Use same range for target and prediction for better comparison within each channel
+    vmin_common = []
+    vmax_common = []
+    vmin_error = []
+    vmax_error = []
     
-    vmin_error = error.min()
-    vmax_error = error.max()
-    # Use symmetric range for error
-    vmax_error_abs = max(abs(vmin_error), abs(vmax_error))
-    vmin_error = -vmax_error_abs
-    vmax_error = vmax_error_abs
+    for col in range(num_channels):
+        # Common range for target and prediction (per channel)
+        vmin_ch = min(target[:, :, :, col].min(), pred[:, :, :, col].min())
+        vmax_ch = max(target[:, :, :, col].max(), pred[:, :, :, col].max())
+        vmin_common.append(vmin_ch)
+        vmax_common.append(vmax_ch)
+        
+        # Symmetric range for error (per channel)
+        vmin_err_ch = error[:, :, :, col].min()
+        vmax_err_ch = error[:, :, :, col].max()
+        vmax_error_abs_ch = max(abs(vmin_err_ch), abs(vmax_err_ch))
+        vmin_error.append(-vmax_error_abs_ch)
+        vmax_error.append(vmax_error_abs_ch)
     
     # Create figure with 3 rows (target, pred, error) and num_channels columns
     fig, axes = plt.subplots(3, num_channels, figsize=(5*num_channels, 12))
@@ -484,16 +498,16 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
         for col in range(num_channels):
             ax = axes[row, col]
             if row == 0:  # Target
-                im = ax.imshow(target[0, :, :, col], cmap='viridis', 
-                              vmin=vmin_common, vmax=vmax_common, origin='lower')
+                im = ax.imshow(target[0, :, :, col], cmap='RdBu_r', 
+                              vmin=vmin_common[col], vmax=vmax_common[col], origin='lower')
                 ax.set_title(f'{channel_names[col] if col < len(channel_names) else f"Channel {col}"}\nTarget')
             elif row == 1:  # Prediction
-                im = ax.imshow(pred[0, :, :, col], cmap='viridis',
-                              vmin=vmin_common, vmax=vmax_common, origin='lower')
+                im = ax.imshow(pred[0, :, :, col], cmap='RdBu_r',
+                              vmin=vmin_common[col], vmax=vmax_common[col], origin='lower')
                 ax.set_title(f'Prediction')
             else:  # Error
                 im = ax.imshow(error[0, :, :, col], cmap='RdBu_r',
-                              vmin=vmin_error, vmax=vmax_error, origin='lower')
+                              vmin=vmin_error[col], vmax=vmax_error[col], origin='lower')
                 ax.set_title(f'Error')
             
             ax.set_xlabel('X')
@@ -526,8 +540,11 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
         os.makedirs(log_path, exist_ok=True)
         anim_path = f'{log_path}/prediction_animation.mp4'
         print(f"Saving animation to {anim_path}...")
+        print(f"  Animation details: {num_steps} frames, {fps} fps, bitrate=1800")
+        start_time = time.time()
         anim.save(anim_path, writer='ffmpeg', fps=fps, bitrate=1800)
-        print(f"Animation saved to {anim_path}")
+        elapsed_time = time.time() - start_time
+        print(f"Animation saved to {anim_path} (took {elapsed_time:.2f} seconds, ~{elapsed_time/60:.2f} minutes)")
     
     return anim, fig
 
@@ -557,11 +574,19 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     # Extract all k_bins (should be the same for all steps)
     k_bins = spectral_data_list[0]['k_bins']
     
-    # Find global min/max for consistent y-axis
-    all_Ek_target = [data['Ek_target'] for data in spectral_data_list]
-    all_Ek_pred = [data['Ek_pred'] for data in spectral_data_list]
-    all_Zk_target = [data['Zk_target'] for data in spectral_data_list]
-    all_Zk_pred = [data['Zk_pred'] for data in spectral_data_list]
+    # Get H and Lx for Nyquist truncation (should be the same for all steps)
+    H = spectral_data_list[0].get('H', k_bins.shape[0])  # Fallback to k_bins length if not stored
+    Lx = spectral_data_list[0].get('Lx', 2 * np.pi)  # Default to 2*pi if not stored
+    
+    # Compute Nyquist truncation index (same as utilities.py)
+    k_nyquist = int((np.pi * H) // Lx)
+    start_truth = 1  # Skip k_bins[0] as in utilities.py
+    
+    # Find global min/max for consistent y-axis (using truncated range)
+    all_Ek_target = [data['Ek_target'][start_truth:k_nyquist] for data in spectral_data_list]
+    all_Ek_pred = [data['Ek_pred'][start_truth:k_nyquist] for data in spectral_data_list]
+    all_Zk_target = [data['Zk_target'][start_truth:k_nyquist] for data in spectral_data_list]
+    all_Zk_pred = [data['Zk_pred'][start_truth:k_nyquist] for data in spectral_data_list]
     
     Ek_max = max([np.max(Ek) for Ek in all_Ek_target + all_Ek_pred if len(Ek) > 0])
     Ek_min = min([np.min(Ek[Ek > 0]) for Ek in all_Ek_target + all_Ek_pred if len(Ek) > 0 and np.any(Ek > 0)])
@@ -569,12 +594,12 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     Zk_max = max([np.max(Zk) for Zk in all_Zk_target + all_Zk_pred if len(Zk) > 0])
     Zk_min = min([np.min(Zk[Zk > 0]) for Zk in all_Zk_target + all_Zk_pred if len(Zk) > 0 and np.any(Zk > 0)])
     
-    # Find index for zoom threshold
-    k_zoom_idx = np.where(k_bins > k_zoom_threshold)[0]
+    # Find index for zoom threshold (within truncated range)
+    k_zoom_idx = np.where(k_bins[start_truth:k_nyquist] > k_zoom_threshold)[0]
     if len(k_zoom_idx) > 0:
-        zoom_start_idx = k_zoom_idx[0]
+        zoom_start_idx = k_zoom_idx[0] + start_truth  # Adjust for start_truth offset
     else:
-        zoom_start_idx = len(k_bins) - 10  # Fallback
+        zoom_start_idx = min(k_nyquist - 10, len(k_bins) - 10)  # Fallback within truncated range
     
     # Create figure with subplots
     # Top row: Full spectrum for energy and enstrophy
@@ -633,11 +658,11 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     # Step counter
     step_text = fig.suptitle('Step: 0', fontsize=16, y=0.98)
     
-    # Set axis limits
-    k_min_full = k_bins[1] if k_bins[0] == 0 else k_bins[0]
-    k_max_full = k_bins[-1]
+    # Set axis limits (using truncated range matching utilities.py)
+    k_min_full = k_bins[start_truth]  # Start from index 1 (skip k=0)
+    k_max_full = k_bins[k_nyquist - 1] if k_nyquist < len(k_bins) else k_bins[-1]  # Truncate at Nyquist
     k_min_zoom = k_bins[zoom_start_idx]
-    k_max_zoom = k_bins[-1]
+    k_max_zoom = k_bins[k_nyquist - 1] if k_nyquist < len(k_bins) else k_bins[-1]  # Also truncate zoom at Nyquist
     
     ax_energy_full.set_xlim(k_min_full, k_max_full)
     ax_energy_full.set_ylim(Ek_min, Ek_max)
@@ -660,15 +685,29 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
         Zk_target = data['Zk_target']
         Zk_pred = data['Zk_pred']
         
-        # Skip k=0 for log scale
-        mask = k_bins > 0
-        k_plot = k_bins[mask]
-        Ek_target_plot = Ek_target[mask]
-        Ek_pred_plot = Ek_pred[mask]
-        Zk_target_plot = Zk_target[mask]
-        Zk_pred_plot = Zk_pred[mask]
+        # Apply truncation matching utilities.py: start from index 1, truncate at Nyquist
+        H_frame = data.get('H', H)
+        Lx_frame = data.get('Lx', Lx)
+        k_nyquist_frame = int((np.pi * H_frame) // Lx_frame)
+        start_idx = start_truth
+        end_idx = min(k_nyquist_frame, len(k_bins))
         
-        # Remove zero values for log scale
+        # Use truncated range
+        k_plot = k_bins[start_idx:end_idx]
+        Ek_target_plot = Ek_target[start_idx:end_idx]
+        Ek_pred_plot = Ek_pred[start_idx:end_idx]
+        Zk_target_plot = Zk_target[start_idx:end_idx]
+        Zk_pred_plot = Zk_pred[start_idx:end_idx]
+        
+        # Skip zero values for log scale
+        mask = k_plot > 0
+        k_plot = k_plot[mask]
+        Ek_target_plot = Ek_target_plot[mask]
+        Ek_pred_plot = Ek_pred_plot[mask]
+        Zk_target_plot = Zk_target_plot[mask]
+        Zk_pred_plot = Zk_pred_plot[mask]
+        
+        # Remove zero energy/enstrophy values for log scale
         Ek_target_mask = Ek_target_plot > 0
         Ek_pred_mask = Ek_pred_plot > 0
         Zk_target_mask = Zk_target_plot > 0
@@ -719,8 +758,11 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
         os.makedirs(log_path, exist_ok=True)
         anim_path = f'{log_path}/spectral_comparison_animation.mp4'
         print(f"Saving spectral animation to {anim_path}...")
+        print(f"  Animation details: {num_steps} frames, {fps} fps, bitrate=1800")
+        start_time = time.time()
         anim.save(anim_path, writer='ffmpeg', fps=fps, bitrate=1800)
-        print(f"Spectral animation saved to {anim_path}")
+        elapsed_time = time.time() - start_time
+        print(f"Spectral animation saved to {anim_path} (took {elapsed_time:.2f} seconds, ~{elapsed_time/60:.2f} minutes)")
     
     return anim, fig
 
@@ -759,12 +801,12 @@ def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_t
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=True)
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=False)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     # #### 2. load the save_data and create animations
-    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
-    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=500)
+    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
+    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=300)
     
     # #### 3. compute different types of metrics
     # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
