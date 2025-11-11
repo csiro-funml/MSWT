@@ -253,7 +253,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
     with torch.no_grad():
         model.eval()
         test_dataset = test_loader.dataset
-        total_steps = min(max_steps, test_dataset.n_size)
+        total_steps = test_dataset.n_size if max_steps is None else min(max_steps, test_dataset.n_size)
         pred = []
         target = []
         for i in tqdm(range(total_steps)):
