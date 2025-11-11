@@ -304,7 +304,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
                 target.append(yy)
                 x_next = y_pred  # Update for next iteration
         
-        pred = torch.stack(pred, dim=0)
+        pred = torch.stack(pred, dim=0).cpu()
         target = torch.stack(target, dim=0)
         print("pred shape", pred.shape, "target shape", target.shape)
         
