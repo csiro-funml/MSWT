@@ -255,7 +255,7 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         total_steps = min(max_steps, test_dataset.n_size)
         pred = []
         target = []
-        for i in range(total_steps):
+        for i in tqdm(range(total_steps)):
             xx = test_loader.dataset[i][0] # (H, W, T_in, C_in) # ground truth input
             yy = test_loader.dataset[i][1] # (H, W, T_ar, C_ar) # ground truth output
 
