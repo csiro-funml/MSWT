@@ -60,6 +60,7 @@ parser.add_argument('--T_bundle', type=int, default=1)
 parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
 parser.add_argument('--normalize_strategy',type=str, default='zscore')
+parser.add_argument('--num_steps', type=int, default=300)
 
 # ### FNO/UNO params 
 parser.add_argument('--n_layers',type=int, default=8)
@@ -538,7 +539,7 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     # Save animation
     if save_animation and log_path is not None:
         os.makedirs(log_path, exist_ok=True)
-        anim_path = f'{log_path}/prediction_animation.mp4'
+        anim_path = f'{log_path}/prediction_animation_totalsteps{num_steps}.mp4'
         print(f"Saving animation to {anim_path}...")
         print(f"  Animation details: {num_steps} frames, {fps} fps, bitrate=1800")
         start_time = time.time()
@@ -756,7 +757,7 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     # Save animation
     if save_animation and log_path is not None:
         os.makedirs(log_path, exist_ok=True)
-        anim_path = f'{log_path}/spectral_comparison_animation.mp4'
+        anim_path = f'{log_path}/spectral_comparison_animation_totalsteps{num_steps}.mp4'
         print(f"Saving spectral animation to {anim_path}...")
         print(f"  Animation details: {num_steps} frames, {fps} fps, bitrate=1800")
         start_time = time.time()
