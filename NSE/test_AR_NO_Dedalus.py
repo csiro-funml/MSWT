@@ -30,6 +30,7 @@ import pickle
 from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import scipy.stats as stats
 from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError, Energy_Enstropy_SpectrumError
 from visualizations import plot_enstrophy_spectrum, spectrum_2d
@@ -308,563 +309,462 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
         target = torch.stack(target, dim=0)
         print("pred shape", pred.shape, "target shape", target.shape)
         
-
-        rel_l2_loss = RelL2Norm()
-        rel_l2_err = rel_l2_loss(pred, target)
-        print("rel_l2_error", rel_l2_err.item())
-        # Create save_data dictionary in expected format
-        # Note: pred and target are concatenated along dim=0 (sample dimension)
-        # They should have shape (N, H, W, T, C) where N is number of samples
-        save_data = {'pred': pred, 'output': target}
+        # Domain size (default to 2*pi, can be adjusted if needed)
+        Lx = 2 * np.pi
+        Ly = 2 * np.pi
         
-        # Optionally save input data if needed
-        # save_data['input'] = ...  # Can be added if needed
+        # Get dataset form to determine how to extract velocity
+        dataset_form = getattr(test_dataset, 'form', 'vorticity')
         
-        return save_data
+        # Initialize metrics lists
+        rel_l2_loss_list = []
+        spectral_data_list = []
         
-        # save_data = {'input': [], 'output': [], 'pred': []}
-        # # autoregressive computing  
-        # xx = x.to(device)  # (1, H, W, T_in, C_in) - original input (not normalized)
+        # Initialize loss function
+        rel_l2_loss_fn = RelL2Norm()
         
-        # # Store original input for saving (before normalization)
-        # x_original = xx.clone()
+        # Compute metrics for each step
+        # pred and target shape: (N, H, W, T, C) where N is number of steps
+        # For each step, we have one timestep (T=1) in the output
+        num_steps = pred.shape[0]
         
-        # # Normalize input for model prediction
-        # xx = test_dataset.normalize_x(xx)  # normalize the input before the autoregressive predicting
-        
-        # # Store targets as we compute them (for final output saving)
-        # target_outputs = []
-        
-        # # Store predictions and metrics
-        # pred = []
-        # rel_l2_errors = []  # Store RelL2Norm for each time step
-        # spectral_data = []  # Store spectral data for each time step
-        
-        # # Initialize loss functions
-        # rel_l2_loss = RelL2Norm()
-        # energy_enstropy_spectrum_error = Energy_Enstropy_SpectrumError(
-        #     model_name=args.model, 
-        #     save_path=None
-        #     # save_path=log_path if save else None
-        # )
-        
-        # # Domain size (default to 2*pi, can be adjusted if needed)
-        # Lx = 2 * np.pi
-        # Ly = 2 * np.pi
-        
-        # # Create directory for spectral plots if saving
-        # if save:
-        #     os.makedirs(os.path.join(log_path, 'spectral_error'), exist_ok=True)
-        #     os.makedirs(os.path.join(log_path, 'rollout_metrics'), exist_ok=True)
-        
-        # for t in tqdm(range(0, max_steps, args.T_bundle), desc="Predicting and saving"):
-        #     # Predict next step (outputs only main variables, no forcing)
-        #     im = model(xx)  # (1, H, W, T_bundle, C_out) where C_out doesn't include forcing
+        for step_idx in tqdm(range(num_steps), desc="Computing metrics"):
+            # Get prediction and target for this step
+            # pred[step_idx]: (H, W, T, C), target[step_idx]: (H, W, T, C)
+            pred_step = pred[step_idx]  # (H, W, T, C)
+            target_step = target[step_idx]  # (H, W, T, C)
             
-        #     # Store prediction (denormalized main variables only)
-        #     im_denorm = test_dataset.denormalize_x(im)
-        #     if t == 0:
-        #         pred = im_denorm
-        #     else:
-        #         pred = torch.cat((pred, im_denorm), -2)
+            # Compute rel_l2_loss for this step
+            # Add batch dimension for loss computation: (1, H, W, T, C)
+            pred_step_batch = pred_step.unsqueeze(0)
+            target_step_batch = target_step.unsqueeze(0)
+            rel_l2_err_step = rel_l2_loss_fn(pred_step_batch, target_step_batch)
+            rel_l2_loss_list.append({
+                'time_step': step_idx,
+                'rel_l2_error': rel_l2_err_step.item()
+            })
             
-        #     # Compute metrics for each timestep in the bundle
-        #     for bundle_idx in range(args.T_bundle):
-        #         time_step_actual = t + bundle_idx
-        #         if time_step_actual >= max_steps:
-        #             break
+            # Compute spectral energy and enstrophy
+            # Extract velocity components based on form
+            # For each timestep in the output (usually T=1)
+            for t_idx in range(pred_step.shape[-2]):  # T dimension
+                pred_t = pred_step[..., t_idx, :].numpy()  # (H, W, C)
+                target_t = target_step[..., t_idx, :].numpy()  # (H, W, C)
                 
-        #         # Get prediction for this timestep
-        #         pred_step = im_denorm[..., bundle_idx, :]  # (1, H, W, C_out)
-                
-        #         # Load target on-demand (lazy loading)
-        #         target_step_tensor = get_target_at_timestep(time_step_actual).to(device)  # (1, H, W, 1, C_out)
-        #         target_step = target_step_tensor[..., 0, :]  # (1, H, W, C_out)
-                
-        #         # Store target for final output saving
-        #         if time_step_actual == 0:
-        #             target_outputs = target_step_tensor
-        #         else:
-        #             target_outputs = torch.cat([target_outputs, target_step_tensor], dim=-2)
-                
-        #         # Compute RelL2Norm for this timestep
-        #         pred_step_expanded = pred_step.unsqueeze(-2)  # (1, H, W, 1, C_out)
-        #         rel_l2_err = rel_l2_loss(pred_step_expanded, target_step_tensor)
-        #         rel_l2_errors.append({
-        #             'time_step': time_step_actual,
-        #             'rel_l2_error': rel_l2_err.item()
-        #         })
-                
-        #         # Compute spectral error for this timestep
-        #         if args.dataset == 'ns2d_dedalus_big' or 'ns2d' in args.dataset:
-        #             try:
-                        
-        #                 # Extract spectral data for saving
-        #                 if save and hasattr(test_dataset, 'form'):
-        #                     # Get velocity components based on form
-        #                     if test_dataset.form == 'vorticity':
-        #                         # For vorticity form: compute velocity from streamfunction
-        #                         psi_pred = pred_step[0, ..., 1].detach().cpu().numpy()  # streamfunction
-        #                         psi_target = target_step[0, ..., 1].detach().cpu().numpy()
-                                
-        #                         ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
-        #                         ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
-        #                     elif test_dataset.form == 'velocity':
-        #                         # For velocity form: use velocity components directly
-        #                         ux_pred = pred_step[0, ..., 1].detach().cpu().numpy()  # velocity_x
-        #                         uy_pred = pred_step[0, ..., 2].detach().cpu().numpy()  # velocity_y
-        #                         ux_target = target_step[0, ..., 1].detach().cpu().numpy()
-        #                         uy_target = target_step[0, ..., 2].detach().cpu().numpy()
-        #                     else:
-        #                         ux_pred = uy_pred = ux_target = uy_target = None
-                            
-        #                     if ux_pred is not None:
-        #                         # Compute spectra
-        #                         k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
-        #                         _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
-                                
-        #                         spectral_data.append({
-        #                             'time_step': time_step_actual,
-        #                             'k_bins': k_bins,
-        #                             'Ek_pred': Ek_pred,
-        #                             'Ek_target': Ek_target,
-        #                             'Zk_pred': Zk_pred,
-        #                             'Zk_target': Zk_target
-        #                         })
-        #             except Exception as e:
-        #                 print(f"Warning: Failed to compute spectral error at time step {time_step_actual}: {e}")
-        #                 import traceback
-        #                 traceback.print_exc()
-            
-        #     # Prepare input for next step: combine predicted vars with ground truth forcing
-        #     if has_forcing:
-        #         # Load forcing on-demand for the timesteps we just predicted
-        #         forcing_list = []
-        #         for bundle_idx in range(args.T_bundle):
-        #             time_step_actual = t + bundle_idx
-        #             if time_step_actual >= max_steps:
-        #                 # Use last available forcing if beyond bounds
-        #                 time_step_actual = max_steps - 1
-        #             gt_forcing_single = get_forcing_at_timestep(time_step_actual)  # (H, W, 1, 2)
-        #             forcing_list.append(gt_forcing_single)
-                
-        #         # Concatenate forcing for all timesteps in bundle
-        #         gt_forcing = torch.cat(forcing_list, dim=2)  # (H, W, T_bundle, 2)
-        #         gt_forcing = gt_forcing.unsqueeze(0).to(device)  # (1, H, W, T_bundle, 2)
-                
-        #         # Normalize forcing using the same stats as input (forcing is in input channels)
-        #         forcing_mean = test_dataset.norm_mean[forcing_in_input_idx].to(device)
-        #         forcing_std = test_dataset.norm_std[forcing_in_input_idx].to(device)
-        #         gt_forcing_norm = (gt_forcing - forcing_mean) / (forcing_std + 1e-6)
-                
-        #         # The model output `im` is already normalized
-        #         im_norm = im  # Already normalized, no need to normalize again
-                
-        #         # Concatenate predicted main vars (normalized) with ground truth forcing (normalized)
-        #         im_with_forcing = torch.cat([im_norm, gt_forcing_norm], dim=-1)  # (1, H, W, T_bundle, C_in)
-                
-        #         # Update xx for next step: shift window and add new prediction with forcing
-        #         xx = torch.cat((xx[..., args.T_bundle:, :], im_with_forcing), dim=-2)
-        #     else:
-        #         # No forcing: just use predicted values (already normalized)
-        #         xx = torch.cat((xx[..., args.T_bundle:, :], im), dim=-2)
-        
-        # # Store data (use original input, not the modified xx)
-        # save_data['input'] = x_original  # Original input (already denormalized)
-        # save_data['output'] = target_outputs  # Target outputs (loaded on-demand, denormalized) - (1, H, W, T_out, C_out)
-        # save_data['pred'] = pred  # Predictions (denormalized) - (1, H, W, T_out, C_out)
-
-        # # Store metrics
-        # save_data['rel_l2_errors'] = rel_l2_errors
-        # save_data['spectral_data'] = spectral_data
-
-        # # print the shape of the np_data
-        # print("save_data shape", save_data['input'].shape, save_data['output'].shape, save_data['pred'].shape)
-        # print(f"Computed metrics for {len(rel_l2_errors)} time steps")
-        # print(f"Computed spectral data for {len(spectral_data)} time steps")
-        
-        # # Print summary of errors
-        # if rel_l2_errors:
-        #     errors_array = np.array([e['rel_l2_error'] for e in rel_l2_errors])
-        #     print(f"RelL2Norm - Mean: {errors_array.mean():.6f}, Std: {errors_array.std():.6f}, Min: {errors_array.min():.6f}, Max: {errors_array.max():.6f}")
-
-        # # save to npz
-        # if save:
-        #     os.makedirs(log_path, exist_ok=True)
-        #     torch.save(save_data, f'{log_path}/test_data_prediction.pth')
-            
-        #     # Save metrics to CSV
-        #     if rel_l2_errors:
-        #         metrics_df = pd.DataFrame(rel_l2_errors)
-        #         metrics_df.to_csv(f'{log_path}/rollout_metrics/rel_l2_errors_by_timestep.csv', index=False)
-        #         print(f"Saved RelL2Norm errors to {log_path}/rollout_metrics/rel_l2_errors_by_timestep.csv")
-            
-        #     # Save spectral data summary
-        #     spectral_summary = []  # Initialize outside if block
-        #     if spectral_data:
-        #         # Create a summary of spectral errors
-        #         for spec_data in spectral_data:
-        #             t = spec_data['time_step']
-        #             Ek_pred = spec_data['Ek_pred']
-        #             Ek_target = spec_data['Ek_target']
-        #             Zk_pred = spec_data['Zk_pred']
-        #             Zk_target = spec_data['Zk_target']
-                    
-        #             # Compute relative errors in energy and enstrophy spectra
-        #             # Use a reasonable cutoff (Nyquist frequency)
-        #             H = Ek_pred.shape[0]
-        #             k_nyquist = int((np.pi * H) // Lx)
-        #             start_idx = 1
-        #             end_idx = min(k_nyquist, len(Ek_pred))
-                    
-        #             if end_idx > start_idx:
-        #                 Ek_pred_trimmed = Ek_pred[start_idx:end_idx]
-        #                 Ek_target_trimmed = Ek_target[start_idx:end_idx]
-        #                 Zk_pred_trimmed = Zk_pred[start_idx:end_idx]
-        #                 Zk_target_trimmed = Zk_target[start_idx:end_idx]
-                        
-        #                 # Compute relative L2 error in spectra
-        #                 Ek_rel_error = np.sqrt(np.mean((Ek_pred_trimmed - Ek_target_trimmed)**2)) / (np.sqrt(np.mean(Ek_target_trimmed**2)) + 1e-10)
-        #                 Zk_rel_error = np.sqrt(np.mean((Zk_pred_trimmed - Zk_target_trimmed)**2)) / (np.sqrt(np.mean(Zk_target_trimmed**2)) + 1e-10)
-                        
-        #                 spectral_summary.append({
-        #                     'time_step': t,
-        #                     'energy_spectrum_rel_error': Ek_rel_error,
-        #                     'enstrophy_spectrum_rel_error': Zk_rel_error
-        #                 })
-                
-        #         if spectral_summary:
-        #             spectral_df = pd.DataFrame(spectral_summary)
-        #             spectral_df.to_csv(f'{log_path}/rollout_metrics/spectral_errors_by_timestep.csv', index=False)
-        #             print(f"Saved spectral errors to {log_path}/rollout_metrics/spectral_errors_by_timestep.csv")
-                    
-        #             # Print summary
-        #             ek_errors = np.array([s['energy_spectrum_rel_error'] for s in spectral_summary])
-        #             zk_errors = np.array([s['enstrophy_spectrum_rel_error'] for s in spectral_summary])
-        #             print(f"Energy Spectrum Rel Error - Mean: {ek_errors.mean():.6f}, Std: {ek_errors.std():.6f}")
-        #             print(f"Enstrophy Spectrum Rel Error - Mean: {zk_errors.mean():.6f}, Std: {zk_errors.std():.6f}")
-            
-        #     # Create a combined metrics plot
-        #     if rel_l2_errors:
-        #         try:
-        #             n_plots = 1 if not spectral_summary else 2
-        #             fig, axes = plt.subplots(n_plots, 1, figsize=(12, 6 * n_plots))
-        #             if n_plots == 1:
-        #                 axes = [axes]  # Make it a list for consistent indexing
-                    
-        #             # Plot RelL2Norm over time
-        #             time_steps = [e['time_step'] for e in rel_l2_errors]
-        #             rel_l2_values = [e['rel_l2_error'] for e in rel_l2_errors]
-        #             axes[0].plot(time_steps, rel_l2_values, 'b-', linewidth=2, marker='o', markersize=4)
-        #             axes[0].set_xlabel('Time Step', fontsize=12)
-        #             axes[0].set_ylabel('RelL2Norm Error', fontsize=12)
-        #             axes[0].set_title('Relative L2 Norm Error vs Time Step', fontsize=14)
-        #             axes[0].grid(True)
-        #             axes[0].set_yscale('log')
-                    
-        #             # Plot spectral errors over time if available
-        #             if spectral_summary:
-        #                 spec_time_steps = [s['time_step'] for s in spectral_summary]
-        #                 ek_errors = [s['energy_spectrum_rel_error'] for s in spectral_summary]
-        #                 zk_errors = [s['enstrophy_spectrum_rel_error'] for s in spectral_summary]
-        #                 axes[1].plot(spec_time_steps, ek_errors, 'r-', linewidth=2, marker='s', markersize=4, label='Energy Spectrum')
-        #                 axes[1].plot(spec_time_steps, zk_errors, 'g-', linewidth=2, marker='^', markersize=4, label='Enstrophy Spectrum')
-        #                 axes[1].set_xlabel('Time Step', fontsize=12)
-        #                 axes[1].set_ylabel('Relative Spectrum Error', fontsize=12)
-        #                 axes[1].set_title('Spectral Error vs Time Step', fontsize=14)
-        #                 axes[1].legend(fontsize=10)
-        #                 axes[1].grid(True)
-        #                 axes[1].set_yscale('log')
-                    
-        #             plt.tight_layout()
-        #             plt.savefig(f'{log_path}/rollout_metrics/metrics_vs_timestep.png', dpi=150, bbox_inches='tight')
-        #             plt.close()
-        #             print(f"Saved metrics plot to {log_path}/rollout_metrics/metrics_vs_timestep.png")
-        #         except Exception as e:
-        #             print(f"Warning: Failed to create metrics plot: {e}")
-        #             import traceback
-        #             traceback.print_exc()
-        #     # save another version into numpy
-        #     if args.dataset == 'ns2d_dedalus_big':
-        #         # Convert output from (1, H, W, T, C) to (T, H, W) for each channel
-        #         if test_dataset.form == 'vorticity':
-        #             save_data_numpy = {
-        #                 'input': {
-        #                     'vorticity': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),  # (T_in, H, W)
-        #                     'streamfunction': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                     'forcing_x': save_data['input'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
-        #                     'forcing_y': save_data['input'][0, ..., 3].permute(2, 0, 1).cpu().numpy(),
-        #                 },
-        #                 'output': {
-        #                     'vorticity': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),  # (T_out, H, W)
-        #                     'streamfunction': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                 },
-        #                 'pred': {
-        #                     'vorticity': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),  # (T_out, H, W)
-        #                     'streamfunction': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                 }
-        #             }
-        #         else:  # velocity
-        #             save_data_numpy = {
-        #                 'input': {
-        #                     'pressure': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
-        #                     'velocity_x': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                     'velocity_y': save_data['input'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
-        #                     'forcing_x': save_data['input'][0, ..., 3].permute(2, 0, 1).cpu().numpy(),
-        #                     'forcing_y': save_data['input'][0, ..., 4].permute(2, 0, 1).cpu().numpy(),
-        #                 },
-        #                 'output': {
-        #                     'pressure': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
-        #                     'velocity_x': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                     'velocity_y': save_data['output'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
-        #                 },
-        #                 'pred': {
-        #                     'pressure': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
-        #                     'velocity_x': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                     'velocity_y': save_data['pred'][0, ..., 2].permute(2, 0, 1).cpu().numpy(),
-        #                 }
-        #             }
-        #         print("save_data_numpy keys:", save_data_numpy.keys())
-        #         if test_dataset.form == 'vorticity':
-        #             print("save_data_numpy shape", save_data_numpy['input']['vorticity'].shape, 
-        #                   save_data_numpy['output']['vorticity'].shape, 
-        #                   save_data_numpy['pred']['vorticity'].shape)
-        #         else:
-        #             print("save_data_numpy shape", save_data_numpy['input']['pressure'].shape, 
-        #                   save_data_numpy['output']['pressure'].shape, 
-        #                   save_data_numpy['pred']['pressure'].shape)
-        #     else:
-        #         # Original format for other datasets
-        #         save_data_numpy = {
-        #             'input': {'vorticity': save_data['input'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
-        #                       'streamfunction': save_data['input'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                       },
-        #             'output': {'vorticity': save_data['output'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
-        #                         'streamfunction': save_data['output'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                         },
-        #             'pred': {'vorticity': save_data['pred'][0, ..., 0].permute(2, 0, 1).cpu().numpy(),
-        #                      'streamfunction': save_data['pred'][0, ..., 1].permute(2, 0, 1).cpu().numpy(),
-        #                      }
-        #         }
-        #         print("save_data_numpy shape", save_data_numpy['input']['vorticity'].shape, 
-        #               save_data_numpy['output']['vorticity'].shape, 
-        #               save_data_numpy['pred']['vorticity'].shape)
-        return save_data
-
-
-
-################################################################
-# Function 2 Compute evaluation metrics
-################################################################
-def compute_evalutation_metrics(save_data, model_name='', log_path=''):
-    pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
-    
-    # for step in [0, -1]: # first step and last step
-        # for c in range(pred.shape[-1]):
-            # low_err, mid_err, high_err = SpectralError()(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
-            
-
-    loss_dict = {}
-    loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
-    # loss_dict['rmse'] = RMSE()
-    # loss_dict['boundary_rmse'] = BoundaryRMSE()
-    # loss_dict['max_avg'] = MaxAbsError()
-    # loss_dict['max_global'] = GlobalMaxAbsError()
-    # loss_dict['spectral_error_radial'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='radial')
-    # loss_dict['spectral_error_square'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='square approximation')
-    # loss_dict['spectral_error_cfd'] = SpectralError(model_name=model_name, save_path=log_path, low_percentile=0.70, high_percentile=0.97, method='cfd')
-    loss_dict['energy_enstropy_spectrum_error'] = Energy_Enstropy_SpectrumError(model_name=model_name, save_path=log_path)
-    if 'ns2d' in log_path and 'torchcf' not in log_path: # NS equation
-        step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
-    else:
-        total_steps_to_compute = 5
-        step_dict = {t: f"t={t+1}" for t in range(0, pred.shape[-2], pred.shape[-2]//total_steps_to_compute)}
-        print("steps to compute",step_dict.keys())
-    # Standard error metrics
-    print("\n=== Channel-wise Error Metrics ===")
-    save_df = pd.DataFrame(columns=["step", "channel", "metric", f"{model_name}"])
-    
-    for step in step_dict.keys(): # first step and last step
-        print("evaluating step .....", step)
-        print("pred shape", pred.shape, "target shape", target.shape)
-        if 'energy_enstropy_spectrum_error' in loss_dict.keys():
-            loss_metric = loss_dict['energy_enstropy_spectrum_error'](pred[..., step, :], target[..., step, :], save_plot=True, time_step=step)
-            continue
-        for c in range(pred.shape[-1]):
-            # evaluate different metrics per channel
-            for key, loss_func in loss_dict.items():
-                if 'spectral_error' in key:
-                    # (B, H, W, T, C)
-                    loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None],
-                                             channel=c, time_step=step, save_plot=True)
-                    # loss metric is a dict with keys: 'low_err', 'mid_err', 'high_err', 'k_low', 'k_high'
-                    print("frequency bands", loss_metric['k_low'], loss_metric['k_high'])
-                    for band_key, val in loss_metric.items():
-                        if band_key == 'k_low' or band_key == 'k_high':
-                            continue
-                        print(f"Channel {c} {step_dict[step]} {band_key}: {val:.6f}")
-                        new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": band_key, f"{model_name}": val,
-                                             "k_low": loss_metric['k_low'], "k_high": loss_metric['k_high']}).to_frame().T
-                        save_df = pd.concat([save_df, new_row], ignore_index=True)
-                else:
-                    
-                    loss_metric = loss_func(pred[..., step, c][:, :, :, None, None], target[..., step, c][:, :, :, None, None])
-                    print(f"Channel {c} {step_dict[step]} {key}: {loss_metric.item():.6f}")   
-                    new_row = pd.Series({"step": step_dict[step], "channel": c, "metric": key, f"{model_name}": loss_metric.item()}).to_frame().T
-                    save_df = pd.concat([save_df, new_row], ignore_index=True)
-    print(save_df.head(n=16))
-    save_df.to_csv(f"{log_path}/evalutation_metrics_{model_name}_epochs_{args.epochs}.csv", index=False)
-    return loss_dict
-    
-
-################################################################
-# Function 3  save the data for diffusion training
-################################################################
-def no_postprocessing_pred_save_data(args):
-
-    ################################################################
-    # load some toy data to run locally
-    if not torch.cuda.is_available():
-        train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, n_channels=3, normalize=args.normalize, train='train')
-        test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels=3, normalize=args.normalize, train='test')
-        val_dataset = test_dataset
-    else: 
-        # load data and dataloader
-        train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
-        val_dataset =  TemporalDataset2D(args.dataset, n_train=260, t_in = args.T_in, t_ar =-1, train='val', normalize=args.normalize)
-        test_dataset = TemporalDataset2D(args.dataset, n_train=260, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
-
-
-    
-    ntrain, ntest = len(train_dataset), len(test_dataset)
-    ntrain = 5200 if args.dataset == 'ns2d_pda' else ntrain # for testing
-
-
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
-    val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
-    test_loader =  torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
-
-    loaderdict = {'train': train_loader, 'val': val_loader, 'test': test_loader}
-
-    if not args.pad:
-        args.res = train_dataset.res  # use original dataset  resolution to train the model
-
-    comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
-    log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
-    if not os.path.exists(log_path):# running tests locallt
-        log_path = './logs/' + comment
-    model_path = log_path + f'/model_epochs_{args.epochs}.pth'
-    print(model_path)
-    
-    # Load pretrained neural operator
-    if args.model == "FNO":
-        model = FNO2d(args.modes, args.modes, width=args.width,
-                    n_channels=train_dataset.n_channels,
-                    in_timesteps = args.T_in, out_timesteps=1, 
-                    n_layers = args.n_layers).to(device)
-    elif args.model == 'UNO':
-        model = UNO( width=args.width, n_channels=train_dataset.n_channels, in_timesteps = args.T_in,  out_timesteps=1).to(device)
-    elif args.model == 'wavelet_transformer':
-        model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
-    else:
-        raise NotImplementedError
-
-    # load weights
-    model, optimizer, scheduler, start_epoch = resume_training_from_checkpoint(model, model_path, device, optimizer=None, scheduler=None)
-    print(f"Loaded {args.model} neural operator")
-
-
-    # iterate throught train/val/test loader and save the predictions
-    loaderdict = {'train': train_loader, 'val': val_loader, 'test': test_loader}
-    for key, loader in loaderdict.items():
-        model.eval()
-        with torch.no_grad():
-            save_data = {'output': [], 'pred': []}
-            # autoregressive computing  
-            for xx, yy in tqdm(loader):
-                xx = xx.to(device)
-                yy = yy.to(device)
-                xx = loader.dataset.normalize_x(xx) # normalize the input before the autoregressive predicting
-                for t in range(0, yy.shape[-2], args.T_bundle):
-                    im = model(xx)
-                    if t == 0:
-                        pred = im
+                # Get velocity components
+                if dataset_form == 'vorticity':
+                    # For vorticity form: channels are [vorticity, streamfunction]
+                    # Extract streamfunction (channel 1) and compute velocity
+                    if pred_t.shape[-1] >= 2:
+                        psi_pred = pred_t[..., 1]  # streamfunction
+                        psi_target = target_t[..., 1]
+                        ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
+                        ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
                     else:
-                        pred = torch.cat((pred, im), -2)
-                    xx = torch.cat((xx[..., args.T_bundle:,:], im), dim=-2)
-                # denormalize the pred at the final step (get better results)   
-                pred = loader.dataset.denormalize_x(pred)    
-
-                # # save the data to np_data
-                save_data['output'].append(yy)
-                save_data['pred'].append(pred)
-
-            # organzie np_data
-            save_data['output'] = torch.cat(save_data['output'], axis=0).cpu().numpy()
-            save_data['pred'] = torch.cat(save_data['pred'], axis=0).cpu().numpy()
-            
-            print("save_data shape", save_data['output'].shape, save_data['pred'].shape)
-            if not os.path.exists(f'{log_path}/diffusion'):
-                os.makedirs(f'{log_path}/diffusion')
-            np.savez(f'{log_path}/diffusion/{key}_pred.npz', **save_data)
-            print(f"Saved {key} predictions to {log_path}/diffusion/{key}_pred.npz")
-
-    print("Successfully saved the predictions for diffusion training")
+                        continue
+                elif dataset_form == 'velocity':
+                    # For velocity form: channels are [pressure, velocity_x, velocity_y]
+                    if pred_t.shape[-1] >= 3:
+                        ux_pred = pred_t[..., 1]  # velocity_x
+                        uy_pred = pred_t[..., 2]  # velocity_y
+                        ux_target = target_t[..., 1]
+                        uy_target = target_t[..., 2]
+                    else:
+                        continue
+                else:
+                    # Unknown form, skip spectral computation
+                    continue
+                
+                # Compute spectra
+                try:
+                    k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
+                    _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
+                    
+                    spectral_data_list.append({
+                        'time_step': step_idx,
+                        'timestep_in_output': t_idx,
+                        'k_bins': k_bins,
+                        'Ek_pred': Ek_pred,
+                        'Ek_target': Ek_target,
+                        'Zk_pred': Zk_pred,
+                        'Zk_target': Zk_target
+                    })
+                except Exception as e:
+                    print(f"Warning: Failed to compute spectra at step {step_idx}, timestep {t_idx}: {e}")
+                    import traceback
+                    traceback.print_exc()
+        
+        # Compute overall error
+        pred_batch = pred.unsqueeze(0)  # (1, N, H, W, T, C)
+        target_batch = target.unsqueeze(0)  # (1, N, H, W, T, C)
+        rel_l2_err = rel_l2_loss_fn(pred_batch, target_batch)
+        print("overall rel_l2_error", rel_l2_err.item())
+        
+        # Create save_data dictionary with all metrics
+        save_data = {
+            'pred': pred,  # (N, H, W, T, C)
+            'output': target,  # (N, H, W, T, C)
+            'rel_l2_loss_by_step': rel_l2_loss_list,  # List of dicts with time_step and rel_l2_error
+            'spectral_data_by_step': spectral_data_list,  # List of dicts with spectral data
+            'dataset_form': dataset_form,  # Store form for later use
+            'domain_size': {'Lx': Lx, 'Ly': Ly}  # Store domain size
+        }
+        
+        # Save to file if requested
+        if save and log_path is not None:
+            os.makedirs(log_path, exist_ok=True)
+            torch.save(save_data, f'{log_path}/test_data_prediction.pth')
+            print(f"Saved prediction data and metrics to {log_path}/test_data_prediction.pth")
+        
+        return save_data
 
 
 ################################################################
-# Function 4 plot the spectral error
+# Animation Functions
 ################################################################
-def plot_spectral_error(save_data, model_name='', log_path=''):
-    pred, target = save_data['pred'], save_data['output'] # shape: (B, H, W, T, C)
-    idx = 0
-    channel_id = 0
-    t = 0
-    n_test = target.shape[1]
-    if 'ns2d' in log_path and 'torchcf' not in log_path: # NS equation
-        step_dict = {0: "t=1", -1: "t=T"} # just plot two steps
-    else:
-        total_steps_to_compute = 5
-        step_dict = {t: f"t={t+1}" for t in range(0, pred.shape[-2], pred.shape[-2]//total_steps_to_compute)}
-        print("steps to compute",step_dict.keys())
+def animate_predictions(save_data, log_path=None, save_animation=True, fps=10):
+    """
+    Create animation showing target, prediction, and error for each channel.
     
-    for channel_id in range(pred.shape[-1]):
-        for step in step_dict.keys(): # first step and last step
-            print("evaluating step .....", step, "channel .....", channel_id)
-            # plot_enstrophy_spectrum(
-            #     [target[idx, ..., step, channel_id].cpu(),
-            #     pred[idx, ..., step, channel_id].cpu()],
-            #     h=2 * np.pi / n_test,
-            #     labels=["Ground Truth", "Prediction"],
-            #     title=f"t={step},c={channel_id}",
-            #     factor=1,
-            #     slope=5/3,
-            #     log_path=log_path,
-            #     model_name=model_name
-            # )
-            E_spectrum_fno = spectrum_2d(target[...,step, channel_id].cpu(), n_test)
-            E_spectrum_pred = spectrum_2d(pred[..., step, channel_id].cpu(), n_test)
-            cutoff = n_test//2+1
-            E_spectrum_fno = E_spectrum_fno[:cutoff]
-            E_spectrum_pred = E_spectrum_pred[:cutoff]
-            plt.loglog(E_spectrum_fno, label = 'FNO Spectrum')
-            plt.loglog(E_spectrum_pred, label = 'Prediction Spectrum')
-            plt.legend()
-            plt.savefig(f'{log_path}/spectral_error/{model_name}_{step}_{channel_id}_fno_spectrum.png')
-            plt.show()
-            plt.clf()
+    Args:
+        save_data: Dictionary containing 'pred', 'output' tensors and other metadata
+        log_path: Path to save animation
+        save_animation: Whether to save animation file
+        fps: Frames per second for animation
+    """
+    pred = save_data['pred']  # (N, H, W, T, C)
+    target = save_data['output']  # (N, H, W, T, C)
+    
+    # Get number of steps, channels, and spatial dimensions
+    num_steps = pred.shape[0]
+    H, W = pred.shape[1], pred.shape[2]
+    num_channels = pred.shape[-1]
+    
+    # Use first timestep in output (usually T=1)
+    pred = pred[..., 0, :]  # (N, H, W, C)
+    target = target[..., 0, :]  # (N, H, W, C)
+    
+    # Convert to numpy
+    pred = pred.numpy()
+    target = target.numpy()
+    
+    # Compute error
+    error = pred - target  # (N, H, W, C)
+    
+    # Find global min/max for consistent colorbar across all frames
+    # Use same range for target and prediction for better comparison
+    vmin_common = min(target.min(), pred.min())
+    vmax_common = max(target.max(), pred.max())
+    
+    vmin_error = error.min()
+    vmax_error = error.max()
+    # Use symmetric range for error
+    vmax_error_abs = max(abs(vmin_error), abs(vmax_error))
+    vmin_error = -vmax_error_abs
+    vmax_error = vmax_error_abs
+    
+    # Create figure with 3 rows (target, pred, error) and num_channels columns
+    fig, axes = plt.subplots(3, num_channels, figsize=(5*num_channels, 12))
+    if num_channels == 1:
+        axes = axes.reshape(-1, 1)
+    
+    # Channel names based on dataset form
+    dataset_form = save_data.get('dataset_form', 'vorticity')
+    if dataset_form == 'vorticity':
+        channel_names = ['Vorticity', 'Streamfunction']
+    elif dataset_form == 'velocity':
+        channel_names = ['Pressure', 'Velocity X', 'Velocity Y']
+    else:
+        channel_names = [f'Channel {i}' for i in range(num_channels)]
+    
+    # Initialize images
+    imgs = []
+    for row in range(3):
+        row_imgs = []
+        for col in range(num_channels):
+            ax = axes[row, col]
+            if row == 0:  # Target
+                im = ax.imshow(target[0, :, :, col], cmap='viridis', 
+                              vmin=vmin_common, vmax=vmax_common, origin='lower')
+                ax.set_title(f'{channel_names[col] if col < len(channel_names) else f"Channel {col}"}\nTarget')
+            elif row == 1:  # Prediction
+                im = ax.imshow(pred[0, :, :, col], cmap='viridis',
+                              vmin=vmin_common, vmax=vmax_common, origin='lower')
+                ax.set_title(f'Prediction')
+            else:  # Error
+                im = ax.imshow(error[0, :, :, col], cmap='RdBu_r',
+                              vmin=vmin_error, vmax=vmax_error, origin='lower')
+                ax.set_title(f'Error')
+            
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
+            plt.colorbar(im, ax=ax)
+            row_imgs.append(im)
+        imgs.append(row_imgs)
+    
+    # Add step counter text
+    step_text = fig.suptitle('Step: 0', fontsize=16, y=0.98)
+    
+    def animate(frame):
+        step_text.set_text(f'Step: {frame}')
+        for row in range(3):
+            for col in range(num_channels):
+                if row == 0:  # Target
+                    imgs[row][col].set_data(target[frame, :, :, col])
+                elif row == 1:  # Prediction
+                    imgs[row][col].set_data(pred[frame, :, :, col])
+                else:  # Error
+                    imgs[row][col].set_data(error[frame, :, :, col])
+        return [img for row in imgs for img in row] + [step_text]
+    
+    # Create animation
+    anim = animation.FuncAnimation(fig, animate, frames=num_steps, 
+                                  interval=1000/fps, blit=False, repeat=True)
+    
+    # Save animation
+    if save_animation and log_path is not None:
+        os.makedirs(log_path, exist_ok=True)
+        anim_path = f'{log_path}/prediction_animation.mp4'
+        print(f"Saving animation to {anim_path}...")
+        anim.save(anim_path, writer='ffmpeg', fps=fps, bitrate=1800)
+        print(f"Animation saved to {anim_path}")
+    
+    return anim, fig
 
 
+def animate_spectral_comparison(save_data, log_path=None, save_animation=True, 
+                                fps=10, k_zoom_threshold=20):
+    """
+    Create animation comparing spectral energy and enstrophy between target and prediction.
+    Includes zoomed view for high frequency components (k > k_zoom_threshold).
+    
+    Args:
+        save_data: Dictionary containing spectral data
+        log_path: Path to save animation
+        save_animation: Whether to save animation file
+        fps: Frames per second for animation
+        k_zoom_threshold: Wavenumber threshold for zoomed view
+    """
+    spectral_data_list = save_data['spectral_data_by_step']
+    
+    if not spectral_data_list:
+        print("Warning: No spectral data found in save_data")
+        return None, None
+    
+    # Get number of steps
+    num_steps = len(spectral_data_list)
+    
+    # Extract all k_bins (should be the same for all steps)
+    k_bins = spectral_data_list[0]['k_bins']
+    
+    # Find global min/max for consistent y-axis
+    all_Ek_target = [data['Ek_target'] for data in spectral_data_list]
+    all_Ek_pred = [data['Ek_pred'] for data in spectral_data_list]
+    all_Zk_target = [data['Zk_target'] for data in spectral_data_list]
+    all_Zk_pred = [data['Zk_pred'] for data in spectral_data_list]
+    
+    Ek_max = max([np.max(Ek) for Ek in all_Ek_target + all_Ek_pred if len(Ek) > 0])
+    Ek_min = min([np.min(Ek[Ek > 0]) for Ek in all_Ek_target + all_Ek_pred if len(Ek) > 0 and np.any(Ek > 0)])
+    
+    Zk_max = max([np.max(Zk) for Zk in all_Zk_target + all_Zk_pred if len(Zk) > 0])
+    Zk_min = min([np.min(Zk[Zk > 0]) for Zk in all_Zk_target + all_Zk_pred if len(Zk) > 0 and np.any(Zk > 0)])
+    
+    # Find index for zoom threshold
+    k_zoom_idx = np.where(k_bins > k_zoom_threshold)[0]
+    if len(k_zoom_idx) > 0:
+        zoom_start_idx = k_zoom_idx[0]
+    else:
+        zoom_start_idx = len(k_bins) - 10  # Fallback
+    
+    # Create figure with subplots
+    # Top row: Full spectrum for energy and enstrophy
+    # Bottom row: Zoomed view for high frequencies
+    fig = plt.figure(figsize=(16, 10))
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+    
+    # Full energy spectrum
+    ax_energy_full = fig.add_subplot(gs[0, 0])
+    ax_energy_full.set_xlabel('Wavenumber k')
+    ax_energy_full.set_ylabel('Energy E(k)')
+    ax_energy_full.set_title('Energy Spectrum (Full)')
+    ax_energy_full.set_xscale('log')
+    ax_energy_full.set_yscale('log')
+    ax_energy_full.grid(True, alpha=0.3)
+    line_Ek_target_full, = ax_energy_full.plot([], [], 'b-', label='Target', linewidth=2)
+    line_Ek_pred_full, = ax_energy_full.plot([], [], 'r--', label='Prediction', linewidth=2)
+    ax_energy_full.legend()
+    
+    # Zoomed energy spectrum
+    ax_energy_zoom = fig.add_subplot(gs[1, 0])
+    ax_energy_zoom.set_xlabel('Wavenumber k')
+    ax_energy_zoom.set_ylabel('Energy E(k)')
+    ax_energy_zoom.set_title(f'Energy Spectrum (Zoom: k > {k_zoom_threshold})')
+    ax_energy_zoom.set_xscale('log')
+    ax_energy_zoom.set_yscale('log')
+    ax_energy_zoom.grid(True, alpha=0.3)
+    line_Ek_target_zoom, = ax_energy_zoom.plot([], [], 'b-', label='Target', linewidth=2)
+    line_Ek_pred_zoom, = ax_energy_zoom.plot([], [], 'r--', label='Prediction', linewidth=2)
+    ax_energy_zoom.legend()
+    
+    # Full enstrophy spectrum
+    ax_enstrophy_full = fig.add_subplot(gs[0, 1])
+    ax_enstrophy_full.set_xlabel('Wavenumber k')
+    ax_enstrophy_full.set_ylabel('Enstrophy Z(k)')
+    ax_enstrophy_full.set_title('Enstrophy Spectrum (Full)')
+    ax_enstrophy_full.set_xscale('log')
+    ax_enstrophy_full.set_yscale('log')
+    ax_enstrophy_full.grid(True, alpha=0.3)
+    line_Zk_target_full, = ax_enstrophy_full.plot([], [], 'b-', label='Target', linewidth=2)
+    line_Zk_pred_full, = ax_enstrophy_full.plot([], [], 'r--', label='Prediction', linewidth=2)
+    ax_enstrophy_full.legend()
+    
+    # Zoomed enstrophy spectrum
+    ax_enstrophy_zoom = fig.add_subplot(gs[1, 1])
+    ax_enstrophy_zoom.set_xlabel('Wavenumber k')
+    ax_enstrophy_zoom.set_ylabel('Enstrophy Z(k)')
+    ax_enstrophy_zoom.set_title(f'Enstrophy Spectrum (Zoom: k > {k_zoom_threshold})')
+    ax_enstrophy_zoom.set_xscale('log')
+    ax_enstrophy_zoom.set_yscale('log')
+    ax_enstrophy_zoom.grid(True, alpha=0.3)
+    line_Zk_target_zoom, = ax_enstrophy_zoom.plot([], [], 'b-', label='Target', linewidth=2)
+    line_Zk_pred_zoom, = ax_enstrophy_zoom.plot([], [], 'r--', label='Prediction', linewidth=2)
+    ax_enstrophy_zoom.legend()
+    
+    # Step counter
+    step_text = fig.suptitle('Step: 0', fontsize=16, y=0.98)
+    
+    # Set axis limits
+    k_min_full = k_bins[1] if k_bins[0] == 0 else k_bins[0]
+    k_max_full = k_bins[-1]
+    k_min_zoom = k_bins[zoom_start_idx]
+    k_max_zoom = k_bins[-1]
+    
+    ax_energy_full.set_xlim(k_min_full, k_max_full)
+    ax_energy_full.set_ylim(Ek_min, Ek_max)
+    ax_energy_zoom.set_xlim(k_min_zoom, k_max_zoom)
+    ax_energy_zoom.set_ylim(Ek_min, Ek_max)
+    
+    ax_enstrophy_full.set_xlim(k_min_full, k_max_full)
+    ax_enstrophy_full.set_ylim(Zk_min, Zk_max)
+    ax_enstrophy_zoom.set_xlim(k_min_zoom, k_max_zoom)
+    ax_enstrophy_zoom.set_ylim(Zk_min, Zk_max)
+    
+    def animate(frame):
+        if frame >= len(spectral_data_list):
+            return []
+        
+        data = spectral_data_list[frame]
+        k_bins = data['k_bins']
+        Ek_target = data['Ek_target']
+        Ek_pred = data['Ek_pred']
+        Zk_target = data['Zk_target']
+        Zk_pred = data['Zk_pred']
+        
+        # Skip k=0 for log scale
+        mask = k_bins > 0
+        k_plot = k_bins[mask]
+        Ek_target_plot = Ek_target[mask]
+        Ek_pred_plot = Ek_pred[mask]
+        Zk_target_plot = Zk_target[mask]
+        Zk_pred_plot = Zk_pred[mask]
+        
+        # Remove zero values for log scale
+        Ek_target_mask = Ek_target_plot > 0
+        Ek_pred_mask = Ek_pred_plot > 0
+        Zk_target_mask = Zk_target_plot > 0
+        Zk_pred_mask = Zk_pred_plot > 0
+        
+        # Full spectrum
+        line_Ek_target_full.set_data(k_plot[Ek_target_mask], Ek_target_plot[Ek_target_mask])
+        line_Ek_pred_full.set_data(k_plot[Ek_pred_mask], Ek_pred_plot[Ek_pred_mask])
+        line_Zk_target_full.set_data(k_plot[Zk_target_mask], Zk_target_plot[Zk_target_mask])
+        line_Zk_pred_full.set_data(k_plot[Zk_pred_mask], Zk_pred_plot[Zk_pred_mask])
+        
+        # Zoomed spectrum - filter for high frequencies
+        zoom_mask = k_plot >= k_min_zoom
+        
+        # Energy spectrum zoom
+        Ek_target_zoom_mask = zoom_mask & Ek_target_mask
+        Ek_pred_zoom_mask = zoom_mask & Ek_pred_mask
+        k_zoom_E_target = k_plot[Ek_target_zoom_mask]
+        k_zoom_E_pred = k_plot[Ek_pred_zoom_mask]
+        Ek_target_zoom = Ek_target_plot[Ek_target_zoom_mask]
+        Ek_pred_zoom = Ek_pred_plot[Ek_pred_zoom_mask]
+        
+        # Enstrophy spectrum zoom
+        Zk_target_zoom_mask = zoom_mask & Zk_target_mask
+        Zk_pred_zoom_mask = zoom_mask & Zk_pred_mask
+        k_zoom_Z_target = k_plot[Zk_target_zoom_mask]
+        k_zoom_Z_pred = k_plot[Zk_pred_zoom_mask]
+        Zk_target_zoom = Zk_target_plot[Zk_target_zoom_mask]
+        Zk_pred_zoom = Zk_pred_plot[Zk_pred_zoom_mask]
+        
+        line_Ek_target_zoom.set_data(k_zoom_E_target, Ek_target_zoom)
+        line_Ek_pred_zoom.set_data(k_zoom_E_pred, Ek_pred_zoom)
+        line_Zk_target_zoom.set_data(k_zoom_Z_target, Zk_target_zoom)
+        line_Zk_pred_zoom.set_data(k_zoom_Z_pred, Zk_pred_zoom)
+        
+        step_text.set_text(f'Step: {data["time_step"]}')
+        
+        return [line_Ek_target_full, line_Ek_pred_full, line_Zk_target_full, line_Zk_pred_full,
+                line_Ek_target_zoom, line_Ek_pred_zoom, line_Zk_target_zoom, line_Zk_pred_zoom,
+                step_text]
+    
+    # Create animation
+    anim = animation.FuncAnimation(fig, animate, frames=num_steps,
+                                  interval=1000/fps, blit=False, repeat=True)
+    
+    # Save animation
+    if save_animation and log_path is not None:
+        os.makedirs(log_path, exist_ok=True)
+        anim_path = f'{log_path}/spectral_comparison_animation.mp4'
+        print(f"Saving spectral animation to {anim_path}...")
+        anim.save(anim_path, writer='ffmpeg', fps=fps, bitrate=1800)
+        print(f"Spectral animation saved to {anim_path}")
+    
+    return anim, fig
+
+
+def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20):
+    """
+    Load saved data and create both animations.
+    
+    Args:
+        log_path: Path to directory containing test_data_prediction.pth
+        save_animation: Whether to save animation files
+        fps: Frames per second for animations
+        k_zoom_threshold: Wavenumber threshold for zoomed view in spectral animation
+    """
+    # Load data
+    data_path = f'{log_path}/test_data_prediction.pth'
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"Data file not found: {data_path}")
+    
+    save_data = torch.load(data_path, map_location='cpu')
+    print(f"Loaded data from {data_path}")
+    print(f"Number of steps: {len(save_data['rel_l2_loss_by_step'])}")
+    print(f"Dataset form: {save_data.get('dataset_form', 'unknown')}")
+    
+    # Create animations
+    print("\nCreating prediction animation...")
+    anim1, fig1 = animate_predictions(save_data, log_path, save_animation, fps)
+    
+    print("\nCreating spectral comparison animation...")
+    anim2, fig2 = animate_spectral_comparison(save_data, log_path, save_animation, 
+                                              fps, k_zoom_threshold)
+    
+    return anim1, anim2, fig1, fig2
 
 
 if __name__ == '__main__':
     
     #### 1. predict and save the data
     model, test_loader, log_path = load_data_model(just_load_path=False)
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path, max_steps=1000)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
-    # #### 2. load the save_data
-    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location=device)
+    # #### 2. load the save_data and create animations
+    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
+    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20)
     
     # #### 3. compute different types of metrics
     # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
@@ -872,6 +772,8 @@ if __name__ == '__main__':
     #### 4. postprocessing save the data for diffusion training
     # no_postprocessing_pred_save_data(args)
 
-
     #### 5. plot the spectral error
     # plot_spectral_error(save_data, model_name=args.model, log_path=log_path)
+    
+    #### 6. create animations (uncomment to generate animations)
+    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20)
