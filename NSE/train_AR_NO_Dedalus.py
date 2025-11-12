@@ -82,7 +82,6 @@ parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=2000)
 parser.add_argument('--loss_type', type=str, default='fourier', choices=['fourier', 'rel_l2'])
 parser.add_argument('--fourier_logscale', type=bool, default=False)
-parser.add_argument('--warmup_epochs', type=int, default=0)
 
 parser.add_argument('--save_everyepoch', type=int, default=10)
 parser.add_argument('--lr', type=float, default=0.001)
