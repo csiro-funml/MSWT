@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=00:20:00           # Increased time for longer training with larger batches
+#SBATCH --time=20:20:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -117,20 +117,20 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
 #     --modes 32 --width 32 --n_layers 4 --T_in 1 --T_ar 1  --normalize 1 --normalize_strategy zscore \
 #     --form velocity --batch_size 64 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 \
-#      --warmup_epochs 0 --loss_type fourier --fourier_logscale False
+#      --warmup_epochs 0 --loss_type fourier --fourier_logscale False \
 #     --use_writer  # Disabled for now
-
-# CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
-#     --modes 32 --width 32 --n_layers 4 --T_in 1 --T_ar 1  --normalize 1 --normalize_strategy zscore \
-#     --form velocity --batch_size 64 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 \
-#      --warmup_epochs 0 --loss_type fourier --fourier_logscale True
-#     --use_writer  # Disabled for now
-
 
 CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
     --modes 32 --width 32 --n_layers 4 --T_in 1 --T_ar 1  --normalize 1 --normalize_strategy zscore \
     --form velocity --batch_size 64 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 \
-     --warmup_epochs 300 --loss_type fourier --fourier_logscale False
+     --warmup_epochs 0 --loss_type fourier --fourier_logscale True \
+    --use_writer  # Disabled for now
+
+
+# CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
+#     --modes 32 --width 32 --n_layers 4 --T_in 1 --T_ar 1  --normalize 1 --normalize_strategy zscore \
+#     --form velocity --batch_size 64 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 \
+#      --warmup_epochs 300 --loss_type fourier --fourier_logscale False \
     # --use_writer  # Disabled for now
 
 
