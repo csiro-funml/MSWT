@@ -327,23 +327,144 @@ def compute_error_fft(model, test_loader, num_bins, device, args):
         return error_fft_epoch
 
 
-class FourierLoss(_WeightedLoss):
-    def __init__(self,  d=2, p=2, beta=1):
-        super(FourierLoss, self).__init__()
-        self.lp_loss = SimpleLpLoss(d=d, p=p)
-        self.beta = beta
-        self.mseloss = nn.MSELoss()
+def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
+    """
+    PyTorch version of compute_spectra that supports gradient computation and batch operations.
+    
+    Compute isotropic 1D energy spectra from 2D velocity field.
+
+    Uses shell-averaging in Fourier space to compute spectra as a function
+    of wavenumber magnitude |k|.
+
+    Args:
+        ux_grid (torch.Tensor): x-velocity in physical space
+            - Single sample: (Nx, Ny)
+            - Batch: (B, Nx, Ny)
+        uy_grid (torch.Tensor): y-velocity in physical space, same shape as ux_grid
+        Lx (float): Domain length in x
+        Ly (float): Domain length in y
+
+    Returns:
+        tuple: (k_bins, E_k)
+            - k_bins: Physical wavenumber bins (rad/length) as torch.Tensor, shape (mmax+1,)
+            - E_k: Energy spectrum E(k) = 0.5 <|û|²>_shell as torch.Tensor
+                - Single sample: (mmax+1,)
+                - Batch: (B, mmax+1)
+
+    Notes:
+        - Assumes Lx ≈ Ly for isotropic shell averaging
+        - Accounts for rfft symmetry factors
+        - Shell index n corresponds to physical wavenumber n*k0 where k0=2π/L
+        - All operations are differentiable
+        - FFT operations are batched, binning uses a loop over batches
+    """
+    if torch is None:
+        raise ImportError("PyTorch is required for compute_spectra_torch")
+    
+    device = ux_grid.device
+    dtype = ux_grid.dtype
+    
+    # Handle both single sample and batch inputs
+    if ux_grid.dim() == 2:
+        # Single sample: (Nx, Ny) -> add batch dimension
+        ux_grid = ux_grid.unsqueeze(0)
+        uy_grid = uy_grid.unsqueeze(0)
+        squeeze_output = True
+    else:
+        squeeze_output = False
+    
+    B, Nx, Ny = ux_grid.shape
+    N = Nx * Ny
+    assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly"
+    k0 = 2 * torch.tensor(np.pi, device=device, dtype=dtype) / Lx
+
+    # Transform to spectral space (batched FFT)
+    uxh = torch.fft.rfft2(ux_grid)  # (B, Nx, Ny//2+1)
+    uyh = torch.fft.rfft2(uy_grid)  # (B, Nx, Ny//2+1)
+
+    # Energy per mode (normalised)
+    E_mode = 0.5 * (torch.abs(uxh)**2 + torch.abs(uyh)**2) / (N * N)  # (B, Nx, Ny//2+1)
+
+    # rfft symmetry weight: double ky>0 interior modes
+    # Create weight for single sample, will broadcast to batch
+    weight = 2.0 * torch.ones(Nx, Ny // 2 + 1, device=device, dtype=dtype)
+    weight[:, 0] = 1.0  # ky=0 is not doubled
+    if Ny % 2 == 0:
+        weight[:, -1] = 1.0  # Nyquist is real-valued
+
+    E_mode = E_mode * weight.unsqueeze(0)  # Broadcast: (B, Nx, Ny//2+1)
+
+    # Shell indices (integer radius in index space)
+    # Create index arrays (same for all batches)
+    ix = torch.fft.fftfreq(Nx, d=1.0 / Nx, device=device)
+    iy = torch.arange(0, Ny // 2 + 1, device=device, dtype=dtype)
+    IX, IY = torch.meshgrid(ix, iy, indexing='ij')
+    shell_idx = torch.floor(torch.sqrt(IX**2 + IY**2)).long()  # (Nx, Ny//2+1)
+    
+    mmax = shell_idx.max().item()
+    shell_idx_flat = shell_idx.ravel()  # (Nx * (Ny//2+1),)
+
+    # Bin into shells using scatter_add (loop over batches)
+    Ek_list = []
+    for b in range(B):
+        E_mode_b = E_mode[b]  # (Nx, Ny//2+1)
+        E_mode_flat = E_mode_b.ravel()  # (Nx * (Ny//2+1),)
         
-    def forward(self, pred, target):
-        pred_fft = torch.fft.rfft2(pred)
-        target_fft = torch.fft.rfft2(target)
-        fft_loss = self.mseloss(pred_fft.real, target_fft.real) + self.mseloss(pred_fft.imag, target_fft.imag)
-        pred_loss = self.lp_loss(pred, target)
-        loss =  pred_loss + self.beta * fft_loss
-        # print("fft_loss", fft_loss.item())
-        # print("pred_loss", pred_loss.item())
-        # print("loss", loss.item())
+        # Use scatter_add to sum values in each shell (differentiable)
+        Ek_b = torch.zeros(mmax + 1, device=device, dtype=dtype)
+        Ek_b.scatter_add_(0, shell_idx_flat, E_mode_flat)
+        Ek_list.append(Ek_b)
+    
+    Ek = torch.stack(Ek_list, dim=0)  # (B, mmax+1)
+    
+    k_bins = torch.arange(mmax + 1, device=device, dtype=dtype) * k0  # (mmax+1,)
+    
+    # Remove batch dimension if input was single sample
+    if squeeze_output:
+        Ek = Ek.squeeze(0)  # (mmax+1,)
+    
+    return k_bins, Ek
+
+
+class EnergySpectrumBias(_WeightedLoss):
+    def __init__(self, log_scale=False):
+        super(EnergySpectrumBias, self).__init__()
+        self.log_scale = log_scale
+
+    def forward(self, pred, target, Lx=2*np.pi, Ly=2*np.pi, ux_dim=1, uy_dim=2):
+        """
+        pred: (B, H, W, T, C)
+        target: (B, H, W, T, C)
+        ux_dim: the dimension of the x-velocity
+        uy_dim: the dimension of the y-velocity
+        """
+        k_bins, Ek_pred = compute_spectra_torch(pred[...,ux_dim], pred[...,uy_dim], Lx, Ly)
+        k_bins, Ek_target = compute_spectra_torch(target[...,ux_dim], target[...,uy_dim], Lx, Ly)
+        # get the nyquist frequency
+        nyquist_freq = (np.pi * pred.shape[1]) //Lx 
+        start_freq = 1
+        # get the energy spectrum of the error
+        if self.log_scale:
+            Ek_error = torch.abs(torch.log(Ek_pred[start_freq:nyquist_freq]) - torch.log(Ek_target[start_freq:nyquist_freq]))
+        else:
+            Ek_error = torch.abs(Ek_pred[start_freq:nyquist_freq] - Ek_target[start_freq:nyquist_freq])
+        
+        # get the bias of the energy spectrum in log scale
+        loss = Ek_error.mean(dim=0)
         return loss
+
+class FourierLoss(_WeightedLoss):
+    def __init__(self,  d=2, p=2, beta=0.05, log_scale=False):
+        super(FourierLoss, self).__init__()
+        self.beta = beta
+        self.rel_l2_loss = RelL2Norm()
+        self.spectral_loss = EnergySpectrumBias(log_scale=log_scale)
+
+    def forward(self, pred, target, ux_dim=1, uy_dim=2):
+        fft_loss = self.spectral_loss(pred, target, ux_dim, uy_dim)
+        pred_loss = self.rel_l2_loss(pred, target)
+        loss =  pred_loss + self.beta * fft_loss
+        return loss, pred_loss, fft_loss 
 
 
 class NLLLoss(_WeightedLoss):

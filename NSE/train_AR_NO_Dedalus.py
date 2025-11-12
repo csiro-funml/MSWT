@@ -20,7 +20,7 @@ from torch.optim.lr_scheduler import OneCycleLR, StepLR, LambdaLR, CosineAnneali
 from torch.utils.tensorboard import SummaryWriter
 from utils.optimizer import Adam, Lamb
 from utils.utilities import count_parameters, get_grid, load_model_from_checkpoint, resume_training_from_checkpoint, log_tensorboard_images_and_spectra
-from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError
+from utils.criterion import RelL2Norm, compute_error_fft, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError, FourierLoss
 from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemporalDataset2D, MemmapDedalusDataset2D, MemmapDedalusBigDataset2D
 from utils.make_master_file import DATASET_DICT
 # from models.fno import FNO2d
@@ -80,6 +80,10 @@ parser.add_argument('--patch_size',type=int, default=16)
 ###### optimizer and training setups
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=2000)
+parser.add_argument('--loss_type', type=str, default='fourier', choices=['fourier', 'rel_l2'])
+parser.add_argument('--fourier_logscale', type=bool, default=False)
+parser.add_argument('--warmup_epochs', type=int, default=0)
+
 parser.add_argument('--save_everyepoch', type=int, default=10)
 parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--opt',type=str, default='adam', choices=['adam','lamb','lion'])
@@ -199,7 +203,8 @@ ntrain, ntest = len(train_dataset), len(test_dataset)
 #     args.res = train_dataset.res  # use original dataset  resolution to train the model
 testing_mode = 'FNO_testing'
 if testing_mode == 'FNO_testing':
-    comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+    # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+    comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}'
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
     # model_path = log_path + '/model.pth'
     model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
@@ -339,7 +344,28 @@ if args.resume_path:
 ################################################################
 # Main function for pretraining
 ################################################################
-myloss = RelL2Norm(size_average=False)
+# Initialize loss functions based on args
+# For warmup: use RelL2Norm during warmup, then switch to specified loss
+final_loss = None  # Will be set if warmup is used
+if args.warmup_epochs == 0:
+    # No warmup: use specified loss from the start
+    if args.loss_type == 'rel_l2':
+        myloss = RelL2Norm(size_average=False)
+    elif args.loss_type == 'fourier':
+        myloss = FourierLoss(log_scale=args.fourier_logscale)
+    else:
+        raise ValueError(f"Unknown loss_type: {args.loss_type}")
+else:
+    # With warmup: start with RelL2Norm, will switch to specified loss after warmup
+    myloss = RelL2Norm(size_average=False)
+    # Pre-create the final loss function for after warmup
+    if args.loss_type == 'fourier':
+        final_loss = FourierLoss(log_scale=args.fourier_logscale)
+    elif args.loss_type == 'rel_l2':
+        final_loss = RelL2Norm(size_average=False)
+    else:
+        raise ValueError(f"Unknown loss_type: {args.loss_type}")
+
 loss_dict = {} # for testing
 loss_dict['rel_l2_loss'] = RelL2Norm() # rel L2 loss
 loss_dict['rmse'] = RMSE()
@@ -347,6 +373,12 @@ loss_dict['boundary_rmse'] = BoundaryRMSE()
 loss_dict['max_avg'] = MaxAbsError()
 loss_dict['max_global'] = GlobalMaxAbsError()
 loss_dict['spectral_error'] = SpectralError(model_name=args.model, save_path=log_path, low_percentile=0.70, high_percentile=0.97)
+
+print(f"Loss configuration: warmup_epochs={args.warmup_epochs}, loss_type={args.loss_type}, fourier_logscale={args.fourier_logscale}")
+if args.warmup_epochs > 0:
+    print(f"  Using RelL2Norm for epochs 0-{args.warmup_epochs-1}, then switching to {args.loss_type}")
+else:
+    print(f"  Using {args.loss_type} from the start")
 
 
 best_loss = np.inf
@@ -357,10 +389,17 @@ pbar = tqdm(range(start_epoch, args.epochs))
 for ep in pbar:
     model.train()
 
+    # Switch loss function after warmup period
+    if args.warmup_epochs > 0 and ep == args.warmup_epochs:
+        myloss = final_loss
+        print(f"\nSwitching to {args.loss_type} loss at epoch {ep}")
+
     t1 = t_1 = default_timer()
     t_load, t_train = 0., 0.
     train_l2_norm = 0
     train_l2_denorm = 0
+    train_pred_loss = 0  # For tracking pred_loss from FourierLoss
+    train_fft_loss = 0  # For tracking fft_loss from FourierLoss
 
     loss_previous = 10000
 
@@ -371,6 +410,8 @@ for ep in pbar:
         t_load += default_timer() - t_1
         t_1 = default_timer()
         loss = 0.
+        batch_pred_loss = 0.
+        batch_fft_loss = 0.
         
         # Non-blocking transfer for faster data loading
         xx = xx.to(device, non_blocking=True)  ## B, n, n, T_in, C
@@ -393,11 +434,24 @@ for ep in pbar:
             # print('input shape', xx.shape)
             pred = model(xx)  # give the normalized output to the autoregressive predicting
             # print("pred shape", pred.shape, "y shape", y.shape)
-            loss += myloss(pred, y)
+            # Note: FourierLoss expects pred[...,0] and pred[...,1] to be velocity components (ux, uy)
+            # If using 'vorticity' form, ensure conversion from streamfunction to velocity is done
+            # Handle FourierLoss which returns (loss, pred_loss, fft_loss) tuple
+            loss_output = myloss(pred, y)
+            if isinstance(loss_output, tuple):
+                loss += loss_output[0]  # Take the total loss (first element)
+                batch_pred_loss += loss_output[1].item()  # pred_loss
+                batch_fft_loss += loss_output[2].item()  # fft_loss
+            else:
+                loss += loss_output
+                # For RelL2Norm, pred_loss is the same as total loss
+                batch_pred_loss += loss_output.item()
         
         # Scale loss for gradient accumulation
         scaled_loss = loss / args.gradient_accumulation_steps
         train_l2_norm += loss.item() * y.shape[0]  # Store unscaled loss for logging
+        train_pred_loss += batch_pred_loss * y.shape[0]
+        train_fft_loss += batch_fft_loss * y.shape[0]
 
         pbar.set_postfix(loss=f"{loss.item():.4f}", epoch=f"{ep}/{args.epochs}")
         # print("train input shape", xx.shape, "output shape", yy.shape, "pred shape", pred.shape, "mask shape", msk.shape)
@@ -435,11 +489,15 @@ for ep in pbar:
         torch.cuda.empty_cache()
     
     train_l2_norm_avg, train_l2_denorm_avg = train_l2_norm/ntrain, train_l2_denorm/ntrain
-
+    train_pred_loss_avg = train_pred_loss / ntrain
+    train_fft_loss_avg = train_fft_loss / ntrain
 
     if args.use_writer:
         writer.add_scalar("train_loss_norm", train_l2_norm_avg, ep)
         writer.add_scalar("train_loss_denorm", train_l2_denorm_avg, ep)
+        # Log pred_loss and fft_loss (pred_loss should match rel_l2_loss for comparison)
+        writer.add_scalar("train_pred_loss", train_pred_loss_avg, ep)  # Same as rel_l2_loss
+        writer.add_scalar("train_fft_loss", train_fft_loss_avg, ep)
 
     t_train += default_timer() -  t_1
     t_1 = default_timer()
@@ -477,7 +535,27 @@ for ep in pbar:
             target_denorm = train_dataset.denormalize_x(target)
 
             # print("pred shape", pred.shape, "target shape", target.shape)
-            test_rel_l2_loss = loss_dict['rel_l2_loss'](pred_denorm, target_denorm)           
+            test_rel_l2_loss = loss_dict['rel_l2_loss'](pred_denorm, target_denorm)
+            
+            # Compute FourierLoss for validation (always compute to compare)
+            test_fourier_loss = None
+            test_fourier_pred_loss = None
+            test_fourier_fft_loss = None
+            
+            # Always compute pred_loss for comparison (same name regardless of loss type)
+            # For rel_l2, pred_loss is the same as rel_l2_loss
+            # For fourier, pred_loss comes from FourierLoss
+            if args.loss_type == 'fourier' or (args.warmup_epochs > 0 and ep >= args.warmup_epochs):
+                # Create FourierLoss instance for validation
+                val_fourier_loss = FourierLoss(log_scale=args.fourier_logscale)
+                fourier_output = val_fourier_loss(pred_denorm, target_denorm)
+                if isinstance(fourier_output, tuple):
+                    test_fourier_loss = fourier_output[0].item()
+                    test_fourier_pred_loss = fourier_output[1].item()  # This is pred_loss from FourierLoss
+                    test_fourier_fft_loss = fourier_output[2].item()
+            else:
+                # For rel_l2 loss, pred_loss is the same as rel_l2_loss
+                test_fourier_pred_loss = test_rel_l2_loss.item()
 
             # print("test_l2_step_avg", test_l2_step_avg.item())
             # print("test_l2_full_avg", test_l2_full_avg.item())
@@ -490,6 +568,15 @@ for ep in pbar:
                     else:
                         for band_key in list(loss_metric.keys()): # only save  spec_low, spec_mid, spec_high
                             writer.add_scalar(f"test_{key}_{band_key}", loss_metric[band_key], ep)
+                
+                # Log pred_loss with same name for comparison across different loss types
+                # test_pred_loss will be the same as test_rel_l2_loss for rel_l2, or pred_loss component for fourier
+                writer.add_scalar("test_pred_loss", test_fourier_pred_loss, ep)
+                
+                # Log FourierLoss components if using fourier loss
+                if test_fourier_loss is not None:
+                    writer.add_scalar("test_fourier_loss", test_fourier_loss, ep)
+                    writer.add_scalar("test_fft_loss", test_fourier_fft_loss, ep)
                 
                 # Log images and spectra using utility function
                 log_tensorboard_images_and_spectra(
@@ -513,8 +600,18 @@ for ep in pbar:
         t2 = t_1 = default_timer()
         
         # log a compact summary of the spectrum row (mean of first 20 bins)
-        print('epoch {}, best epoch: {}, time {:.5f}, lr {:.2e}, train l2 norm {:.5f} train l2 denorm {:.5f}, test rel l2 loss {:.5f}, time train avg {:.5f} load avg {:.5f} test {:.5f}'
-            .format(ep, best_loss_epoch, t2 - t1, lr, train_l2_norm_avg,  train_l2_denorm_avg, test_rel_l2_loss, t_train / len(train_loader), t_load / len(train_loader), t_test))
+        log_str = 'epoch {}, best epoch: {}, time {:.5f}, lr {:.2e}, train l2 norm {:.5f} train l2 denorm {:.5f}, test rel l2 loss {:.5f}, test pred loss {:.5f}'.format(
+            ep, best_loss_epoch, t2 - t1, lr, train_l2_norm_avg, train_l2_denorm_avg, test_rel_l2_loss, test_fourier_pred_loss)
+        
+        # Add FourierLoss components if available
+        if test_fourier_loss is not None:
+            log_str += ', test fourier loss {:.5f}, test fft loss {:.5f}'.format(
+                test_fourier_loss, test_fourier_fft_loss)
+        
+        log_str += ', time train avg {:.5f} load avg {:.5f} test {:.5f}'.format(
+            t_train / len(train_loader), t_load / len(train_loader), t_test)
+        
+        print(log_str)
 
 
 

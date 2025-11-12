@@ -29,6 +29,10 @@ import sys
 import numpy as np
 import h5py
 from tqdm import tqdm
+try:
+    import torch
+except ImportError:
+    torch = None
 
 # Add parent directory to path to import ns2d and post modules
 parent_dir = pathlib.Path(__file__).parent.parent
@@ -109,6 +113,83 @@ def compute_spectra(ux_grid, uy_grid, Lx, Ly):
 
     k_bins = np.arange(mmax + 1) * k0
     return k_bins, Ek, Zk
+
+
+def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
+    """
+    PyTorch version of compute_spectra that supports gradient computation.
+    
+    Compute isotropic 1D energy and enstrophy spectra from 2D velocity field.
+
+    Uses shell-averaging in Fourier space to compute spectra as a function
+    of wavenumber magnitude |k|.
+
+    Args:
+        ux_grid (torch.Tensor): x-velocity in physical space (Nx, Ny)
+        uy_grid (torch.Tensor): y-velocity in physical space (Nx, Ny)
+        Lx (float): Domain length in x
+        Ly (float): Domain length in y
+
+    Returns:
+        tuple: (k_bins, E_k, Z_k)
+            - k_bins: Physical wavenumber bins (rad/length) as torch.Tensor
+            - E_k: Energy spectrum E(k) = 0.5 <|û|²>_shell as torch.Tensor
+            - Z_k: Enstrophy spectrum Z(k) = <|ω̂|²>_shell as torch.Tensor
+
+    Notes:
+        - Assumes Lx ≈ Ly for isotropic shell averaging
+        - Accounts for rfft symmetry factors
+        - Shell index n corresponds to physical wavenumber n*k0 where k0=2π/L
+        - All operations are differentiable
+    """
+    if torch is None:
+        raise ImportError("PyTorch is required for compute_spectra_torch")
+    
+    device = ux_grid.device
+    dtype = ux_grid.dtype
+    
+    Nx, Ny = ux_grid.shape
+    N = Nx * Ny
+    assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly"
+    k0 = 2 * torch.tensor(np.pi, device=device, dtype=dtype) / Lx
+
+    # Transform to spectral space
+    uxh = torch.fft.rfft2(ux_grid)
+    uyh = torch.fft.rfft2(uy_grid)
+
+    # Energy per mode (normalised)
+    E_mode = 0.5 * (torch.abs(uxh)**2 + torch.abs(uyh)**2) / (N * N)
+
+
+    # rfft symmetry weight: double ky>0 interior modes
+    weight = 2.0 * torch.ones_like(E_mode, device=device, dtype=dtype)
+    weight[:, 0] = 1.0  # ky=0 is not doubled
+    if Ny % 2 == 0:
+        weight[:, -1] = 1.0  # Nyquist is real-valued
+
+    E_mode = E_mode * weight
+
+    # Shell indices (integer radius in index space)
+    # Create index arrays
+    ix = torch.fft.fftfreq(Nx, d=1.0 / Nx, device=device)
+    iy = torch.arange(0, Ny // 2 + 1, device=device, dtype=dtype)
+    IX, IY = torch.meshgrid(ix, iy, indexing='ij')
+    shell_idx = torch.floor(torch.sqrt(IX**2 + IY**2)).long()
+
+    # Bin into shells using scatter_add (differentiable alternative to bincount)
+    mmax = shell_idx.max().item()
+    
+    # Flatten for binning
+    shell_idx_flat = shell_idx.ravel()
+    E_mode_flat = E_mode.ravel()
+
+    # Use scatter_add to sum values in each shell (differentiable)
+    Ek = torch.zeros(mmax + 1, device=device, dtype=dtype)
+    
+    Ek.scatter_add_(0, shell_idx_flat, E_mode_flat)
+
+    k_bins = torch.arange(mmax + 1, device=device, dtype=dtype) * k0
+    return k_bins, Ek
 
 
 def get_args():
