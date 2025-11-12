@@ -458,7 +458,10 @@ for ep in pbar:
         # Denormalize for monitoring
         with torch.no_grad():
             pred_denorm = train_dataset.denormalize_x(pred)
-            loss_denorm = myloss(pred_denorm, yy)
+            if args.loss_type == 'fourier':
+                loss_denorm = myloss(pred_denorm, yy)[1]
+            else:
+                loss_denorm = myloss(pred_denorm, yy)
             train_l2_denorm += loss_denorm.item() * y.shape[0]
 
         # Backward pass (use scaled loss for gradient accumulation)
