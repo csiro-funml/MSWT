@@ -540,7 +540,7 @@ for ep in pbar:
             test_rel_l2_loss = loss_dict['rel_l2_loss'](pred_denorm, target_denorm)
             
             # Compute FourierLoss for validation (always compute to compare)
-            test_fourier_loss = None
+            test_fourier_l2loss = None
             test_fourier_pred_loss = None
             test_fourier_fft_loss = None
             
@@ -552,7 +552,7 @@ for ep in pbar:
                 val_fourier_loss = FourierLoss(log_scale=args.fourier_logscale)
                 fourier_output = val_fourier_loss(pred_denorm, target_denorm)
                 if isinstance(fourier_output, tuple):
-                    test_fourier_loss = fourier_output[0].item()
+                    test_fourier_l2loss = fourier_output[0].item()  # Total FourierLoss (pred_loss + beta * fft_loss)
                     test_fourier_pred_loss = fourier_output[1].item()  # This is pred_loss from FourierLoss
                     test_fourier_fft_loss = fourier_output[2].item()
             else:
@@ -576,8 +576,8 @@ for ep in pbar:
                 writer.add_scalar("test_pred_loss", test_fourier_pred_loss, ep)
                 
                 # Log FourierLoss components if using fourier loss
-                if test_fourier_loss is not None:
-                    writer.add_scalar("test_fourier_loss", test_fourier_loss, ep)
+                if test_fourier_l2loss is not None:
+                    writer.add_scalar("test_fourier_l2loss", test_fourier_l2loss, ep)
                     writer.add_scalar("test_fft_loss", test_fourier_fft_loss, ep)
                 
                 # Log images and spectra using utility function
@@ -606,9 +606,9 @@ for ep in pbar:
             ep, best_loss_epoch, t2 - t1, lr, train_l2_norm_avg, train_l2_denorm_avg, test_rel_l2_loss, test_fourier_pred_loss)
         
         # Add FourierLoss components if available
-        if test_fourier_loss is not None:
-            log_str += ', test fourier loss {:.5f}, test fft loss {:.5f}'.format(
-                test_fourier_loss, test_fourier_fft_loss)
+        if test_fourier_l2loss is not None:
+            log_str += ', test fourier l2loss {:.5f}, test fft loss {:.5f}'.format(
+                test_fourier_l2loss, test_fourier_fft_loss)
         
         log_str += ', time train avg {:.5f} load avg {:.5f} test {:.5f}'.format(
             t_train / len(train_loader), t_load / len(train_loader), t_test)
