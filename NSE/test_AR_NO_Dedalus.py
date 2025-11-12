@@ -802,11 +802,11 @@ def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_t
 if __name__ == '__main__':
     
     #### 1. predict and save the data
-    model, test_loader, log_path = load_data_model(just_load_path=True)
-    # save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    model, test_loader, log_path = load_data_model(just_load_path=False)
+    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     # #### 2. load the save_data and create animations
-    save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
+    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
     anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps)
     
     # #### 3. compute different types of metrics
