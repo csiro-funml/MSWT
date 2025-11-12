@@ -81,7 +81,7 @@ parser.add_argument('--patch_size',type=int, default=16)
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=2000)
 parser.add_argument('--loss_type', type=str, default='fourier', choices=['fourier', 'rel_l2'])
-parser.add_argument('--fourier_logscale', type=bool, default=False)
+parser.add_argument('--fourier_logscale', type=str, default='False', choices=['True', 'False'])
 
 parser.add_argument('--save_everyepoch', type=int, default=10)
 parser.add_argument('--lr', type=float, default=0.001)
@@ -105,7 +105,7 @@ parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
 
 args = parser.parse_args()
-
+args.fourier_logscale = args.fourier_logscale == 'True'
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
