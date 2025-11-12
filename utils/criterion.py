@@ -461,7 +461,7 @@ class FourierLoss(_WeightedLoss):
         self.spectral_loss = EnergySpectrumBias(log_scale=log_scale)
 
     def forward(self, pred, target, ux_dim=1, uy_dim=2):
-        fft_loss = self.spectral_loss(pred, target, ux_dim, uy_dim)
+        fft_loss = self.spectral_loss(pred, target, ux_dim=ux_dim, uy_dim=uy_dim)
         pred_loss = self.rel_l2_loss(pred, target)
         loss =  pred_loss + self.beta * fft_loss
         return loss, pred_loss, fft_loss 
