@@ -438,8 +438,8 @@ class EnergySpectrumBias(_WeightedLoss):
         ux_dim: the dimension of the x-velocity
         uy_dim: the dimension of the y-velocity
         """
-        k_bins, Ek_pred = compute_spectra_torch(pred[...,ux_dim], pred[...,uy_dim], Lx, Ly)
-        k_bins, Ek_target = compute_spectra_torch(target[...,ux_dim], target[...,uy_dim], Lx, Ly)
+        k_bins, Ek_pred = compute_spectra_torch(pred[...,0,ux_dim], pred[...,0,uy_dim], Lx, Ly)
+        k_bins, Ek_target = compute_spectra_torch(target[...,0,ux_dim], target[...,0,uy_dim], Lx, Ly)
         # get the nyquist frequency
         nyquist_freq = (np.pi * pred.shape[1]) //Lx 
         start_freq = 1
