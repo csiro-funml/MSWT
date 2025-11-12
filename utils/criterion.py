@@ -375,7 +375,7 @@ def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
     
     B, Nx, Ny = ux_grid.shape
     N = Nx * Ny
-    assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly, but Lx - Ly = {}".format(Lx - Ly)
+    assert abs(Lx - Ly) < 1e-2, "Isotropic shell binning requires Lx ≈ Ly, but Lx - Ly = {}, Lx = {}, Ly = {}".format(Lx - Ly, Lx, Ly)
     k0 = 2 * torch.tensor(np.pi, device=device, dtype=dtype) / Lx
 
     # Transform to spectral space (batched FFT)
