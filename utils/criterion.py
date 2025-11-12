@@ -438,7 +438,7 @@ class EnergySpectrumBias(_WeightedLoss):
         ux_dim: the dimension of the x-velocity
         uy_dim: the dimension of the y-velocity
         """
-        k_bins, Ek_pred = compute_spectra_torch(pred[...,0,ux_dim], pred[...,0,uy_dim], Lx, Ly)
+        k_bins, Ek_pred = compute_spectra_torch(pred[...,0,ux_dim], pred[...,0,uy_dim], Lx, Ly) # Ek shape (B,K_max+1)
         k_bins, Ek_target = compute_spectra_torch(target[...,0,ux_dim], target[...,0,uy_dim], Lx, Ly)
         # get the nyquist frequency
         nyquist_freq = int((np.pi * pred.shape[1]) /Lx )
@@ -446,14 +446,15 @@ class EnergySpectrumBias(_WeightedLoss):
         start_freq = 1
         # get the energy spectrum of the error
         if self.log_scale:
-            Ek_error = torch.abs(torch.log(Ek_pred[start_freq:nyquist_freq]) - torch.log(Ek_target[start_freq:nyquist_freq]))
+            
+            Ek_error = torch.abs(torch.log(Ek_pred[:, start_freq:nyquist_freq]) - torch.log(Ek_target[:, start_freq:nyquist_freq]))
         else:
-            Ek_error = torch.abs(Ek_pred[start_freq:nyquist_freq] - Ek_target[start_freq:nyquist_freq])
+            Ek_error = torch.abs(Ek_pred[:, start_freq:nyquist_freq] - Ek_target[:, start_freq:nyquist_freq])
         
-        # print the shape of Ek_error
-        print("Ek_error shape", Ek_error.shape, "Ek_pred.shape", Ek_pred.shape, "Ek_target.shape", Ek_target.shape)
+        # print the shape of Ek_error (B, K_range)
+        # print("Ek_error shape", Ek_error.shape, ""Ek_pred.shape)
         # get the bias of the energy spectrum in log scale
-        loss = Ek_error.mean(dim=0)
+        loss = Ek_error.mean() # average over frequency bins and over the samples
         return loss
 
 class FourierLoss(_WeightedLoss):
