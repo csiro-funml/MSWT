@@ -451,7 +451,7 @@ class EnergySpectrumBias(_WeightedLoss):
             Ek_error = torch.abs(Ek_pred[start_freq:nyquist_freq] - Ek_target[start_freq:nyquist_freq])
         
         # print the shape of Ek_error
-        print("Ek_error shape", Ek_error.shape)
+        print("Ek_error shape", Ek_error.shape, "Ek_pred.shape", Ek_pred.shape, "Ek_target.shape", Ek_target.shape)
         # get the bias of the energy spectrum in log scale
         loss = Ek_error.mean(dim=0)
         return loss
