@@ -388,10 +388,18 @@ pbar = tqdm(range(start_epoch, args.epochs))
 for ep in pbar:
     model.train()
 
-    # Switch loss function after warmup period
-    if args.warmup_epochs > 0 and ep == args.warmup_epochs:
-        myloss = final_loss
-        print(f"\nSwitching to {args.loss_type} loss at epoch {ep}")
+    # Track which loss function is currently being used for training
+    # This helps determine which loss to use for model saving
+    current_loss_type = 'rel_l2'  # Default during warmup
+    if args.warmup_epochs == 0:
+        # No warmup: use specified loss from the start
+        current_loss_type = args.loss_type
+    elif ep >= args.warmup_epochs:
+        # After warmup: switch to specified loss
+        current_loss_type = args.loss_type
+        if ep == args.warmup_epochs:
+            myloss = final_loss
+            print(f"\nSwitching to {args.loss_type} loss at epoch {ep}")
 
     t1 = t_1 = default_timer()
     t_load, t_train = 0., 0.
@@ -537,27 +545,23 @@ for ep in pbar:
             target_denorm = train_dataset.denormalize_x(target)
 
             # print("pred shape", pred.shape, "target shape", target.shape)
+            # Always compute RelL2Loss for comparison
             test_rel_l2_loss = loss_dict['rel_l2_loss'](pred_denorm, target_denorm)
             
-            # Compute FourierLoss for validation (always compute to compare)
-            test_fourier_l2loss = None
-            test_fourier_pred_loss = None
-            test_fourier_fft_loss = None
+            # Always compute FourierLoss for comparison (regardless of current training loss)
+            # This allows comparing different training configurations
+            val_fourier_loss = FourierLoss(log_scale=args.fourier_logscale)
+            fourier_output = val_fourier_loss(pred_denorm, target_denorm)
+            test_fourier_l2loss = fourier_output[0].item()  # Total FourierLoss (pred_loss + beta * fft_loss)
+            test_fourier_pred_loss = fourier_output[1].item()  # pred_loss component from FourierLoss
+            test_fourier_fft_loss = fourier_output[2].item()
             
-            # Always compute pred_loss for comparison (same name regardless of loss type)
-            # For rel_l2, pred_loss is the same as rel_l2_loss
-            # For fourier, pred_loss comes from FourierLoss
-            if args.loss_type == 'fourier' or (args.warmup_epochs > 0 and ep >= args.warmup_epochs):
-                # Create FourierLoss instance for validation
-                val_fourier_loss = FourierLoss(log_scale=args.fourier_logscale)
-                fourier_output = val_fourier_loss(pred_denorm, target_denorm)
-                if isinstance(fourier_output, tuple):
-                    test_fourier_l2loss = fourier_output[0].item()  # Total FourierLoss (pred_loss + beta * fft_loss)
-                    test_fourier_pred_loss = fourier_output[1].item()  # This is pred_loss from FourierLoss
-                    test_fourier_fft_loss = fourier_output[2].item()
+            # Determine which loss to use for model saving based on current training loss
+            # Use the loss that matches what we're currently training with
+            if current_loss_type == 'fourier':
+                loss_for_saving = test_fourier_l2loss
             else:
-                # For rel_l2 loss, pred_loss is the same as rel_l2_loss
-                test_fourier_pred_loss = test_rel_l2_loss.item()
+                loss_for_saving = test_rel_l2_loss.item()
 
             # print("test_l2_step_avg", test_l2_step_avg.item())
             # print("test_l2_full_avg", test_l2_full_avg.item())
@@ -571,14 +575,13 @@ for ep in pbar:
                         for band_key in list(loss_metric.keys()): # only save  spec_low, spec_mid, spec_high
                             writer.add_scalar(f"test_{key}_{band_key}", loss_metric[band_key], ep)
                 
-                # Log pred_loss with same name for comparison across different loss types
-                # test_pred_loss will be the same as test_rel_l2_loss for rel_l2, or pred_loss component for fourier
+                # Always log all losses for comparison across different training configurations
+                # Log pred_loss with same name for comparison (from FourierLoss, which is RelL2Norm component)
                 writer.add_scalar("test_pred_loss", test_fourier_pred_loss, ep)
                 
-                # Log FourierLoss components if using fourier loss
-                if test_fourier_l2loss is not None:
-                    writer.add_scalar("test_fourier_l2loss", test_fourier_l2loss, ep)
-                    writer.add_scalar("test_fft_loss", test_fourier_fft_loss, ep)
+                # Always log FourierLoss components (for comparison even when not using fourier loss)
+                writer.add_scalar("test_fourier_l2loss", test_fourier_l2loss, ep)
+                writer.add_scalar("test_fft_loss", test_fourier_fft_loss, ep)
                 
                 # Log images and spectra using utility function
                 log_tensorboard_images_and_spectra(
@@ -589,8 +592,9 @@ for ep in pbar:
                     form=args.form,
                     model_name=args.model
                 )
-        if test_rel_l2_loss < best_loss:
-            best_loss = test_rel_l2_loss
+        # Use the appropriate loss for model saving based on current training loss
+        if loss_for_saving < best_loss:
+            best_loss = loss_for_saving
             best_loss_epoch = ep
             if args.use_writer:
                 # save error fft as well:
@@ -602,13 +606,10 @@ for ep in pbar:
         t2 = t_1 = default_timer()
         
         # log a compact summary of the spectrum row (mean of first 20 bins)
-        log_str = 'epoch {}, best epoch: {}, time {:.5f}, lr {:.2e}, train l2 norm {:.5f} train l2 denorm {:.5f}, test rel l2 loss {:.5f}, test pred loss {:.5f}'.format(
-            ep, best_loss_epoch, t2 - t1, lr, train_l2_norm_avg, train_l2_denorm_avg, test_rel_l2_loss, test_fourier_pred_loss)
-        
-        # Add FourierLoss components if available
-        if test_fourier_l2loss is not None:
-            log_str += ', test fourier l2loss {:.5f}, test fft loss {:.5f}'.format(
-                test_fourier_l2loss, test_fourier_fft_loss)
+        # Always log all losses for comparison
+        log_str = 'epoch {}, best epoch: {}, time {:.5f}, lr {:.2e}, train l2 norm {:.5f} train l2 denorm {:.5f}, test rel l2 loss {:.5f}, test pred loss {:.5f}, test fourier l2loss {:.5f}, test fft loss {:.5f}'.format(
+            ep, best_loss_epoch, t2 - t1, lr, train_l2_norm_avg, train_l2_denorm_avg, 
+            test_rel_l2_loss, test_fourier_pred_loss, test_fourier_l2loss, test_fourier_fft_loss)
         
         log_str += ', time train avg {:.5f} load avg {:.5f} test {:.5f}'.format(
             t_train / len(train_loader), t_load / len(train_loader), t_test)
