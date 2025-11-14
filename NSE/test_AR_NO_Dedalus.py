@@ -61,6 +61,7 @@ parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
 parser.add_argument('--normalize_strategy',type=str, default='zscore')
 parser.add_argument('--num_steps', type=int, default=300)
+parser.add_argument('--num_animation_frames', type=int, default=None, help='Desired number of frames in animation. If None, uses all steps. If specified, calculates step interval automatically.')
 
 # ### FNO/UNO params 
 parser.add_argument('--n_layers',type=int, default=8)
@@ -367,7 +368,7 @@ def predict_and_save(model=None, test_loader=None, save=False, log_path=None, ma
     # For each step, we have one timestep (T=1) in the output
     num_steps = pred.shape[0] # 1 for batch size
     
-    for step_idx in tqdm(range(num_steps), desc="Computing metrics"):
+    for step_idx in range(num_steps):
         # Get prediction and target for this step
         # pred[step_idx]: (H, W, T, C), target[step_idx]: (H, W, T, C)
         pred_step = pred[step_idx]  # (H, W, T, C)
@@ -490,7 +491,7 @@ def predict_and_save(model=None, test_loader=None, save=False, log_path=None, ma
 ################################################################
 # Animation Functions
 ################################################################
-def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, num_steps=None):
+def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, num_steps=None, num_animation_frames=None):
     """
     Create animation showing target, prediction, and error for each channel.
     
@@ -499,14 +500,34 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
         log_path: Path to save animation
         save_animation: Whether to save animation file
         fps: Frames per second for animation
+        num_steps: Maximum number of steps to use (None = use all)
+        num_animation_frames: Desired number of frames in animation (None = use all steps)
+                             If specified, calculates step interval automatically
     """
     pred = save_data['pred']  # (N, H, W, T, C)
     target = save_data['output']  # (N, H, W, T, C)
     
-    # Get number of steps, channels, and spatial dimensions
-    num_steps = pred.shape[0] if num_steps is None else min(num_steps, pred.shape[0])
+    # Get total available steps
+    total_steps = pred.shape[0]
+    max_steps = total_steps if num_steps is None else min(num_steps, total_steps)
+    
+    # Calculate step interval if num_animation_frames is specified
+    if num_animation_frames is not None and num_animation_frames > 0:
+        step_interval = max(1, max_steps // num_animation_frames)
+        num_steps = min(num_animation_frames, max_steps // step_interval)
+        step_indices = np.arange(0, max_steps, step_interval)[:num_steps]
+        print(f"Using {num_steps} frames with step interval {step_interval} (from {max_steps} total steps)")
+    else:
+        num_steps = max_steps
+        step_indices = np.arange(num_steps)
+        print(f"Using all {num_steps} steps for animation")
+    
     H, W = pred.shape[1], pred.shape[2]
     num_channels = pred.shape[-1]
+    
+    # Select steps based on step_indices
+    pred = pred[step_indices]  # (num_steps, H, W, T, C)
+    target = target[step_indices]  # (num_steps, H, W, T, C)
     
     # Use first timestep in output (usually T=1)
     pred = pred[..., 0, :]  # (N, H, W, C)
@@ -583,7 +604,9 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     step_text = fig.suptitle('Step: 0', fontsize=16, y=0.98)
     
     def animate(frame):
-        step_text.set_text(f'Step: {frame}')
+        # Get actual step index (for display purposes)
+        actual_step = step_indices[frame] if frame < len(step_indices) else frame
+        step_text.set_text(f'Step: {actual_step} (frame {frame})')
         for row in range(3):
             for col in range(num_channels):
                 if row == 0:  # Target
@@ -601,7 +624,12 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     # Save animation
     if save_animation and log_path is not None:
         os.makedirs(log_path, exist_ok=True)
-        anim_path = f'{log_path}/prediction_animation_totalsteps{num_steps}.mp4'
+        # Include actual step range in filename
+        if num_animation_frames is not None:
+            step_range = f"steps{step_indices[0]}-{step_indices[-1]}_interval{step_interval}_frames{num_steps}"
+        else:
+            step_range = f"totalsteps{num_steps}"
+        anim_path = f'{log_path}/prediction_animation_{step_range}.mp4'
         print(f"Saving animation to {anim_path}...")
         print(f"  Animation details: {num_steps} frames, {fps} fps, bitrate=1800")
         start_time = time.time()
@@ -613,7 +641,7 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
 
 
 def animate_spectral_comparison(save_data, log_path=None, save_animation=True, 
-                                fps=10, k_zoom_threshold=20, num_steps=None):
+                                fps=10, k_zoom_threshold=20, num_steps=None, num_animation_frames=None):
     """
     Create animation comparing spectral energy and enstrophy between target and prediction.
     Includes zoomed view for high frequency components (k > k_zoom_threshold).
@@ -624,6 +652,9 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
         save_animation: Whether to save animation file
         fps: Frames per second for animation
         k_zoom_threshold: Wavenumber threshold for zoomed view
+        num_steps: Maximum number of steps to use (None = use all)
+        num_animation_frames: Desired number of frames in animation (None = use all steps)
+                             If specified, calculates step interval automatically
     """
     spectral_data_list = save_data['spectral_data_by_step']
     
@@ -631,8 +662,22 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
         print("Warning: No spectral data found in save_data")
         return None, None
     
-    # Get number of steps
-    num_steps = len(spectral_data_list) if num_steps is None else min(num_steps, len(spectral_data_list))
+    # Get total available steps
+    total_steps = len(spectral_data_list)
+    max_steps = total_steps if num_steps is None else min(num_steps, total_steps)
+    
+    # Calculate step interval if num_animation_frames is specified
+    step_interval = None
+    if num_animation_frames is not None and num_animation_frames > 0:
+        step_interval = max(1, max_steps // num_animation_frames)
+        num_steps = min(num_animation_frames, max_steps // step_interval)
+        step_indices = np.arange(0, max_steps, step_interval)[:num_steps]
+        spectral_data_list = [spectral_data_list[i] for i in step_indices]
+        print(f"Using {num_steps} frames with step interval {step_interval} (from {max_steps} total steps)")
+    else:
+        num_steps = max_steps
+        spectral_data_list = spectral_data_list[:num_steps]
+        print(f"Using all {num_steps} steps for animation")
     
     # Extract all k_bins (should be the same for all steps)
     k_bins = spectral_data_list[0]['k_bins']
@@ -819,7 +864,14 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     # Save animation
     if save_animation and log_path is not None:
         os.makedirs(log_path, exist_ok=True)
-        anim_path = f'{log_path}/spectral_comparison_animation_totalsteps{num_steps}.mp4'
+        # Include actual step range in filename if using frame sampling
+        if step_interval is not None and len(spectral_data_list) > 0:
+            first_step = spectral_data_list[0].get('time_step', 0)
+            last_step = spectral_data_list[-1].get('time_step', num_steps - 1)
+            step_range = f"steps{first_step}-{last_step}_interval{step_interval}_frames{num_steps}"
+        else:
+            step_range = f"totalsteps{num_steps}"
+        anim_path = f'{log_path}/spectral_comparison_animation_{step_range}.mp4'
         print(f"Saving spectral animation to {anim_path}...")
         print(f"  Animation details: {num_steps} frames, {fps} fps, bitrate=1800")
         start_time = time.time()
@@ -830,7 +882,7 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     return anim, fig
 
 
-def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=None):
+def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=None, num_animation_frames=None):
     """
     Load saved data and create both animations.
     
@@ -839,6 +891,9 @@ def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_t
         save_animation: Whether to save animation files
         fps: Frames per second for animations
         k_zoom_threshold: Wavenumber threshold for zoomed view in spectral animation
+        num_steps: Maximum number of steps to use (None = use all)
+        num_animation_frames: Desired number of frames in animation (None = use all steps)
+                             If specified, calculates step interval automatically
     """
     # Load data
     data_path = f'{log_path}/test_data_prediction.pth'
@@ -852,11 +907,11 @@ def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_t
     
     # Create animations
     print("\nCreating prediction animation...")
-    anim1, fig1 = animate_predictions(save_data, log_path, save_animation, fps, num_steps)
+    anim1, fig1 = animate_predictions(save_data, log_path, save_animation, fps, num_steps, num_animation_frames)
     
     print("\nCreating spectral comparison animation...")
     anim2, fig2 = animate_spectral_comparison(save_data, log_path, save_animation, 
-                                              fps, k_zoom_threshold, num_steps)
+                                              fps, k_zoom_threshold, num_steps, num_animation_frames)
     
     return anim1, anim2, fig1, fig2
 
@@ -871,7 +926,7 @@ if __name__ == '__main__':
     
     # #### 2. load the save_data and create animations
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
-    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps)
+    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps, num_animation_frames=args.num_animation_frames)
     
     
     
