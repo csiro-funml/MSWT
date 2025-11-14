@@ -45,13 +45,12 @@ warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
-parser.add_argument('--model', type=str, default='FNO') # FNO, ViT, UNO, CNO, Oformer, Transolver, DPOT, Crossformer, wavelet_transformer
-parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
-parser.add_argument('--dataset_type',type=str, default='long', choices=['long', 'short'])
-parser.add_argument('--resume_path',type=int, default=0 if not torch.cuda.is_available() else 1) # use random weights if not cuda available
+parser.add_argument('--model', type=str, default='FNO') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
+parser.add_argument('--dataset',type=str, default='ns2d_dedalus_big') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
+parser.add_argument('--dataset_type',type=str, default='long', choices=['long', 'short'])  # Test-specific: for choosing test vs long test dataset
+parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
-parser.add_argument('--form',type=str, default='velocity', choices=['vorticity', 'velocity'])
-
+parser.add_argument('--form',type=str, default='vorticity', choices=['vorticity', 'velocity'])
 
 
 # ### dataset details
@@ -86,10 +85,22 @@ parser.add_argument('--patch_size',type=int, default=16)
 
 ###### optimizer and training setups
 parser.add_argument('--batch_size', type=int, default=64)
+parser.add_argument('--epochs', type=int, default=2000)  # Needed to construct model path
+parser.add_argument('--loss_type', type=str, default='fourier', choices=['fourier', 'rel_l2'])
+parser.add_argument('--fourier_logscale', type=str, default='False', choices=['True', 'False'])
+parser.add_argument('--warmup_epochs',type=int, default=100)
+
+# Performance optimization arguments (for consistency with training script)
+parser.add_argument('--num_workers', type=int, default=None, help='Number of DataLoader workers (default: auto-detect)')
+parser.add_argument('--pin_memory', action='store_true', default=True, help='Pin memory for faster CPU->GPU transfers')
+parser.add_argument('--prefetch_factor', type=int, default=2, help='Number of batches to prefetch')
+parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help='Gradient accumulation steps (not used in testing but kept for consistency)')
+
 parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
 
 args = parser.parse_args()
+args.fourier_logscale = args.fourier_logscale == 'True'
 
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -125,7 +136,25 @@ def load_data_model(just_load_path=False):
     print(args.dataset)
     print('Train num {}, Test num {}'.format(ntrain, ntest))
 
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
+    # Determine number of workers
+    if args.num_workers is None:
+        if torch.cuda.is_available():
+            import os
+            num_workers = min(os.cpu_count() or 8, 16)
+        else:
+            num_workers = 0
+    else:
+        num_workers = args.num_workers
+    
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, 
+        batch_size=args.batch_size, 
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=args.pin_memory if torch.cuda.is_available() else False,
+        prefetch_factor=args.prefetch_factor if num_workers > 0 else None,
+        persistent_workers=num_workers > 0
+    )
     # test_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8, pin_memory=torch.cuda.is_available()) # TODO: removed later, jsut to test the traning set results
     # val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
 
@@ -137,7 +166,9 @@ def load_data_model(just_load_path=False):
     testing_mode = 'FNO_testing'
     if testing_mode == 'FNO_testing':
         if args.dataset == 'ns2d_dedalus_big':
-            comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+            # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+            comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}'
+            # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
         else:
             comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy)
         log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
