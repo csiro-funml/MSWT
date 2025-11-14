@@ -1,30 +1,13 @@
 #!/bin/bash
-#SBATCH --time=00:20:00           # Increased time for longer training with larger batches
-
-#SBATCH --mem=256gb
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --account=OD-230881
-#SBATCH --cpus-per-task=32        # Increased CPUs for DataLoader workers (H100 can handle more)
-#SBATCH --output=slurm-%j.out     # Explicit output file (job ID will be inserted)
-#SBATCH --error=slurm-%j.err      # Explicit error file
-
 # Script to efficiently copy prediction files to collaborator directory
 # Usage:
-#   ./copy_to_collaborator.sh [source_file] [destination_dir]
-#   ./copy_to_collaborator.sh  # Uses default paths
+#   ./copy_to_collaborator.sh <source_file> <destination_path>
+#   
+# Examples:
+#   ./copy_to_collaborator.sh test_data_prediction_long.npz /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long_spectral_reg.npz
+#   ./copy_to_collaborator.sh /scratch3/wan410/operator_learning_model/path/to/file.npz /datasets/work/oa-tcch/work/forMichael/file.npz
 
 set -e  # Exit on error
-
-# Default paths (modify as needed)
-SOURCE_DIR="${SOURCE_DIR:-/scratch3/wan410/operator_learning_model}"
-DEST_DIR="${DEST_DIR:-/datasets/work/oa-tcch/work/forMichael}"
-
-# File patterns to copy (modify as needed)
-FILES_TO_COPY=(
-    "test_data_prediction_long.npz"
-    "test_data_prediction_long.pth"
-)
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -91,58 +74,31 @@ copy_file() {
 
 # Main execution
 main() {
-    # If arguments provided, use them
-    if [ $# -ge 1 ]; then
-        SOURCE_FILE="$1"
-        if [ $# -ge 2 ]; then
-            DEST_DIR="$2"
-        fi
-        
-        # Extract filename from source
-        FILENAME=$(basename "$SOURCE_FILE")
-        DEST_FILE="$DEST_DIR/$FILENAME"
-        
-        copy_file "$SOURCE_FILE" "$DEST_FILE"
-        exit $?
-    fi
-    
-    # Otherwise, use default behavior: copy all files from SOURCE_DIR to DEST_DIR
-    echo "Copying files from $SOURCE_DIR to $DEST_DIR"
-    echo "Files to copy: ${FILES_TO_COPY[@]}"
-    echo ""
-    
-    # Find all matching files in source directory (recursively)
-    found_files=0
-    for pattern in "${FILES_TO_COPY[@]}"; do
-        # Search in subdirectories
-        while IFS= read -r -d '' file; do
-            found_files=$((found_files + 1))
-            rel_path="${file#$SOURCE_DIR/}"
-            dest_file="$DEST_DIR/$rel_path"
-            
-            echo "Found: $file"
-            copy_file "$file" "$dest_file"
-            echo ""
-        done < <(find "$SOURCE_DIR" -name "$pattern" -type f -print0 2>/dev/null)
-    done
-    
-    if [ $found_files -eq 0 ]; then
-        echo -e "${YELLOW}No files found matching patterns: ${FILES_TO_COPY[@]}${NC}"
-        echo "Searching in: $SOURCE_DIR"
+    # Check arguments
+    if [ $# -lt 2 ]; then
+        echo "Error: Missing arguments"
         echo ""
-        echo "Usage examples:"
-        echo "  # Copy specific file:"
-        echo "  ./copy_to_collaborator.sh /path/to/test_data_prediction_long.npz /datasets/work/oa-tcch/work/forMichael/"
+        echo "Usage:"
+        echo "  ./copy_to_collaborator.sh <source_file> <destination_path>"
         echo ""
-        echo "  # Copy with custom destination filename:"
-        echo "  ./copy_to_collaborator.sh /path/to/test_data_prediction_long.npz /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long_spectral_reg.npz"
-        echo ""
-        echo "  # Use environment variables:"
-        echo "  SOURCE_DIR=/my/source DEST_DIR=/my/dest ./copy_to_collaborator.sh"
+        echo "Examples:"
+        echo "  ./copy_to_collaborator.sh test_data_prediction_long.npz /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long_spectral_reg.npz"
+        echo "  ./copy_to_collaborator.sh /scratch3/wan410/operator_learning_model/path/to/file.npz /datasets/work/oa-tcch/work/forMichael/file.npz"
         exit 1
     fi
     
-    echo -e "${GREEN}✓ Copied $found_files file(s)${NC}"
+    SOURCE_FILE="$1"
+    DEST_FILE="$2"
+    
+    # If destination is a directory, append source filename
+    if [ -d "$DEST_FILE" ] 2>/dev/null; then
+        FILENAME=$(basename "$SOURCE_FILE")
+        DEST_FILE="$DEST_FILE/$FILENAME"
+    fi
+    
+    copy_file "$SOURCE_FILE" "$DEST_FILE"
+    
+    echo -e "${GREEN}✓ Copy completed${NC}"
 }
 
 # Run main function

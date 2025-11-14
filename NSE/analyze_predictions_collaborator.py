@@ -80,18 +80,31 @@ def load_npz_file(file_path):
     
     print("the channels are: pressure, velocity_x, velocity_y")
     
-    # Convert to dictionary for easier access
+    # Convert to dictionary - simplified approach
     save_data = {}
     for key in data.keys():
         value = data[key]
-        # Handle numpy array with object dtype (contains lists/dicts)
+        
+        # Handle different numpy array types
         if isinstance(value, np.ndarray):
             if value.dtype == object:
-                # Object array - extract the Python object
-                save_data[key] = value.item()
-            elif value.size == 1:
-                # Scalar array - extract the scalar
-                save_data[key] = value.item()
+                # Object array - try to extract Python object safely
+                try:
+                    if value.ndim == 0 or value.size == 1:
+                        # Scalar object array
+                        save_data[key] = value.item()
+                    else:
+                        # Multi-element object array - convert to list
+                        save_data[key] = value.tolist()
+                except (ValueError, AttributeError):
+                    # Fallback: convert to list
+                    save_data[key] = value.tolist()
+            elif value.ndim == 0 or value.size == 1:
+                # Scalar array
+                try:
+                    save_data[key] = value.item()
+                except (ValueError, AttributeError):
+                    save_data[key] = value.tolist() if value.ndim > 0 else value
             else:
                 # Regular array - keep as numpy array
                 save_data[key] = value
@@ -99,7 +112,9 @@ def load_npz_file(file_path):
             # Convert numpy string to Python string
             save_data[key] = str(value)
         else:
-            save_data[key] = value    
+            # Already a Python type (list, dict, str, etc.)
+            save_data[key] = value
+    
     return save_data
 
 
