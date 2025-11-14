@@ -47,9 +47,10 @@ parser = argparse.ArgumentParser(description='Training or pretraining on multipl
 
 parser.add_argument('--model', type=str, default='FNO') # FNO, ViT, UNO, CNO, Oformer, Transolver, DPOT, Crossformer, wavelet_transformer
 parser.add_argument('--dataset',type=str, default='ns2d_pda') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
+parser.add_argument('--dataset_type',type=str, default='long', choices=['long', 'short'])
 parser.add_argument('--resume_path',type=int, default=0 if not torch.cuda.is_available() else 1) # use random weights if not cuda available
 parser.add_argument('--use_writer', action='store_true',default=False)
-parser.add_argument('--form',type=str, default='vorticity', choices=['vorticity', 'velocity'])
+parser.add_argument('--form',type=str, default='velocity', choices=['vorticity', 'velocity'])
 
 
 
@@ -85,18 +86,6 @@ parser.add_argument('--patch_size',type=int, default=16)
 
 ###### optimizer and training setups
 parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--epochs', type=int, default=3000)
-parser.add_argument('--save_everyepoch', type=int, default=10)
-parser.add_argument('--lr', type=float, default=0.001)
-parser.add_argument('--opt',type=str, default='adam', choices=['adam','lamb'])
-parser.add_argument('--beta1',type=float,default=0.9)
-parser.add_argument('--beta2',type=float,default=0.9)
-parser.add_argument('--lr_method',type=str, default='cossin') # cyclic for ViT perhaps
-parser.add_argument('--grad_clip',type=float, default=10000.0)
-parser.add_argument('--step_size', type=int, default=20)
-parser.add_argument('--step_gamma', type=float, default=0.5)
-parser.add_argument('--warmup_epochs',type=int, default=100)
-
 parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
 
@@ -117,7 +106,10 @@ def load_data_model(just_load_path=False):
     elif args.dataset == 'ns2d_dedalus_big':
         # load data and dataloader for big dedalus dataset
         train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='train', strategy=args.normalize_strategy)
-        test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
+        if args.dataset_type == 'long':
+            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='long', strategy=args.normalize_strategy)
+        else:
+            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
     elif args.dataset != 'ns2d_dedalus':
         # load data and dataloader
         train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
@@ -237,20 +229,16 @@ def load_data_model(just_load_path=False):
 ################################################################
 # Function 1 Report Average step, step-wise, and full prediction relative l2 norm
 ################################################################
-# def get_initial_input_and_forcing_loader(test_dataset):
 
-
-
-def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=None):
-    """
-    test_error(model, test_loader, save=False)
-    Args:
-        model: the model to test
-        test_loader: the test loader
-        save: whether to save the results to a pthfile
-    Returns:
-        save_data = {'input': torch.Tensor, 'output': torch.Tensor, 'pred': torch.Tensor} for computing the error
-    """
+def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load=True):
+    if load:
+        data_path = f'{log_path}/test_data_prediction_{args.dataset_type}.pth'
+        if not os.path.exists(data_path):
+            raise FileNotFoundError(f"Data file not found: {data_path}")
+        save_data = torch.load(data_path, map_location='cpu')
+        pred = save_data['pred']
+        target = save_data['output']
+        return pred, target
     with torch.no_grad():
         model.eval()
         test_dataset = test_loader.dataset
@@ -307,120 +295,164 @@ def predict_and_save(model, test_loader, save=False, log_path=None, max_steps=No
                 x_next = y_pred  # Update for next iteration
         
         pred = torch.stack(pred, dim=0).cpu()
-        target = torch.stack(target, dim=0)
-        print("pred shape", pred.shape, "target shape", target.shape)
-        
-        # Domain size (default to 2*pi, can be adjusted if needed)
-        Lx = 2 * np.pi
-        Ly = 2 * np.pi
-        
-        # Get dataset form to determine how to extract velocity
-        dataset_form = getattr(test_dataset, 'form', 'vorticity')
-        
-        # Initialize metrics lists
-        rel_l2_loss_list = []
-        spectral_data_list = []
-        
-        # Initialize loss function
-        rel_l2_loss_fn = RelL2Norm()
-        
-        # Compute metrics for each step
-        # pred and target shape: (N, H, W, T, C) where N is number of steps
-        # For each step, we have one timestep (T=1) in the output
-        num_steps = pred.shape[0]
-        
-        for step_idx in tqdm(range(num_steps), desc="Computing metrics"):
-            # Get prediction and target for this step
-            # pred[step_idx]: (H, W, T, C), target[step_idx]: (H, W, T, C)
-            pred_step = pred[step_idx]  # (H, W, T, C)
-            target_step = target[step_idx]  # (H, W, T, C)
-            
-            # Compute rel_l2_loss for this step
-            # Add batch dimension for loss computation: (1, H, W, T, C)
-            pred_step_batch = pred_step.unsqueeze(0)
-            target_step_batch = target_step.unsqueeze(0)
-            rel_l2_err_step = rel_l2_loss_fn(pred_step_batch, target_step_batch)
-            rel_l2_loss_list.append({
-                'time_step': step_idx,
-                'rel_l2_error': rel_l2_err_step.item()
-            })
-            
-            # Compute spectral energy and enstrophy
-            # Extract velocity components based on form
-            # For each timestep in the output (usually T=1)
-            for t_idx in range(pred_step.shape[-2]):  # T dimension
-                pred_t = pred_step[..., t_idx, :].numpy()  # (H, W, C)
-                target_t = target_step[..., t_idx, :].numpy()  # (H, W, C)
-                
-                # Get velocity components
-                if dataset_form == 'vorticity':
-                    # For vorticity form: channels are [vorticity, streamfunction]
-                    # Extract streamfunction (channel 1) and compute velocity
-                    if pred_t.shape[-1] >= 2:
-                        psi_pred = pred_t[..., 1]  # streamfunction
-                        psi_target = target_t[..., 1]
-                        ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
-                        ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
-                    else:
-                        continue
-                elif dataset_form == 'velocity':
-                    # For velocity form: channels are [pressure, velocity_x, velocity_y]
-                    if pred_t.shape[-1] >= 3:
-                        ux_pred = pred_t[..., 1]  # velocity_x
-                        uy_pred = pred_t[..., 2]  # velocity_y
-                        ux_target = target_t[..., 1]
-                        uy_target = target_t[..., 2]
-                    else:
-                        continue
-                else:
-                    # Unknown form, skip spectral computation
-                    continue
-                
-                # Compute spectra
-                try:
-                    k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
-                    _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
-                    
-                    # Get grid resolution H from velocity field shape
-                    H = ux_pred.shape[0]  # Grid resolution in y direction
-                    
-                    spectral_data_list.append({
-                        'time_step': step_idx,
-                        'timestep_in_output': t_idx,
-                        'k_bins': k_bins,
-                        'Ek_pred': Ek_pred,
-                        'Ek_target': Ek_target,
-                        'Zk_pred': Zk_pred,
-                        'Zk_target': Zk_target,
-                        'H': H,  # Store grid resolution for Nyquist truncation
-                        'Lx': Lx  # Store domain size for Nyquist truncation
-                    })
-                except Exception as e:
-                    print(f"Warning: Failed to compute spectra at step {step_idx}, timestep {t_idx}: {e}")
-                    import traceback
-                    traceback.print_exc()
-        
-        # Compute overall error
-        pred_batch = pred.unsqueeze(0)  # (1, N, H, W, T, C)
-        target_batch = target.unsqueeze(0)  # (1, N, H, W, T, C)
-        rel_l2_err = rel_l2_loss_fn(pred_batch, target_batch)
-        print("overall rel_l2_error", rel_l2_err.item())
-        
-        # Create save_data dictionary with all metrics
+        target = torch.stack(target, dim=0).cpu()
         save_data = {
-            'pred': pred,  # (N, H, W, T, C)
-            'output': target,  # (N, H, W, T, C)
-            'rel_l2_loss_by_step': rel_l2_loss_list,  # List of dicts with time_step and rel_l2_error
-            'spectral_data_by_step': spectral_data_list,  # List of dicts with spectral data
-            'dataset_form': dataset_form,  # Store form for later use
-            'domain_size': {'Lx': Lx, 'Ly': Ly}  # Store domain size
+            'pred': pred,
+            'output': target,
         }
+        torch.save(save_data, f'{log_path}/test_data_prediction_{args.dataset_type}.pth')
+        print(f"Saved prediction data and metrics to {log_path}/test_data_prediction_{args.dataset_type}.pth")
+        return pred, target
+
+
+def predict_and_save(model=None, test_loader=None, save=False, log_path=None, max_steps=None):
+    """
+    test_error(model, test_loader, save=False)
+    Args:
+        model: the model to test
+        test_loader: the test loader
+        save: whether to save the results to a pthfile
+    Returns:
+        save_data = {'input': torch.Tensor, 'output': torch.Tensor, 'pred': torch.Tensor} for computing the error
+    """
+    pred, target = autoregressive_prediction(model, test_loader, max_steps, load=False)  # unnormalized prediction and target
+    print("pred shape", pred.shape, "target shape", target.shape)
+    
+    # Domain size (default to 2*pi, can be adjusted if needed)
+    Lx = 2 * np.pi
+    Ly = 2 * np.pi
+    
+    # Get dataset form to determine how to extract velocity
+    # dataset_form = getattr(test_dataset, 'form', 'vorticity')
+    dataset_form = 'velocity'
+    # Initialize metrics lists
+    rel_l2_loss_list = []
+    spectral_data_list = []
+    
+    # Initialize loss function, comment if you don't need it
+    rel_l2_loss_fn = RelL2Norm()
+    
+    # Compute metrics for each step
+    # pred and target shape: (N, H, W, T, C) where N is number of steps
+    # For each step, we have one timestep (T=1) in the output
+    num_steps = pred.shape[0] # 1 for batch size
+    
+    for step_idx in tqdm(range(num_steps), desc="Computing metrics"):
+        # Get prediction and target for this step
+        # pred[step_idx]: (H, W, T, C), target[step_idx]: (H, W, T, C)
+        pred_step = pred[step_idx]  # (H, W, T, C)
+        target_step = target[step_idx]  # (H, W, T, C)
         
-        # Save to file if requested
-        if save and log_path is not None:
-            os.makedirs(log_path, exist_ok=True)
-            torch.save(save_data, f'{log_path}/test_data_prediction.pth')
-            print(f"Saved prediction data and metrics to {log_path}/test_data_prediction.pth")
+        # Compute rel_l2_loss for this step
+        # Add batch dimension for loss computation: (1, H, W, T, C)
+        pred_step_batch = pred_step.unsqueeze(0)
+        target_step_batch = target_step.unsqueeze(0)
+        rel_l2_err_step = rel_l2_loss_fn(pred_step_batch, target_step_batch)
+        rel_l2_loss_list.append({
+            'time_step': step_idx,
+            'rel_l2_error': rel_l2_err_step.item()
+        })
+        
+        # Compute spectral energy and enstrophy
+        # Extract velocity components based on form
+        # For each timestep in the output (usually T=1)
+        for t_idx in tqdm(range(pred_step.shape[-2]), desc="Computing spectral metrics"):  # T dimension
+            pred_t = pred_step[..., t_idx, :].numpy()  # (H, W, C)
+            target_t = target_step[..., t_idx, :].numpy()  # (H, W, C)
+            
+            # Get velocity components
+            if dataset_form == 'vorticity':
+                # For vorticity form: channels are [vorticity, streamfunction]
+                # Extract streamfunction (channel 1) and compute velocity
+                if pred_t.shape[-1] >= 2:
+                    psi_pred = pred_t[..., 1]  # streamfunction
+                    psi_target = target_t[..., 1]
+                    ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
+                    ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
+                else:
+                    continue
+            elif dataset_form == 'velocity':
+                # For velocity form: channels are [pressure, velocity_x, velocity_y]
+                if pred_t.shape[-1] >= 3:
+                    ux_pred = pred_t[..., 1]  # velocity_x
+                    uy_pred = pred_t[..., 2]  # velocity_y
+                    ux_target = target_t[..., 1]
+                    uy_target = target_t[..., 2]
+                else:
+                    continue
+            else:
+                # Unknown form, skip spectral computation
+                continue
+            
+            # compute the energy
+            # Energy: E = (1/2) ∫ u² dx / Area
+            Nx, Ny = ux_pred.shape[0], ux_pred.shape[1]
+            area = Lx * Ly
+            energy_pred = 0.5 * np.sum(ux_pred**2 + uy_pred**2) * area / (Nx * Ny)
+            energy_target = 0.5 * np.sum(ux_target**2 + uy_target**2) * area / (Nx * Ny)
+
+            # Compute spectra
+            try:
+                k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
+                _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
+                
+
+                # Get grid resolution H from velocity field shape
+                H = ux_pred.shape[0]  # Grid resolution in y direction
+                
+                spectral_data_list.append({
+                    'time_step': step_idx,
+                    'timestep_in_output': t_idx,
+                    'k_bins': k_bins,
+                    'Ek_pred': Ek_pred,
+                    'Ek_target': Ek_target,
+                    'Zk_pred': Zk_pred,
+                    'Zk_target': Zk_target,
+                    'energy_pred': energy_pred,
+                    'energy_target': energy_target,
+                    'H': H,  # Store grid resolution for Nyquist truncation
+                    'Lx': Lx  # Store domain size for Nyquist truncation
+                })
+            except Exception as e:
+                print(f"Warning: Failed to compute spectra at step {step_idx}, timestep {t_idx}: {e}")
+                import traceback
+                traceback.print_exc()
+    
+    # Compute overall error
+    pred_batch = pred.unsqueeze(0)  # (1, N, H, W, T, C)
+    target_batch = target.unsqueeze(0)  # (1, N, H, W, T, C)
+    rel_l2_err = rel_l2_loss_fn(pred_batch, target_batch)
+    print("overall rel_l2_error", rel_l2_err.item())
+    
+    # Create save_data dictionary with all metrics
+    save_data = {
+        'pred': pred,  # (N, H, W, T, C)
+        'output': target,  # (N, H, W, T, C)
+        'rel_l2_loss_by_step': rel_l2_loss_list,  # List of dicts with time_step and rel_l2_error
+        'spectral_data_by_step': spectral_data_list,  # List of dicts with spectral data
+        'dataset_form': dataset_form,  # Store form for later use
+        'domain_size': {'Lx': Lx, 'Ly': Ly},  # Store domain size
+    }
+    
+    # Save to file if requested
+    if save and log_path is not None:
+        os.makedirs(log_path, exist_ok=True)
+        torch.save(save_data, f'{log_path}/test_data_prediction_{args.dataset_type}.pth')
+        print(f"Saved prediction data and metrics to {log_path}/test_data_prediction_{args.dataset_type}.pth")
+
+    # save the data to npz
+    if save and log_path is not None:
+        save_data_np = {
+            'pred': save_data['pred'].numpy(),
+            'output': save_data['output'].numpy(),
+            'rel_l2_loss_by_step': save_data['rel_l2_loss_by_step'],
+            'spectral_data_by_step': save_data['spectral_data_by_step'],
+            'dataset_form': save_data['dataset_form'],
+            'domain_size': save_data['domain_size'],
+        }
+        os.makedirs(log_path, exist_ok=True)
+        np.savez(f'{log_path}/test_data_prediction_{args.dataset_type}.npz', **save_data_np)
+        print(f"Saved prediction data and metrics to {log_path}/test_data_prediction_{args.dataset_type}.npz")
         
         return save_data
 
@@ -802,12 +834,18 @@ def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_t
 if __name__ == '__main__':
     
     #### 1. predict and save the data
+    #if you dont have the dataloader, comment this line
     model, test_loader, log_path = load_data_model(just_load_path=False)
+    
     save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
     
     # #### 2. load the save_data and create animations
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
-    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps)
+    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps)
+    
+    
+    
+    
     
     # #### 3. compute different types of metrics
     # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
