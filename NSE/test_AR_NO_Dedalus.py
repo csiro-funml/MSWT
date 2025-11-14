@@ -118,7 +118,7 @@ def load_data_model(just_load_path=False):
         # load data and dataloader for big dedalus dataset
         train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='train', strategy=args.normalize_strategy)
         if args.dataset_type == 'long':
-            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='long', strategy=args.normalize_strategy)
+            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='test_long', strategy=args.normalize_strategy)
         else:
             test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
     elif args.dataset != 'ns2d_dedalus':
@@ -155,7 +155,7 @@ def load_data_model(just_load_path=False):
         prefetch_factor=args.prefetch_factor if num_workers > 0 else None,
         persistent_workers=num_workers > 0
     )
-    # test_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8, pin_memory=torch.cuda.is_available()) # TODO: removed later, jsut to test the traning set results
+    # test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,num_workers=0 if not torch.cuda.is_available() else 8, pin_memory=torch.cuda.is_available()) # TODO: removed later, jsut to test the traning set results
     # val_loader =  torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,num_workers=8)
 
     # ntrain, ntest = len(train_dataset), len(test_dataset)
