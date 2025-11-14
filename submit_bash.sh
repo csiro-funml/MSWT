@@ -110,12 +110,11 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 #   --input_file /scratch3/wan410/operator_learning_model/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_formvelocity_lossfourier_logscaleTrue_warmup0/test_data_prediction_long.npz
 
 python NSE/analyze_predictions_collaborator.py \
-        # --input_file /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long_spect_reg.npz \
         --input_file /scratch3/wan410/operator_learning_model/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_formvelocity_lossfourier_logscaleTrue_warmup0/test_data_prediction_long.npz \
         --mode animate \
         --num_animation_frames 250 \
         --output_dir ./my_animations
-
+        # --input_file /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long_spect_reg.npz \
 # CUDA_VISIBLE_DEVICES=0 python3 -u NSE/test_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
 #     --modes 64 --width 32 --n_layers 4 --T_in 1 --T_ar 1  --normalize 1 --normalize_strategy zscore --epochs 1000 \
 #     --form velocity --num_steps 30 # Disabled for now
