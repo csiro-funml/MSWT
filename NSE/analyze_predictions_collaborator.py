@@ -78,26 +78,56 @@ def load_npz_file(file_path):
         output = data['output']
         print(f"  output: {output.shape} (N, H, W, T, C) - ground truth")
     
+    print("the channels are: pressure, velocity_x, velocity_y")
+    
     # Show metrics
     if 'rel_l2_loss_by_step' in data:
-        rel_l2_loss = data['rel_l2_loss_by_step'].item() if isinstance(data['rel_l2_loss_by_step'].item(), list) else data['rel_l2_loss_by_step']
+        rel_l2_loss_raw = data['rel_l2_loss_by_step']
+        # Handle numpy object array containing list
+        if isinstance(rel_l2_loss_raw, np.ndarray) and rel_l2_loss_raw.dtype == object:
+            rel_l2_loss = rel_l2_loss_raw.item()
+        elif isinstance(rel_l2_loss_raw, np.ndarray) and rel_l2_loss_raw.size == 1:
+            rel_l2_loss = rel_l2_loss_raw.item()
+        else:
+            rel_l2_loss = rel_l2_loss_raw
         print(f"  rel_l2_loss_by_step: list of {len(rel_l2_loss)} dicts with 'time_step' and 'rel_l2_error'")
         if len(rel_l2_loss) > 0:
             print(f"    Example: {rel_l2_loss[0]}")
     
     if 'spectral_data_by_step' in data:
-        spectral_data = data['spectral_data_by_step'].item() if isinstance(data['spectral_data_by_step'].item(), list) else data['spectral_data_by_step']
+        spectral_data_raw = data['spectral_data_by_step']
+        # Handle numpy object array containing list
+        if isinstance(spectral_data_raw, np.ndarray) and spectral_data_raw.dtype == object:
+            spectral_data = spectral_data_raw.item()
+        elif isinstance(spectral_data_raw, np.ndarray) and spectral_data_raw.size == 1:
+            spectral_data = spectral_data_raw.item()
+        else:
+            spectral_data = spectral_data_raw
         print(f"  spectral_data_by_step: list of {len(spectral_data)} dicts with spectral metrics")
         if len(spectral_data) > 0:
             print(f"    Keys in each entry: {list(spectral_data[0].keys())}")
             print(f"    Example entry: time_step={spectral_data[0].get('time_step', 'N/A')}")
     
     if 'dataset_form' in data:
-        form = data['dataset_form'].item() if hasattr(data['dataset_form'], 'item') else data['dataset_form']
+        form_raw = data['dataset_form']
+        # Handle numpy scalar
+        if isinstance(form_raw, np.ndarray):
+            form = form_raw.item() if form_raw.size == 1 else str(form_raw)
+        elif isinstance(form_raw, (np.str_, np.unicode_)):
+            form = str(form_raw)
+        else:
+            form = form_raw
         print(f"  dataset_form: {form} (vorticity or velocity)")
     
     if 'domain_size' in data:
-        domain = data['domain_size'].item() if hasattr(data['domain_size'], 'item') else data['domain_size']
+        domain_raw = data['domain_size']
+        # Handle numpy object array containing dict
+        if isinstance(domain_raw, np.ndarray) and domain_raw.dtype == object:
+            domain = domain_raw.item()
+        elif isinstance(domain_raw, np.ndarray) and domain_raw.size == 1:
+            domain = domain_raw.item()
+        else:
+            domain = domain_raw
         print(f"  domain_size: {domain}")
     
     print()
@@ -107,10 +137,19 @@ def load_npz_file(file_path):
     for key in data.keys():
         value = data[key]
         # Handle numpy array with object dtype (contains lists/dicts)
-        if hasattr(value, 'item') and isinstance(value.item(), (list, dict)):
-            save_data[key] = value.item()
-        elif isinstance(value, np.ndarray):
-            save_data[key] = value
+        if isinstance(value, np.ndarray):
+            if value.dtype == object:
+                # Object array - extract the Python object
+                save_data[key] = value.item()
+            elif value.size == 1:
+                # Scalar array - extract the scalar
+                save_data[key] = value.item()
+            else:
+                # Regular array - keep as numpy array
+                save_data[key] = value
+        elif isinstance(value, (np.str_, np.unicode_)):
+            # Convert numpy string to Python string
+            save_data[key] = str(value)
         else:
             save_data[key] = value
     
