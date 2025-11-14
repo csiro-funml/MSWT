@@ -1,0 +1,14 @@
+
+
+import h5py
+
+
+def print_dimension(file_path):
+    with h5py.File(file_path, 'r') as f:
+        for key in f.keys():
+            print(f"{key}: {f[key].shape}")
+
+
+if __name__ == "__main__":
+    file_path = '/datasets/work/oa-tcch/work/forXuesong/with-forcing/long/realisation_0000/snapshots/snapshots_s1.h5'
+    print_dimension(file_path)

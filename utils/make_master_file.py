@@ -435,7 +435,7 @@ if not torch.cuda.is_available():
                             'train_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_000%i/snapshots/snapshots_s1'%i for i in range(8)],
                             'val_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0008/snapshots/snapshots_s1'],
                             'test_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/realisation_0009/snapshots/snapshots_s1'],
-                       
+                            'test_long_raw_path': ['/datasets/work/oa-tcch/work/forXuesong/with-forcing/long/realisation_0000/snapshots/snapshots_s1'],
                           }
 else:
     DATASET_DICT[name] =  {'data_path': '/scratch3/wan410/operator_learning_data/Dedalus/Forcing', 

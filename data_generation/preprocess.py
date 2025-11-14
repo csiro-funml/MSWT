@@ -1103,8 +1103,9 @@ if __name__ == '__main__':
 
 
     #### Dedalus datasets
-    states = ['val', 'test','train']
+    # states = ['val', 'test','train']
+    states = ['test_long']
     for state in states:
-        preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/Forcing/'+state, 
+        preprocess_dedalus_to_shards(dataset_name='ns2d_dedalus_big', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/Forcing/'+state, 
         start_time_id=1000, # skip 1000 steps to keep stable initial condition
         shard_size=2048, dtype='float16', state=state)
