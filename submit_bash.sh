@@ -1,13 +1,13 @@
 #!/bin/bash
 
 
-#SBATCH --time=00:20:00           # Increased time for longer training with larger batches
+#SBATCH --time=01:20:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --account=OD-230881
-#SBATCH --gres=gpu:1
+# SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=32        # Increased CPUs for DataLoader workers (H100 can handle more)
 #SBATCH --output=slurm-%j.out     # Explicit output file (job ID will be inserted)
 #SBATCH --error=slurm-%j.err      # Explicit error file

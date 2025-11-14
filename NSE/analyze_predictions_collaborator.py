@@ -34,18 +34,6 @@ import matplotlib.animation as animation
 from tqdm import tqdm
 import time
 
-# Add path to data_generation for spectral functions
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'data_generation', 'dedalus'))
-
-try:
-    from ns2d.spectral import compute_spectra
-    from scripts.compute_diagnostics import streamfunction_to_velocity
-except ImportError:
-    print("Warning: Could not import from data_generation/dedalus. Some functions may not work.")
-    print("Make sure data_generation/dedalus/ folder is accessible.")
-    compute_spectra = None
-    streamfunction_to_velocity = None
-
 
 
 def load_npz_file(file_path):
@@ -572,13 +560,14 @@ def main():
 if __name__ == '__main__':
     """
     # 1. Load .npz file and see how metrics were computed
-    python analyze_predictions_collaborator.py \
-        --input_file logs/.../test_data_prediction_long.npz \
+    python3 analyze_predictions_collaborator.py \
+        --input_file /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long.npz \
         --mode explain
+    
 
     # 2. Create animations from .npz file
-    python analyze_predictions_collaborator.py \
-        --input_file logs/.../test_data_prediction_long.npz \
+    python3 analyze_predictions_collaborator.py \
+        --input_file /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long_spect_reg.npz \
         --mode animate \
         --num_animation_frames 250 \
         --output_dir ./my_animations
