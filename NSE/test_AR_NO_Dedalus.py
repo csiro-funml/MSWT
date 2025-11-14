@@ -139,7 +139,6 @@ def load_data_model(just_load_path=False):
     # Determine number of workers
     if args.num_workers is None:
         if torch.cuda.is_available():
-            import os
             num_workers = min(os.cpu_count() or 8, 16)
         else:
             num_workers = 0
