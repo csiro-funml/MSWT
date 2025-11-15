@@ -106,7 +106,7 @@ args.fourier_logscale = args.fourier_logscale == 'True'
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-print(f"Current working directory: {os.getcwd()}")
+print(f"Current working directory: {os.getcwd()}, device: {device}")
 
 
 def load_data_model(just_load_path=False):
