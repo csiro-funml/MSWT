@@ -327,7 +327,7 @@ def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load
                 y_pred = test_dataset.denormalize_x(y_pred)  # (H, W, 1, C_out)
                 pred.append(y_pred.cpu())
                 target.append(yy.cpu())
-                forcing_list.append(forcing.cpu())
+                forcing_list.append(forcing.squeeze(-2).cpu())
                 x_next = y_pred  # Update for next iteration
         
         pred = torch.stack(pred, dim=0)
