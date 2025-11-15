@@ -12,7 +12,7 @@
 
 set -e  # Exit on error
 
-cp /scratch3/wan410/operator_learning_model/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_formvelocity_lossfourier_logscaleTrue_warmup0/test_data_prediction_long.npz /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long_spectral_reg.npz
+# cp /scratch3/wan410/operator_learning_model/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_formvelocity_lossfourier_logscaleTrue_warmup0/test_data_prediction_long.npz /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long_spectral_reg.npz
 cp /scratch3/wan410/operator_learning_model/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_normalizer_zscore_form_velocity/test_data_prediction_long.npz /datasets/work/oa-tcch/work/forMichael/test_data_prediction_long.npz
 echo "Copied prediction files to collaborator directory"
 
