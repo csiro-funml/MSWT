@@ -87,7 +87,7 @@ parser.add_argument('--patch_size',type=int, default=16)
 ###### optimizer and training setups
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=2000)  # Needed to construct model path
-parser.add_argument('--loss_type', type=str, default='fourier', choices=['fourier', 'rel_l2'])
+parser.add_argument('--loss_type', type=str, default='rel_l2', choices=['fourier', 'rel_l2'])
 parser.add_argument('--fourier_logscale', type=str, default='False', choices=['True', 'False'])
 parser.add_argument('--warmup_epochs',type=int, default=100)
 
