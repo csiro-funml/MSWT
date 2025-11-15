@@ -276,6 +276,7 @@ def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load
         total_steps = test_dataset.n_size if max_steps is None else min(max_steps, test_dataset.n_size)
         pred = []
         target = []
+        forcing_list = []
         for i in tqdm(range(total_steps)):
             xx = test_loader.dataset[i][0] # (H, W, T_in, C_in) # ground truth input
             yy = test_loader.dataset[i][1] # (H, W, T_ar, C_ar) # ground truth output
@@ -298,6 +299,7 @@ def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load
                 y_pred = test_dataset.denormalize_x(y_pred)  # (H, W, 1, C_out)
                 pred.append(y_pred)
                 target.append(yy)
+                forcing_list.append(xx[..., -1, -2:])
                 # Store predicted main variables (without forcing) for next step
                 x_next = y_pred  # (H, W, 1, C_out) where C_out = main variables only
             else:
@@ -323,16 +325,26 @@ def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load
                 y_pred = test_dataset.denormalize_x(y_pred)  # (H, W, 1, C_out)
                 pred.append(y_pred)
                 target.append(yy)
+                forcing_list.append(forcing)
                 x_next = y_pred  # Update for next iteration
         
         pred = torch.stack(pred, dim=0).cpu()
         target = torch.stack(target, dim=0).cpu()
-        save_data = {
-            'pred': pred,
-            'output': target,
+        forcing = torch.stack(forcing_list, dim=0).cpu()
+        save_data_np = {
+            'pred_pressure': pred[..., 0, 0].numpy(),
+            'pred_velocity_x': pred[..., 0, 1].numpy(),
+            'pred_velocity_y': pred[..., 0, 2].numpy(),
+            
+            'output_pressure': target[..., 0, 0].numpy(),
+            'output_velocity_x': target[..., 0, 1].numpy(),
+            'output_velocity_y': target[..., 0, 2].numpy(),
+            'input_forcing_x': forcing[..., 0].numpy(),
+            'input_forcing_y': forcing[..., 1].numpy(),
         }
-        torch.save(save_data, f'{log_path}/test_data_prediction_{args.dataset_type}.pth')
-        print(f"Saved prediction data and metrics to {log_path}/test_data_prediction_{args.dataset_type}.pth")
+        [print(key, save_data_np[key].shape) for key in save_data_np.keys()]
+        np.savez(f'{log_path}/test_data_prediction_{args.dataset_type}.npz', **save_data_np)
+        print(f"Saved prediction data and metrics to {log_path}/test_data_prediction_{args.dataset_type}.npz")
         return pred, target
 
 
@@ -363,7 +375,7 @@ def predict_and_save(model=None, test_loader=None, save=False, log_path=None, ma
     # Initialize loss function, comment if you don't need it
     rel_l2_loss_fn = RelL2Norm()
     
-    overall_l2_loss = rel_l2_loss_fn(pred, target)
+    overall_l2_loss = rel_l2_loss_fn(pred.unsqueeze(-2), target.unsqueeze(-2))
     print("overall l2 loss", overall_l2_loss.item())
     exit(-1)
     # Compute metrics for each step
