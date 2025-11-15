@@ -248,12 +248,12 @@ def load_data_model(just_load_path=False):
 
     start_epoch = 0
     best_loss_epoch = 0
-    if args.resume_path:
-        print('Loading models and resume from {}'.format(model_path))
-        args.resume_path = model_path
-        model, optimizer, scheduler, start_epoch = resume_training_from_checkpoint(model, args.resume_path, device, optimizer=None, scheduler=None)
-        print("resume training from epoch:", start_epoch)
-        best_loss_epoch = start_epoch
+    # always load the model from the checkpoint
+    print('Loading models and resume from {}'.format(model_path))
+    args.resume_path = model_path
+    model, optimizer, scheduler, start_epoch = resume_training_from_checkpoint(model, args.resume_path, device, optimizer=None, scheduler=None)
+    print("resume training from epoch:", start_epoch)
+    best_loss_epoch = start_epoch
     
     return model, test_loader, log_path
 
