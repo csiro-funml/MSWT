@@ -297,9 +297,9 @@ def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load
                 # Remove batch dimension for denormalization
                 y_pred = y_pred.squeeze(0)  # (H, W, 1, C_out)
                 y_pred = test_dataset.denormalize_x(y_pred)  # (H, W, 1, C_out)
-                pred.append(y_pred)
-                target.append(yy)
-                forcing_list.append(xx[..., -1, -2:])
+                pred.append(y_pred.cpu())
+                target.append(yy.cpu())
+                forcing_list.append(xx[..., -1, -2:].cpu())
                 # Store predicted main variables (without forcing) for next step
                 x_next = y_pred  # (H, W, 1, C_out) where C_out = main variables only
             else:
@@ -323,14 +323,14 @@ def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load
                 # Remove batch dimension
                 y_pred = y_pred.squeeze(0)  # (H, W, 1, C_out)
                 y_pred = test_dataset.denormalize_x(y_pred)  # (H, W, 1, C_out)
-                pred.append(y_pred)
-                target.append(yy)
-                forcing_list.append(forcing)
+                pred.append(y_pred.cpu())
+                target.append(yy.cpu())
+                forcing_list.append(forcing.cpu())
                 x_next = y_pred  # Update for next iteration
         
-        pred = torch.stack(pred, dim=0).cpu()
-        target = torch.stack(target, dim=0).cpu()
-        forcing = torch.stack(forcing_list, dim=0).cpu()
+        pred = torch.stack(pred, dim=0)
+        target = torch.stack(target, dim=0)
+        forcing = torch.stack(forcing_list, dim=0)
         save_data_np = {
             'pred_pressure': pred[..., 0, 0].numpy(),
             'pred_velocity_x': pred[..., 0, 1].numpy(),
