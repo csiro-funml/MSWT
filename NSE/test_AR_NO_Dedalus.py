@@ -166,8 +166,8 @@ def load_data_model(just_load_path=False):
     testing_mode = 'FNO_testing'
     if testing_mode == 'FNO_testing':
         if args.dataset == 'ns2d_dedalus_big':
-            comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
-            # comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}'
+            # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+            comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}'
             # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
         else:
             comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy)
@@ -363,6 +363,9 @@ def predict_and_save(model=None, test_loader=None, save=False, log_path=None, ma
     # Initialize loss function, comment if you don't need it
     rel_l2_loss_fn = RelL2Norm()
     
+    overall_l2_loss = rel_l2_loss_fn(pred, target)
+    print("overall l2 loss", overall_l2_loss.item())
+    exit(-1)
     # Compute metrics for each step
     # pred and target shape: (N, H, W, T, C) where N is number of steps
     # For each step, we have one timestep (T=1) in the output
@@ -926,7 +929,7 @@ if __name__ == '__main__':
     
     # #### 2. load the save_data and create animations
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
-    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps, num_animation_frames=args.num_animation_frames)
+    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps, num_animation_frames=args.num_animation_frames)
     
     
     
