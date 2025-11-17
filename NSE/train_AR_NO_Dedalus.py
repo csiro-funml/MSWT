@@ -515,6 +515,7 @@ for ep in pbar:
                             forcing = xx[..., -1:, -n_forcing_channels:]  # (B, H, W, 1, n_forcing)
                         
                         # Concatenate predicted main variables with forcing
+                        print("pred_step shape", pred_step.shape, "forcing shape", forcing.shape)
                         x_next = torch.cat((pred_step, forcing), dim=-1)  # (B, H, W, 1, C_in)
                         # Update x_current for next iteration (use last T_in timesteps)
                         if x_current.shape[-2] > 1:
