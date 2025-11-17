@@ -61,7 +61,6 @@ parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
 parser.add_argument('--normalize_strategy',type=str, default='zscore')
 parser.add_argument('--num_steps', type=int, default=300)
-parser.add_argument('--num_animation_frames', type=int, default=None, help='Desired number of frames in animation. If None, uses all steps. If specified, calculates step interval automatically.')
 
 # ### FNO/UNO params 
 parser.add_argument('--n_layers',type=int, default=8)
@@ -99,6 +98,7 @@ parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help='
 
 parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
+parser.add_argument('--save_type', type=str, default='npz', choices=['npz', 'pth'])
 
 args = parser.parse_args()
 args.fourier_logscale = args.fourier_logscale == 'True'
@@ -1036,7 +1036,7 @@ if __name__ == '__main__':
     #if you dont have the dataloader, comment this line
     model, test_loader, log_path = load_data_model(just_load_path=False)
     
-    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type='pth', max_steps=args.num_steps)
+    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
     
     # #### 2. load the save_data and create animations
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
