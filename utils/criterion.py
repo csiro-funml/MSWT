@@ -426,9 +426,9 @@ def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
     return k_bins, Ek
 
 
-class EnergySpectrumBias(_WeightedLoss):
+class EnergySpectrumBias1D(_WeightedLoss):
     def __init__(self, log_scale=False):
-        super(EnergySpectrumBias, self).__init__()
+        super(EnergySpectrumBias1D, self).__init__()
         self.log_scale = log_scale
 
     def forward(self, pred, target, Lx=2*np.pi, Ly=2*np.pi, ux_dim=1, uy_dim=2):
@@ -457,18 +457,55 @@ class EnergySpectrumBias(_WeightedLoss):
         loss = Ek_error.mean() # average over frequency bins and over the samples
         return loss
 
-class FourierLoss(_WeightedLoss):
+class FourierLoss1D(_WeightedLoss):
+    """ 1D fourier loss 
+    aggregate the spectral into radial bins and then compute the loss
+    Args:
+        beta: the weight of the fourier loss
+        log_scale: whether to use log scale for the fourier loss
+    """
     def __init__(self,  d=2, p=2, beta=0.05, log_scale=False):
-        super(FourierLoss, self).__init__()
+        super(FourierLoss1D, self).__init__()
         self.beta = beta
         self.rel_l2_loss = RelL2Norm()
-        self.spectral_loss = EnergySpectrumBias(log_scale=log_scale)
+        self.spectral_loss = EnergySpectrumBias1D(log_scale=log_scale)
 
     def forward(self, pred, target, ux_dim=1, uy_dim=2):
         fft_loss = self.spectral_loss(pred, target, ux_dim=ux_dim, uy_dim=uy_dim)
         pred_loss = self.rel_l2_loss(pred, target)
         loss =  pred_loss + self.beta * fft_loss
         return loss, pred_loss, fft_loss 
+
+class FourierLoss2D(_WeightedLoss):
+    """ 2D fourier loss 
+    compute the loss in the frequency domain
+    Args:
+        beta: the weight of the fourier loss
+        log_scale: whether to use log scale for the fourier loss
+    """
+    def __init__(self, beta=0.05, log_scale=False):
+        super(FourierLoss2D, self).__init__()
+        self.beta = beta
+        self.rel_l2_loss = RelL2Norm()
+        self.log_scale = log_scale
+    
+    def spectral_loss2d(self, pred, target):
+        pred_fft = torch.fft.rfft2(pred)
+        target_fft = torch.fft.rfft2(target)
+        fft_loss = torch.abs(pred_fft - target_fft)
+        if self.log_scale:
+            fft_loss = torch.log(fft_loss)
+        print("fft_loss shape", fft_loss.shape)
+        fft_loss = torch.sum(fft_loss, dim=(1, 2)) # sum over the height and width
+        fft_loss = torch.mean(fft_loss) # average over channels and samples
+        return fft_loss
+
+
+    def forward(self, pred, target):
+        fft_loss = self.spectral_loss2d(pred, target)
+        pred_loss = self.rel_l2_loss(pred, target)
+        loss =  pred_loss + self.beta * fft_loss
+        return loss, pred_loss, fft_loss
 
 
 class NLLLoss(_WeightedLoss):
