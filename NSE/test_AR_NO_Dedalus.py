@@ -1039,7 +1039,7 @@ if __name__ == '__main__':
     pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
     
     # #### 2. load the save_data and create animations
-    # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
+    # save_data = torch.load(f'{log_path}/test_data_prediction_long.pth', map_location='cpu')
     # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps, num_animation_frames=args.num_animation_frames)
     
     
