@@ -52,6 +52,7 @@ parser.add_argument('--form',type=str, default='vorticity', choices=['vorticity'
 parser.add_argument('--T_in', type=int, default=1)
 parser.add_argument('--T_ar', type=int, default=1)
 parser.add_argument('--T_bundle', type=int, default=1)
+parser.add_argument('--T_out', type=int, default=1, help='Number of steps ahead to predict (1 for one-step, 5 for five-step ahead)')
 parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
 parser.add_argument('--normalize_strategy',type=str, default='zscore')
@@ -80,7 +81,7 @@ parser.add_argument('--patch_size',type=int, default=16)
 ###### optimizer and training setups
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=2000)
-parser.add_argument('--loss_type', type=str, default='fourier', choices=['fourier', 'fourier2d', 'rel_l2'])
+parser.add_argument('--loss_type', type=str, default='rel_l2', choices=['fourier', 'fourier2d', 'rel_l2'])
 parser.add_argument('--fourier_logscale', type=str, default='False', choices=['True', 'False'])
 
 parser.add_argument('--save_everyepoch', type=int, default=10)
@@ -203,7 +204,7 @@ ntrain, ntest = len(train_dataset), len(test_dataset)
 testing_mode = 'FNO_testing'
 if testing_mode == 'FNO_testing':
     # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
-    comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}'
+    comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}_Tout{args.T_out}'
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
     # model_path = log_path + '/model.pth'
     model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
@@ -404,6 +405,13 @@ for ep in pbar:
         if ep == args.warmup_epochs:
             myloss = final_loss
             print(f"\nSwitching to {args.loss_type} loss at epoch {ep}")
+    
+    # Determine T_out for this epoch: use 1 during warmup for training, then switch to specified T_out
+    # For evaluation, always use args.T_out if > 1 (regardless of warmup)
+    current_T_out = 1 if (args.warmup_epochs > 0 and ep < args.warmup_epochs) else args.T_out
+    eval_T_out = args.T_out if args.T_out > 1 else 1  # For evaluation, use T_out if > 1, start from ep=0
+    if ep == args.warmup_epochs and args.warmup_epochs > 0:
+        print(f"\nSwitching to T_out={current_T_out} (multi-step ahead prediction) at epoch {ep}")
 
     t1 = t_1 = default_timer()
     t_load, t_train = 0., 0.
@@ -417,7 +425,15 @@ for ep in pbar:
     # Zero gradients at the start of each epoch (for gradient accumulation)
     optimizer.zero_grad()
     
-    for batch_id, (xx, yy) in enumerate(train_loader):
+    for batch_id, data_batch in enumerate(train_loader):
+        # Handle both old format (xx, yy) and new format (xx, yy, forcing_y)
+        if len(data_batch) == 3:
+            xx, yy, forcing_y = data_batch
+            forcing_y = forcing_y.to(device, non_blocking=True) if forcing_y is not None else None
+        else:
+            xx, yy = data_batch
+            forcing_y = None  # Will extract from xx if not provided
+        
         t_load += default_timer() - t_1
         t_1 = default_timer()
         loss = 0.
@@ -440,43 +456,123 @@ for ep in pbar:
         yy_norm = train_dataset.normalize_x(yy)
         
         # Forward pass (FP32)
+        # For multi-step ahead prediction, we do autoregressive prediction for T_out steps
         for t in range(0, yy_norm.shape[-2], args.T_bundle):
-            y = yy_norm[..., t:t + args.T_bundle, :]
-            # print('input shape', xx.shape)
-            pred = model(xx)  # give the normalized output to the autoregressive predicting
-            # print("pred shape", pred.shape, "y shape", y.shape)
-            # Note: FourierLoss expects pred[...,0] and pred[...,1] to be velocity components (ux, uy)
-            # If using 'vorticity' form, ensure conversion from streamfunction to velocity is done
-            # Handle FourierLoss which returns (loss, pred_loss, fft_loss) tuple
-            loss_output = myloss(pred, y)
-            if isinstance(loss_output, tuple):
-                loss += loss_output[0]  # Take the total loss (first element)
-                batch_pred_loss += loss_output[1].item()  # pred_loss
-                batch_fft_loss += loss_output[2].item()  # fft_loss
+            # Get target for the bundle (or up to T_out steps)
+            y_bundle = yy_norm[..., t:t + args.T_bundle, :]
+            
+            if current_T_out == 1:
+                # One-step ahead: original behavior
+                y = y_bundle[..., 0:1, :]  # (B, H, W, 1, C)
+                pred = model(xx)  # (B, H, W, 1, C_out)
+                # Handle FourierLoss which returns (loss, pred_loss, fft_loss) tuple
+                loss_output = myloss(pred, y)
+                if isinstance(loss_output, tuple):
+                    loss += loss_output[0]  # Take the total loss (first element)
+                    batch_pred_loss += loss_output[1].item()  # pred_loss
+                    batch_fft_loss += loss_output[2].item()  # fft_loss
+                else:
+                    loss += loss_output
+                    # For RelL2Norm, pred_loss is the same as total loss
+                    batch_pred_loss += loss_output.item()
             else:
-                loss += loss_output
-                # For RelL2Norm, pred_loss is the same as total loss
-                batch_pred_loss += loss_output.item()
+                # Multi-step ahead prediction: autoregressive prediction for T_out steps
+                # xx shape: (B, H, W, T_in, C_in) where C_in includes forcing (last 2 channels)
+                # We need to predict T_out steps ahead autoregressively
+                pred_steps = []
+                target_steps = []
+                x_current = xx  # (B, H, W, T_in, C_in)
+                
+                # Determine number of forcing channels (typically 2: forcing_x, forcing_y)
+                # Assuming forcing is the last 2 channels of input
+                n_forcing_channels = 2
+                n_main_channels = x_current.shape[-1] - n_forcing_channels
+                
+                for step_idx in range(current_T_out):
+                    # Use last timestep if T_in > 1
+                    if x_current.shape[-2] > 1:
+                        x_input = x_current[..., -1:, :]  # (B, H, W, 1, C_in)
+                    else:
+                        x_input = x_current  # (B, H, W, 1, C_in)
+                    
+                    # Predict one step
+                    pred_step = model(x_input)  # (B, H, W, 1, C_out) where C_out = main variables only
+                    pred_steps.append(pred_step)
+                    
+                    # Get target for this step (if available)
+                    if step_idx < y_bundle.shape[-2]:
+                        target_step = y_bundle[..., step_idx:step_idx+1, :]  # (B, H, W, 1, C_out)
+                        target_steps.append(target_step)
+                    
+                    # Prepare input for next step: combine predicted main variables with forcing
+                    if step_idx < current_T_out - 1:  # Don't need to prepare next input for last step
+                        # Get forcing from ground truth for the next step
+                        if forcing_y is not None:
+                            # Use ground truth forcing from dataset (shape: B, H, W, T_out, 2)
+                            forcing = forcing_y[..., step_idx:step_idx+1, :]  # (B, H, W, 1, 2)
+                        else:
+                            # Fallback: extract from xx (last timestep, last 2 channels)
+                            forcing = xx[..., -1:, -n_forcing_channels:]  # (B, H, W, 1, n_forcing)
+                        
+                        # Concatenate predicted main variables with forcing
+                        x_next = torch.cat((pred_step, forcing), dim=-1)  # (B, H, W, 1, C_in)
+                        # Update x_current for next iteration (use last T_in timesteps)
+                        if x_current.shape[-2] > 1:
+                            # Keep last T_in-1 timesteps and add new one
+                            x_current = torch.cat((x_current[..., 1:, :], x_next), dim=-2)
+                        else:
+                            x_current = x_next
+                
+                # Stack predictions and targets
+                pred = torch.cat(pred_steps, dim=-2)  # (B, H, W, T_out, C_out)
+                if len(target_steps) > 0:
+                    y = torch.cat(target_steps, dim=-2)  # (B, H, W, T_out, C_out)
+                else:
+                    # Fallback: use first step target repeated
+                    y = y_bundle[..., 0:1, :].repeat(1, 1, 1, current_T_out, 1)
+                
+                # Compute loss directly on stacked predictions (loss function handles multiple steps)
+                loss_output = myloss(pred, y)
+                if isinstance(loss_output, tuple):
+                    loss += loss_output[0]  # Total loss
+                    batch_pred_loss += loss_output[1].item()  # pred_loss
+                    batch_fft_loss += loss_output[2].item()  # fft_loss
+                else:
+                    loss += loss_output
+                    batch_pred_loss += loss_output.item()
         
         # Scale loss for gradient accumulation
         scaled_loss = loss / args.gradient_accumulation_steps
-        train_l2_norm += loss.item() * y.shape[0]  # Store unscaled loss for logging
-        train_pred_loss += batch_pred_loss * y.shape[0]
-        train_fft_loss += batch_fft_loss * y.shape[0]
+        # Get batch size from xx (input) for logging
+        batch_size = xx.shape[0]
+        train_l2_norm += loss.item() * batch_size  # Store unscaled loss for logging
+        train_pred_loss += batch_pred_loss * batch_size
+        train_fft_loss += batch_fft_loss * batch_size
 
         pbar.set_postfix(loss=f"{loss.item():.4f}", epoch=f"{ep}/{args.epochs}")
         # print("train input shape", xx.shape, "output shape", yy.shape, "pred shape", pred.shape, "mask shape", msk.shape)
         
         # Denormalize for monitoring
         with torch.no_grad():
-            pred_denorm = train_dataset.denormalize_x(pred)
-            # Check if loss returns a tuple (FourierLoss) or scalar (RelL2Norm)
-            loss_denorm_output = myloss(pred_denorm, yy)
-            if isinstance(loss_denorm_output, tuple):
-                loss_denorm = loss_denorm_output[1]  # pred_loss component from FourierLoss
+            if current_T_out == 1:
+                pred_denorm = train_dataset.denormalize_x(pred)
+                # Check if loss returns a tuple (FourierLoss) or scalar (RelL2Norm)
+                loss_denorm_output = myloss(pred_denorm, yy[..., 0:1, :])
+                if isinstance(loss_denorm_output, tuple):
+                    loss_denorm = loss_denorm_output[1]  # pred_loss component from FourierLoss
+                else:
+                    loss_denorm = loss_denorm_output  # RelL2Norm returns scalar
+                train_l2_denorm += loss_denorm.item() * batch_size
             else:
-                loss_denorm = loss_denorm_output  # RelL2Norm returns scalar
-            train_l2_denorm += loss_denorm.item() * y.shape[0]
+                # For multi-step, denormalize all steps and compute loss directly
+                pred_denorm_all = train_dataset.denormalize_x(pred)
+                y_denorm_all = train_dataset.denormalize_x(y)
+                loss_denorm_output = myloss(pred_denorm_all, y_denorm_all)
+                if isinstance(loss_denorm_output, tuple):
+                    loss_denorm = loss_denorm_output[1]  # pred_loss component
+                else:
+                    loss_denorm = loss_denorm_output
+                train_l2_denorm += loss_denorm.item() * batch_size
 
         # Backward pass (use scaled loss for gradient accumulation)
         scaled_loss.backward()
@@ -527,21 +623,77 @@ for ep in pbar:
             model.eval()
             # compute spectrum once per epoch (first test batch)
             pred, target = [], []
-            for xx, yy in val_loader:
+            for data_batch in val_loader:
+                # Handle both old format (xx, yy) and new format (xx, yy, forcing_y)
+                if len(data_batch) == 3:
+                    xx, yy, forcing_y = data_batch
+                    forcing_y = forcing_y.to(device)
+                else:
+                    xx, yy = data_batch
+                    forcing_y = None
+                
                 xx = xx.to(device)
                 yy = yy.to(device)
                 # normalize it before the autoregressive predicting
                 xx = train_dataset.normalize_x(xx)
                 yy_norm = train_dataset.normalize_x(yy)
-                for t in range(0, yy_norm.shape[-2], args.T_bundle):
-                    # print("t", t)
-                    y = yy_norm[..., t:t + args.T_bundle, :]
-                    pred_step = model(xx)
+                
+                # Use eval_T_out for evaluation (multi-step if T_out > 1, regardless of warmup)
+                if eval_T_out == 1:
+                    # One-step ahead evaluation
+                    for t in range(0, yy_norm.shape[-2], args.T_bundle):
+                        y = yy_norm[..., t:t + args.T_bundle, :]
+                        pred_step = model(xx)
+                        break # just test one step
+                    pred.append(pred_step)
+                    target.append(y)
+                else:
+                    # Multi-step ahead evaluation
+                    pred_steps = []
+                    target_steps = []
+                    x_current = xx  # (B, H, W, T_in, C_in)
+                    n_forcing_channels = 2
                     
-                    break # just test one step
-
-                pred.append(pred_step)
-                target.append(y)
+                    for step_idx in range(eval_T_out):
+                        # Use last timestep if T_in > 1
+                        if x_current.shape[-2] > 1:
+                            x_input = x_current[..., -1:, :]  # (B, H, W, 1, C_in)
+                        else:
+                            x_input = x_current  # (B, H, W, 1, C_in)
+                        
+                        # Predict one step
+                        pred_step = model(x_input)  # (B, H, W, 1, C_out)
+                        pred_steps.append(pred_step)
+                        
+                        # Get target for this step
+                        if step_idx < yy_norm.shape[-2]:
+                            target_step = yy_norm[..., step_idx:step_idx+1, :]  # (B, H, W, 1, C_out)
+                            target_steps.append(target_step)
+                        
+                        # Prepare input for next step
+                        if step_idx < eval_T_out - 1:
+                            # Get forcing from ground truth
+                            if forcing_y is not None:
+                                forcing = forcing_y[..., step_idx:step_idx+1, :]  # (B, H, W, 1, 2)
+                            else:
+                                forcing = xx[..., -1:, -n_forcing_channels:]  # (B, H, W, 1, 2)
+                            
+                            x_next = torch.cat((pred_step, forcing), dim=-1)  # (B, H, W, 1, C_in)
+                            if x_current.shape[-2] > 1:
+                                x_current = torch.cat((x_current[..., 1:, :], x_next), dim=-2)
+                            else:
+                                x_current = x_next
+                    
+                    # Stack predictions and targets
+                    pred_multi = torch.cat(pred_steps, dim=-2)  # (B, H, W, T_out, C_out)
+                    if len(target_steps) > 0:
+                        target_multi = torch.cat(target_steps, dim=-2)  # (B, H, W, T_out, C_out)
+                    else:
+                        target_multi = yy_norm[..., 0:1, :].repeat(1, 1, 1, eval_T_out, 1)
+                    
+                    pred.append(pred_multi)
+                    target.append(target_multi)
+                    break  # just test one batch
 
             pred = torch.cat(pred, dim=0)
             target = torch.cat(target, dim=0)

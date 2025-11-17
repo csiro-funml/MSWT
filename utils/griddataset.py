@@ -1705,7 +1705,9 @@ class MemmapDedalusBigDataset2D(Dataset):
 
         x = data[..., :self.t_in, :]
         y = data[..., self.t_in:self.t_in + self.t_out, :-2] # remove the last 2 channels (they are forcing terms)
-        return x, y
+        # Also return forcing for output timesteps (for multi-step ahead prediction)
+        forcing_y = data[..., self.t_in:self.t_in + self.t_out, -2:] # (H, W, T_out, 2) - forcing_x, forcing_y
+        return x, y, forcing_y
     
     def get_all_sequence(self):
         """
