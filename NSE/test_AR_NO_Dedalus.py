@@ -717,10 +717,24 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     # Add step counter text
     step_text = fig.suptitle('Step: 0', fontsize=16, y=0.98)
     
+    # Get time_idx if available
+    time_idx = save_data.get('time_idx', None)
+    if time_idx is not None:
+        time_idx = time_idx.numpy() if isinstance(time_idx, torch.Tensor) else time_idx
+        # Map step_indices to actual time indices
+        actual_time_indices = time_idx[step_indices] if len(time_idx) > max(step_indices) else step_indices
+    else:
+        actual_time_indices = step_indices
+    
     def animate(frame):
         # Get actual step index (for display purposes)
         actual_step = step_indices[frame] if frame < len(step_indices) else frame
-        step_text.set_text(f'Step: {actual_step} (frame {frame})')
+        # Use time_idx if available
+        if time_idx is not None and frame < len(actual_time_indices):
+            actual_time = actual_time_indices[frame]
+            step_text.set_text(f'Step: {actual_time} (frame {frame})')
+        else:
+            step_text.set_text(f'Step: {actual_step} (frame {frame})')
         for row in range(3):
             for col in range(num_channels):
                 if row == 0:  # Target
@@ -759,9 +773,10 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     """
     Create animation comparing spectral energy and enstrophy between target and prediction.
     Includes zoomed view for high frequency components (k > k_zoom_threshold).
+    Also includes overall energy plot.
     
     Args:
-        save_data: Dictionary containing spectral data
+        save_data: Dictionary containing spectral data or pred/target tensors
         log_path: Path to save animation
         save_animation: Whether to save animation file
         fps: Frames per second for animation
@@ -770,15 +785,101 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
         num_animation_frames: Desired number of frames in animation (None = use all steps)
                              If specified, calculates step interval automatically
     """
-    spectral_data_list = save_data['spectral_data_by_step']
+    # Check if spectral_data_by_step exists, if not compute it from pred/target
+    if 'spectral_data_by_step' in save_data and save_data['spectral_data_by_step']:
+        spectral_data_list = save_data['spectral_data_by_step']
+    else:
+        # Compute spectral data from pred/target
+        print("Computing spectral data from pred/target...")
+        pred = save_data.get('pred')  # (T, H, W, 1, C) or (T, H, W, C)
+        target = save_data.get('output')  # (T, H, W, 1, C) or (T, H, W, C)
+        
+        if pred is None or target is None:
+            print("Warning: No spectral data or pred/target found in save_data")
+            return None, None
+        
+        # Ensure correct shape
+        if len(pred.shape) == 4:  # (T, H, W, C)
+            pred = pred.unsqueeze(-2)  # (T, H, W, 1, C)
+            target = target.unsqueeze(-2)  # (T, H, W, 1, C)
+        
+        # Domain size
+        Lx = 2 * np.pi
+        Ly = 2 * np.pi
+        
+        dataset_form = save_data.get('dataset_form', 'velocity')
+        spectral_data_list = []
+        
+        num_steps_total = pred.shape[0]
+        for step_idx in tqdm(range(num_steps_total), desc="Computing spectral data"):
+            pred_step = pred[step_idx]  # (H, W, 1, C)
+            target_step = target[step_idx]  # (H, W, 1, C)
+            
+            # Use first timestep (usually T=1)
+            pred_t = pred_step[..., 0, :].numpy()  # (H, W, C)
+            target_t = target_step[..., 0, :].numpy()  # (H, W, C)
+            
+            # Get velocity components
+            if dataset_form == 'vorticity':
+                if pred_t.shape[-1] >= 2:
+                    psi_pred = pred_t[..., 1]
+                    psi_target = target_t[..., 1]
+                    ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
+                    ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
+                else:
+                    continue
+            elif dataset_form == 'velocity':
+                if pred_t.shape[-1] >= 3:
+                    ux_pred = pred_t[..., 1]
+                    uy_pred = pred_t[..., 2]
+                    ux_target = target_t[..., 1]
+                    uy_target = target_t[..., 2]
+                else:
+                    continue
+            else:
+                continue
+            
+            # Compute energy
+            Nx, Ny = ux_pred.shape[0], ux_pred.shape[1]
+            area = Lx * Ly
+            energy_pred = 0.5 * np.sum(ux_pred**2 + uy_pred**2) * area / (Nx * Ny)
+            energy_target = 0.5 * np.sum(ux_target**2 + uy_target**2) * area / (Nx * Ny)
+            
+            # Compute spectra
+            try:
+                k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
+                _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
+                
+                H = ux_pred.shape[0]
+                spectral_data_list.append({
+                    'time_step': step_idx,
+                    'timestep_in_output': 0,
+                    'k_bins': k_bins,
+                    'Ek_pred': Ek_pred,
+                    'Ek_target': Ek_target,
+                    'Zk_pred': Zk_pred,
+                    'Zk_target': Zk_target,
+                    'energy_pred': energy_pred,
+                    'energy_target': energy_target,
+                    'H': H,
+                    'Lx': Lx
+                })
+            except Exception as e:
+                print(f"Warning: Failed to compute spectra at step {step_idx}: {e}")
+                continue
     
     if not spectral_data_list:
-        print("Warning: No spectral data found in save_data")
+        print("Warning: No spectral data available")
         return None, None
     
     # Get total available steps
     total_steps = len(spectral_data_list)
     max_steps = total_steps if num_steps is None else min(num_steps, total_steps)
+    
+    # Get time_idx if available
+    time_idx = save_data.get('time_idx', None)
+    if time_idx is not None:
+        time_idx = time_idx.numpy() if isinstance(time_idx, torch.Tensor) else time_idx
     
     # Calculate step interval if num_animation_frames is specified
     step_interval = None
@@ -787,10 +888,14 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
         num_steps = min(num_animation_frames, max_steps // step_interval)
         step_indices = np.arange(0, max_steps, step_interval)[:num_steps]
         spectral_data_list = [spectral_data_list[i] for i in step_indices]
+        if time_idx is not None:
+            time_idx = time_idx[step_indices]
         print(f"Using {num_steps} frames with step interval {step_interval} (from {max_steps} total steps)")
     else:
         num_steps = max_steps
         spectral_data_list = spectral_data_list[:num_steps]
+        if time_idx is not None:
+            time_idx = time_idx[:num_steps]
         print(f"Using all {num_steps} steps for animation")
     
     # Extract all k_bins (should be the same for all steps)
@@ -823,11 +928,18 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     else:
         zoom_start_idx = min(k_nyquist - 10, len(k_bins) - 10)  # Fallback within truncated range
     
+    # Find energy min/max for consistent y-axis
+    all_energy_pred = [data['energy_pred'] for data in spectral_data_list]
+    all_energy_target = [data['energy_target'] for data in spectral_data_list]
+    energy_max = max(all_energy_pred + all_energy_target)
+    energy_min = min(all_energy_pred + all_energy_target)
+    
     # Create figure with subplots
     # Top row: Full spectrum for energy and enstrophy
-    # Bottom row: Zoomed view for high frequencies
-    fig = plt.figure(figsize=(16, 10))
-    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+    # Middle row: Zoomed view for high frequencies
+    # Bottom row: Overall energy over time
+    fig = plt.figure(figsize=(16, 14))
+    gs = fig.add_gridspec(3, 2, hspace=0.3, wspace=0.3, height_ratios=[1, 1, 0.8])
     
     # Full energy spectrum
     ax_energy_full = fig.add_subplot(gs[0, 0])
@@ -876,6 +988,28 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     line_Zk_target_zoom, = ax_enstrophy_zoom.plot([], [], 'b-', label='Target', linewidth=2)
     line_Zk_pred_zoom, = ax_enstrophy_zoom.plot([], [], 'r--', label='Prediction', linewidth=2)
     ax_enstrophy_zoom.legend()
+    
+    # Overall energy plot (spans both columns)
+    ax_energy_overall = fig.add_subplot(gs[2, :])
+    ax_energy_overall.set_xlabel('Time Step')
+    ax_energy_overall.set_ylabel('Overall Energy')
+    ax_energy_overall.set_title('Overall Energy Over Time')
+    ax_energy_overall.grid(True, alpha=0.3)
+    # Prepare data for energy plot
+    energy_steps = [data['time_step'] for data in spectral_data_list]
+    if time_idx is not None and len(time_idx) == len(energy_steps):
+        energy_steps = time_idx.tolist()
+    energy_pred_values = [data['energy_pred'] for data in spectral_data_list]
+    energy_target_values = [data['energy_target'] for data in spectral_data_list]
+    line_energy_pred, = ax_energy_overall.plot(energy_steps, energy_pred_values, 'r--', label='Prediction', linewidth=2, marker='o', markersize=4)
+    line_energy_target, = ax_energy_overall.plot(energy_steps, energy_target_values, 'b-', label='Target', linewidth=2, marker='s', markersize=4)
+    # Add vertical line for current step (will be updated in animate)
+    # Use a line object instead of axvline so we can update it
+    current_step_x = energy_steps[0] if energy_steps else 0
+    y_range = [energy_min * 0.95, energy_max * 1.05]
+    line_energy_current, = ax_energy_overall.plot([current_step_x, current_step_x], y_range, 'g:', label='Current Step', linewidth=2, alpha=0.7)
+    ax_energy_overall.legend()
+    ax_energy_overall.set_ylim(energy_min * 0.95, energy_max * 1.05)
     
     # Step counter
     step_text = fig.suptitle('Step: 0', fontsize=16, y=0.98)
@@ -965,11 +1099,21 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
         line_Zk_target_zoom.set_data(k_zoom_Z_target, Zk_target_zoom)
         line_Zk_pred_zoom.set_data(k_zoom_Z_pred, Zk_pred_zoom)
         
-        step_text.set_text(f'Step: {data["time_step"]}')
+        # Update step text using time_idx if available
+        if time_idx is not None and frame < len(time_idx):
+            actual_time = time_idx[frame]
+            step_text.set_text(f'Step: {actual_time}')
+            # Update energy plot vertical line
+            line_energy_current.set_data([actual_time, actual_time], y_range)
+        else:
+            step_time = data["time_step"]
+            step_text.set_text(f'Step: {step_time}')
+            # Update energy plot vertical line
+            line_energy_current.set_data([step_time, step_time], y_range)
         
         return [line_Ek_target_full, line_Ek_pred_full, line_Zk_target_full, line_Zk_pred_full,
                 line_Ek_target_zoom, line_Ek_pred_zoom, line_Zk_target_zoom, line_Zk_pred_zoom,
-                step_text]
+                line_energy_current, step_text]
     
     # Create animation
     anim = animation.FuncAnimation(fig, animate, frames=num_steps,
@@ -996,12 +1140,13 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
     return anim, fig
 
 
-def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=None, num_animation_frames=None):
+def load_and_animate_predictions(log_path, dataset_type='long', save_animation=True, fps=10, k_zoom_threshold=20, num_steps=None, num_animation_frames=None):
     """
     Load saved data and create both animations.
     
     Args:
-        log_path: Path to directory containing test_data_prediction.pth
+        log_path: Path to directory containing test_data_prediction file
+        dataset_type: 'long' or 'short' to determine which file to load
         save_animation: Whether to save animation files
         fps: Frames per second for animations
         k_zoom_threshold: Wavenumber threshold for zoomed view in spectral animation
@@ -1009,15 +1154,44 @@ def load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_t
         num_animation_frames: Desired number of frames in animation (None = use all steps)
                              If specified, calculates step interval automatically
     """
-    # Load data
-    data_path = f'{log_path}/test_data_prediction.pth'
+    # Load data based on dataset_type
+    if dataset_type == 'long':
+        data_path = f'{log_path}/test_data_prediction_long.pth'
+    else:
+        data_path = f'{log_path}/test_data_prediction.pth'
+    
     if not os.path.exists(data_path):
         raise FileNotFoundError(f"Data file not found: {data_path}")
     
     save_data = torch.load(data_path, map_location='cpu')
     print(f"Loaded data from {data_path}")
-    print(f"Number of steps: {len(save_data['rel_l2_loss_by_step'])}")
-    print(f"Dataset form: {save_data.get('dataset_form', 'unknown')}")
+    
+    # Handle new data structure (pred, target, forcing, time_idx)
+    if 'pred' in save_data and 'target' in save_data:
+        # New structure
+        pred = save_data['pred']  # (T, H, W, C) or (T, H, W, 1, C)
+        target = save_data['target']  # (T, H, W, C) or (T, H, W, 1, C)
+        time_idx = save_data.get('time_idx', None)
+        
+        # Ensure pred and target have time dimension if needed
+        if len(pred.shape) == 4:  # (T, H, W, C)
+            pred = pred.unsqueeze(-2)  # (T, H, W, 1, C)
+            target = target.unsqueeze(-2)  # (T, H, W, 1, C)
+        
+        # Convert to old format for compatibility
+        save_data = {
+            'pred': pred,
+            'output': target,
+            'time_idx': time_idx,
+            'dataset_form': save_data.get('dataset_form', 'velocity'),
+        }
+        print(f"Number of steps: {pred.shape[0]}")
+        if time_idx is not None:
+            print(f"Time indices: {time_idx.tolist()[:10]}..." if len(time_idx) > 10 else f"Time indices: {time_idx.tolist()}")
+    else:
+        # Old structure (backward compatibility)
+        print(f"Number of steps: {len(save_data.get('rel_l2_loss_by_step', []))}")
+        print(f"Dataset form: {save_data.get('dataset_form', 'unknown')}")
     
     # Create animations
     print("\nCreating prediction animation...")
@@ -1039,8 +1213,7 @@ if __name__ == '__main__':
     pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
     
     # #### 2. load the save_data and create animations
-    # save_data = torch.load(f'{log_path}/test_data_prediction_long.pth', map_location='cpu')
-    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20, num_steps=args.num_steps, num_animation_frames=args.num_animation_frames)
+    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
     
