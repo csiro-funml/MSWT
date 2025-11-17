@@ -496,6 +496,7 @@ class FourierLoss2D(_WeightedLoss):
         if self.log_scale:
             fft_loss = torch.log(fft_loss)
         print("fft_loss shape", fft_loss.shape)
+        print("fft_loss min", fft_loss.min(), "fft_loss max", fft_loss.max())
         fft_loss = torch.sum(fft_loss, dim=(1, 2)) # sum over the height and width
         fft_loss = torch.mean(fft_loss) # average over channels and samples
         return fft_loss
