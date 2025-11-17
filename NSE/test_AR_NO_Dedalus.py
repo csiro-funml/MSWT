@@ -263,15 +263,71 @@ def load_data_model(just_load_path=False):
 # Function 1 Report Average step, step-wise, and full prediction relative l2 norm
 ################################################################
 
-def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load=True):
-    if load:
-        data_path = f'{log_path}/test_data_prediction_{args.dataset_type}.pth'
-        if not os.path.exists(data_path):
-            raise FileNotFoundError(f"Data file not found: {data_path}")
-        save_data = torch.load(data_path, map_location='cpu')
-        pred = save_data['pred']
-        target = save_data['output']
-        return pred, target
+def predict_and_save(model=None, test_loader=None, log_path=None, max_steps=None, load_type=None, save_type='npz'):
+    """
+    predict_and_save(model, test_loader, log_path, max_steps, load_type, save_type)
+    Args:
+        model: the model to test
+        test_loader: the test loader
+        log_path: the path to save the results
+        max_steps: the maximum number of steps to predict (used for exponential subsampling: 1, 2, 4, 8, 16, ...)
+        load_type: if None, run prediction and save; if 'npz', load npz data; if 'pth', load pth data
+        save_type: the type of the saved file, choices=['npz', 'pth']
+    Returns:
+        pred, target, forcing, time_idx: torch.Tensors for computing the error
+        If loading, returns pred, target, (forcing_x, forcing_y), time_idx
+    """
+    # Handle loading
+    if load_type is not None:
+        if load_type == 'npz':
+            data_path = f'{log_path}/test_data_prediction_{args.dataset_type}.npz'
+            if not os.path.exists(data_path):
+                raise FileNotFoundError(f"Data file not found: {data_path}")
+            save_data_np = np.load(data_path)
+            # Load each variable separately with time indices
+            pred_pressure = torch.from_numpy(save_data_np['pred_pressure'])
+            pred_velocity_x = torch.from_numpy(save_data_np['pred_velocity_x'])
+            pred_velocity_y = torch.from_numpy(save_data_np['pred_velocity_y'])
+            output_pressure = torch.from_numpy(save_data_np['output_pressure'])
+            output_velocity_x = torch.from_numpy(save_data_np['output_velocity_x'])
+            output_velocity_y = torch.from_numpy(save_data_np['output_velocity_y'])
+            forcing_x = torch.from_numpy(save_data_np['input_forcing_x'])
+            forcing_y = torch.from_numpy(save_data_np['input_forcing_y'])
+            time_idx = torch.from_numpy(save_data_np['time_idx']) if 'time_idx' in save_data_np else None
+            
+            # Reconstruct pred and target tensors
+            # Assuming shape is (T, H, W) for each variable
+            T = pred_pressure.shape[0]
+            H, W = pred_pressure.shape[1], pred_pressure.shape[2]
+            pred = torch.stack([pred_pressure, pred_velocity_x, pred_velocity_y], dim=-1)  # (T, H, W, 3)
+            target = torch.stack([output_pressure, output_velocity_x, output_velocity_y], dim=-1)  # (T, H, W, 3)
+            # Add time dimension: (T, H, W, 1, C)
+            forcing = torch.stack([forcing_x, forcing_y], dim=-1)  # (T, H, W, 2)
+            
+            if time_idx is not None:
+                return pred, target, forcing[..., 0], forcing[..., 1], time_idx
+            else:
+                return pred, target, forcing[..., 0], forcing[..., 1], None
+                
+        elif load_type == 'pth':
+            data_path = f'{log_path}/test_data_prediction_{args.dataset_type}.pth'
+            if not os.path.exists(data_path):
+                raise FileNotFoundError(f"Data file not found: {data_path}")
+            save_data = torch.load(data_path, map_location='cpu')
+            pred = save_data['pred']  # (T, H, W, C)
+            target = save_data['target']  # (T, H, W, C)
+            forcing_x = save_data['forcing_x']  # (T, H, W)
+            forcing_y = save_data['forcing_y']  # (T, H, W)
+            time_idx = save_data.get('time_idx', None)
+
+            if time_idx is not None:
+                return pred, target, (forcing_x, forcing_y), time_idx
+            else:
+                return pred, target, (forcing_x, forcing_y), None
+        else:
+            raise ValueError(f"Invalid load_type: {load_type}. Must be None, 'npz', or 'pth'")
+    
+    # Run prediction
     with torch.no_grad():
         model.eval()
         test_dataset = test_loader.dataset
@@ -330,40 +386,86 @@ def autoregressive_prediction(model=None, test_loader=None, max_steps=None, load
                 forcing_list.append(forcing.squeeze(-2).cpu())
                 x_next = y_pred  # Update for next iteration
         
-        pred = torch.stack(pred, dim=0)
-        target = torch.stack(target, dim=0)
-        forcing = torch.stack(forcing_list, dim=0)
+    # Stack full trajectory: (T, H, W, 1, C)
+    pred = torch.stack(pred, dim=0)
+    target = torch.stack(target, dim=0)
+    forcing = torch.stack(forcing_list, dim=0)  # (T, H, W, 2)
+    
+    # Apply exponential subsampling (powers of 2)
+    # Generate exponential time indices: 1, 2, 4, 8, 16, 32, ... up to closest number smaller than total_steps
+    step_indices = []
+    power = 1
+    while power < total_steps:
+        step_indices.append(power)
+        power *= 2
+    
+    # Note: Starting from 1 as specified. If you want to include index 0 (initial state), 
+    # uncomment the next line: step_indices.insert(0, 0)
+    
+    # Sort to ensure order (should already be sorted, but just in case)
+    step_indices = sorted(step_indices)
+    
+    # Subsample data using exponential indices
+    if len(step_indices) > 0:
+        pred = pred[step_indices]
+        target = target[step_indices]
+        forcing = forcing[step_indices]
+        time_idx = torch.tensor(step_indices, dtype=torch.long)
+    else:
+        # Fallback: use all steps if no exponential indices found
+        time_idx = torch.arange(total_steps, dtype=torch.long)
+    
+    # Save data based on save_type
+    if save_type == 'npz':
+        # Save each variable separately with time indices
         save_data_np = {
             'pred_pressure': pred[..., 0, 0].numpy(),
             'pred_velocity_x': pred[..., 0, 1].numpy(),
             'pred_velocity_y': pred[..., 0, 2].numpy(),
-            
             'output_pressure': target[..., 0, 0].numpy(),
             'output_velocity_x': target[..., 0, 1].numpy(),
             'output_velocity_y': target[..., 0, 2].numpy(),
             'input_forcing_x': forcing[..., 0].numpy(),
             'input_forcing_y': forcing[..., 1].numpy(),
+            'time_idx': time_idx.numpy(),
         }
         [print(key, save_data_np[key].shape) for key in save_data_np.keys()]
         np.savez(f'{log_path}/test_data_prediction_{args.dataset_type}.npz', **save_data_np)
-        print(f"Saved prediction data and metrics to {log_path}/test_data_prediction_{args.dataset_type}.npz")
-        return pred, target
-
-
-def predict_and_save(model=None, test_loader=None, save=False, log_path=None, max_steps=None):
-    """
-    test_error(model, test_loader, save=False)
-    Args:
-        model: the model to test
-        test_loader: the test loader
-        save: whether to save the results to a pthfile
-    Returns:
-        save_data = {'input': torch.Tensor, 'output': torch.Tensor, 'pred': torch.Tensor} for computing the error
-    """
-    pred, target = autoregressive_prediction(model, test_loader, max_steps, load=False)  # unnormalized prediction and target
-    print("pred shape", pred.shape, "target shape", target.shape)
+        print(f"Saved prediction data to {log_path}/test_data_prediction_{args.dataset_type}.npz")
+    elif save_type == 'pth':
+        # Save pred and target as (T, H, W, C), forcing_x/y as (T, H, W), and time_idx
+        # Remove time dimension from pred and target: (T, H, W, 1, C) -> (T, H, W, C)
+        pred_save = pred.squeeze(-2)  # (T, H, W, C)
+        target_save = target.squeeze(-2)  # (T, H, W, C)
+        forcing_x_save = forcing[..., 0]  # (T, H, W)
+        forcing_y_save = forcing[..., 1]  # (T, H, W)
+        
+        save_data = {
+            'pred': pred_save,
+            'target': target_save,
+            'forcing_x': forcing_x_save,
+            'forcing_y': forcing_y_save,
+            'time_idx': time_idx,
+        }
+        print(f"Saved data shapes:")
+        print(f"  pred: {pred_save.shape}")
+        print(f"  target: {target_save.shape}")
+        print(f"  forcing_x: {forcing_x_save.shape}")
+        print(f"  forcing_y: {forcing_y_save.shape}")
+        print(f"  time_idx: {time_idx.shape}")
+        torch.save(save_data, f'{log_path}/test_data_prediction_{args.dataset_type}.pth')
+        print(f"Saved prediction data to {log_path}/test_data_prediction_{args.dataset_type}.pth")
+    else:
+        raise ValueError(f"Invalid save_type: {save_type}. Must be 'npz' or 'pth'")
     
-    # Domain size (default to 2*pi, can be adjusted if needed)
+    return pred, target, forcing, time_idx
+
+
+################################################################
+# Animation Functions
+################################################################
+def compute_energy_comparison(pred, target, rel_l2_loss_fn, save=False):
+     # Domain size (default to 2*pi, can be adjusted if needed)
     Lx = 2 * np.pi
     Ly = 2 * np.pi
     
@@ -379,7 +481,6 @@ def predict_and_save(model=None, test_loader=None, save=False, log_path=None, ma
     
     overall_l2_loss = rel_l2_loss_fn(pred.unsqueeze(-2), target.unsqueeze(-2))
     print("overall l2 loss", overall_l2_loss.item())
-    exit(-1)
     # Compute metrics for each step
     # pred and target shape: (N, H, W, T, C) where N is number of steps
     # For each step, we have one timestep (T=1) in the output
@@ -504,10 +605,6 @@ def predict_and_save(model=None, test_loader=None, save=False, log_path=None, ma
         
         return save_data
 
-
-################################################################
-# Animation Functions
-################################################################
 def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, num_steps=None, num_animation_frames=None):
     """
     Create animation showing target, prediction, and error for each channel.
@@ -939,7 +1036,7 @@ if __name__ == '__main__':
     #if you dont have the dataloader, comment this line
     model, test_loader, log_path = load_data_model(just_load_path=False)
     
-    save_data = predict_and_save(model, test_loader, save=True, log_path=log_path)
+    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type='pth', max_steps=args.num_steps)
     
     # #### 2. load the save_data and create animations
     # save_data = torch.load(f'{log_path}/test_data_prediction.pth', map_location='cpu')
