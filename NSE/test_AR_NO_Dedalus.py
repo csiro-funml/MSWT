@@ -263,7 +263,7 @@ def load_data_model(just_load_path=False):
 # Function 1 Report Average step, step-wise, and full prediction relative l2 norm
 ################################################################
 
-def predict_and_save(model=None, test_loader=None, log_path=None, max_steps=None, load_type=None, save_type='npz'):
+def predict_and_save(model=None, test_loader=None, log_path=None, max_steps=None, load_type=None, save_type='npz', use_exponential_indices=True):
     """
     predict_and_save(model, test_loader, log_path, max_steps, load_type, save_type)
     Args:
@@ -406,7 +406,7 @@ def predict_and_save(model=None, test_loader=None, log_path=None, max_steps=None
     step_indices = sorted(step_indices)
     
     # Subsample data using exponential indices
-    if len(step_indices) > 0:
+    if len(step_indices) > 0 and use_exponential_indices:
         pred = pred[step_indices]
         target = target[step_indices]
         forcing = forcing[step_indices]
@@ -1210,10 +1210,10 @@ if __name__ == '__main__':
     #if you dont have the dataloader, comment this line
     model, test_loader, log_path = load_data_model(just_load_path=False)
     
-    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
-    
+    # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
+    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
     # #### 2. load the save_data and create animations
-    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
+    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
     

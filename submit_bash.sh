@@ -99,10 +99,10 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 #     --form velocity --batch_size 128 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 --use_writer --resume_path=True # Disabled for now
 
 # 5 steps ahead training
-CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
-    --modes 32 --width 32 --n_layers 4 --T_in 1 --T_ar 1 --T_out 5 --normalize 1 --normalize_strategy zscore \
-    --form velocity --batch_size 64 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 \
-    --warmup_epochs 0 \
+# CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
+#     --modes 32 --width 32 --n_layers 4 --T_in 1 --T_ar 1 --T_out 5 --normalize 1 --normalize_strategy zscore \
+#     --form velocity --batch_size 64 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 \
+#     --warmup_epochs 0 \
     # --use_writer # Disabled for now
 
 # CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
@@ -115,9 +115,9 @@ CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_deda
 
 
 # # Testing
-# CUDA_VISIBLE_DEVICES=0 python3 -u NSE/test_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
-#     --modes 32 --width 32 --n_layers 4 --T_in 1 --T_ar 1  --normalize 1 --normalize_strategy zscore --epochs 1000 \
-#     --form velocity --num_steps 50000 --dataset_type long --save_type pth # Disabled for now
+CUDA_VISIBLE_DEVICES=0 python3 -u NSE/test_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
+    --modes 32 --width 32 --n_layers 4 --T_in 1 --T_ar 1  --normalize 1 --normalize_strategy zscore --epochs 1000 \
+    --form velocity --num_steps 5000 --dataset_type long --save_type npz # Disabled for now
 
 
 # CUDA_VISIBLE_DEVICES=0 python3 -u NSE/test_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO \
