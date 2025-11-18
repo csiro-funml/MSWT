@@ -55,7 +55,7 @@ parser.add_argument('--form',type=str, default='vorticity', choices=['vorticity'
 
 # ### dataset details
 parser.add_argument('--T_in', type=int, default=1)
-parser.add_argument('--T_ar', type=int, default=1)
+parser.add_argument('--T_out', type=int, default=1)
 parser.add_argument('--T_bundle', type=int, default=1)
 parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
@@ -113,24 +113,24 @@ def load_data_model(just_load_path=False):
     ################################################################
     # load some toy data to run locally
     if not torch.cuda.is_available() and args.dataset != 'ns2d_dedalus_big':
-        train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, n_channels=3, normalize=args.normalize, train='train')
+        train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, n_channels=3, normalize=args.normalize, train='train')
         test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels=3, normalize=args.normalize, train='test')
     elif args.dataset == 'ns2d_dedalus_big':
         # load data and dataloader for big dedalus dataset
-        train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='train', strategy=args.normalize_strategy)
+        train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='train', strategy=args.normalize_strategy)
         if args.dataset_type == 'long':
-            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='test_long', strategy=args.normalize_strategy)
+            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='test_long', strategy=args.normalize_strategy)
         else:
-            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
+            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
     elif args.dataset != 'ns2d_dedalus':
         # load data and dataloader
-        train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
+        train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_out, train='train', normalize=args.normalize)
         test_dataset = TemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
         # test_dataset = TemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test_long', normalize=args.normalize)
     else:
         # load data and dataloader
-        train_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
-        test_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test')
+        train_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form='vorticity', normalize=args.normalize, train='train')
+        test_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form='vorticity', normalize=args.normalize, train='test')
     
     ntrain, ntest = len(train_dataset), len(test_dataset)
     ntrain = 5200 if args.dataset == 'ns2d_pda' else ntrain # for testing
