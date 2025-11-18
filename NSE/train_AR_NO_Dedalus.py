@@ -101,6 +101,7 @@ parser.add_argument('--num_workers', type=int, default=None, help='Number of Dat
 parser.add_argument('--pin_memory', action='store_true', default=True, help='Pin memory for faster CPU->GPU transfers')
 parser.add_argument('--prefetch_factor', type=int, default=2, help='Number of batches to prefetch')
 parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help='Gradient accumulation steps (effective batch size = batch_size * steps)')
+parser.add_argument('--use_gradient_checkpointing', action='store_true', default=False, help='Use gradient checkpointing to reduce memory (slower but uses less memory)')
 
 parser.add_argument('--comment',type=str, default="")
 parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_learning_model/')
@@ -317,6 +318,43 @@ if args.use_compile:
         print("To install Triton: pip install triton")
         args.use_compile = False
 
+# Gradient checkpointing for memory efficiency (especially useful for multi-step prediction)
+if args.use_gradient_checkpointing:
+    if hasattr(model, 'enable_gradient_checkpointing'):
+        model.enable_gradient_checkpointing()
+        print("Gradient checkpointing enabled for model")
+    else:
+        print("Warning: Model does not support gradient checkpointing, skipping")
+        args.use_gradient_checkpointing = False
+
+# Auto-adjust batch size and gradient accumulation for multi-step prediction
+# Multi-step prediction uses ~T_out times more memory, so we need to reduce effective batch size
+original_batch_size = args.batch_size
+original_grad_accum = args.gradient_accumulation_steps
+
+if args.T_out > 1:
+    # Estimate memory increase: roughly linear with T_out
+    # Reduce effective batch size by adjusting either batch_size or gradient_accumulation_steps
+    memory_factor = args.T_out
+    
+    # Strategy: Keep gradient accumulation if it was set > 1, otherwise reduce batch size
+    if args.gradient_accumulation_steps > 1:
+        # Increase gradient accumulation to compensate
+        # This maintains the same effective batch size but reduces memory per step
+        suggested_grad_accum = max(1, args.gradient_accumulation_steps * memory_factor // 2)
+        print(f"T_out={args.T_out} detected. Suggesting gradient_accumulation_steps={suggested_grad_accum} "
+              f"(original={args.gradient_accumulation_steps}) to reduce memory usage.")
+        print(f"  Effective batch size will be: {args.batch_size} * {suggested_grad_accum} = {args.batch_size * suggested_grad_accum}")
+    else:
+        # Reduce batch size directly
+        suggested_batch_size = max(1, args.batch_size // memory_factor)
+        print(f"T_out={args.T_out} detected. Suggesting batch_size={suggested_batch_size} "
+              f"(original={args.batch_size}) to reduce memory usage.")
+        print(f"  You can also use gradient_accumulation_steps to maintain effective batch size.")
+    
+    print(f"  Current settings: batch_size={args.batch_size}, gradient_accumulation_steps={args.gradient_accumulation_steps}")
+    print(f"  If you encounter OOM, try: --batch_size {suggested_batch_size} or --gradient_accumulation_steps {suggested_grad_accum}")
+
 start_epoch = 0
 best_loss_epoch = 0
 print(model)
@@ -479,7 +517,11 @@ for ep in pbar:
                     x_input = x_current  # (B, H, W, 1, C_in)
                 
                 # Predict one step (x_input is already normalized)
-                pred_step_norm = model(x_input)  # (B, H, W, 1, C_out) - normalized output
+                # Use gradient checkpointing if enabled to save memory
+                if args.use_gradient_checkpointing and hasattr(torch.utils.checkpoint, 'checkpoint'):
+                    pred_step_norm = torch.utils.checkpoint.checkpoint(model, x_input, use_reentrant=False)
+                else:
+                    pred_step_norm = model(x_input)  # (B, H, W, 1, C_out) - normalized output
                 pred_norm_list.append(pred_step_norm)
                 
                 # Prepare input for next step: combine predicted main variables with forcing
@@ -497,6 +539,11 @@ for ep in pbar:
             pred_norm = torch.cat(pred_norm_list, dim=-2)  # Normalized for loss computation
             # Compute loss on normalized predictions vs normalized targets
             loss_output = myloss(pred_norm, yy_norm[..., :current_T_out, :])
+            
+            # Clear intermediate list to free memory
+            del pred_norm_list
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         
         # Handle loss output (tuple for FourierLoss, scalar for RelL2Norm)
         if isinstance(loss_output, tuple):
@@ -518,18 +565,19 @@ for ep in pbar:
         pbar.set_postfix(loss=f"{loss.item():.4f}", epoch=f"{ep}/{args.epochs}")
         # print("train input shape", xx.shape, "output shape", yy.shape, "pred shape", pred.shape, "mask shape", msk.shape)
         
-        # Denormalize for monitoring (pred is already denormalized from the loop)
+        # Denormalize for monitoring
         with torch.no_grad():
-            # pred is already denormalized, yy is the original (denormalized) target
-            # Use the same number of steps as pred
-            pred = train_dataset.denormalize_x(pred_norm)
-            yy_subset = yy[..., :pred.shape[-2], :]  # Match pred's time dimension
-            loss_denorm_output = myloss(pred, yy_subset)
+            # Use the same number of steps as pred_norm
+            pred_denorm = train_dataset.denormalize_x(pred_norm)
+            yy_subset = yy[..., :pred_denorm.shape[-2], :]  # Match pred's time dimension
+            loss_denorm_output = myloss(pred_denorm, yy_subset)
             if isinstance(loss_denorm_output, tuple):
                 loss_denorm = loss_denorm_output[1]  # pred_loss component from FourierLoss
             else:
                 loss_denorm = loss_denorm_output  # RelL2Norm returns scalar
             train_l2_denorm += loss_denorm.item() * batch_size
+            # Clear denormalized prediction to free memory
+            del pred_denorm
 
         # Backward pass (use scaled loss for gradient accumulation)
         scaled_loss.backward()
@@ -541,8 +589,9 @@ for ep in pbar:
             optimizer.zero_grad()
             scheduler.step()
             
-            # Clear cache periodically to reduce memory fragmentation
-            if torch.cuda.is_available() and (batch_id + 1) % (args.gradient_accumulation_steps * 10) == 0:
+            # Clear cache more aggressively for multi-step prediction
+            cache_clear_freq = args.gradient_accumulation_steps * (5 if args.T_out > 1 else 10)
+            if torch.cuda.is_available() and (batch_id + 1) % cache_clear_freq == 0:
                 torch.cuda.empty_cache()
         # break # todo : to remove
     
