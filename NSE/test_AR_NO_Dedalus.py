@@ -655,18 +655,20 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     error = pred - target  # (N, H, W, C)
     
     # Find min/max per channel for consistent colorbar across all frames
-    # Use same range for target and prediction for better comparison within each channel
-    vmin_common = []
-    vmax_common = []
+    # Use separate ranges for target and prediction to better show details in each
+    vmin_target = []
+    vmax_target = []
+    vmin_pred = []
+    vmax_pred = []
     vmin_error = []
     vmax_error = []
     
     for col in range(num_channels):
-        # Common range for target and prediction (per channel)
-        vmin_ch = min(target[:, :, :, col].min(), pred[:, :, :, col].min())
-        vmax_ch = max(target[:, :, :, col].max(), pred[:, :, :, col].max())
-        vmin_common.append(vmin_ch)
-        vmax_common.append(vmax_ch)
+        # Separate ranges for target and prediction (per channel)
+        vmin_target.append(target[:, :, :, col].min())
+        vmax_target.append(target[:, :, :, col].max())
+        vmin_pred.append(pred[:, :, :, col].min())
+        vmax_pred.append(pred[:, :, :, col].max())
         
         # Symmetric range for error (per channel)
         vmin_err_ch = error[:, :, :, col].min()
@@ -697,11 +699,11 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
             ax = axes[row, col]
             if row == 0:  # Target
                 im = ax.imshow(target[0, :, :, col], cmap='RdBu_r', 
-                              vmin=vmin_common[col], vmax=vmax_common[col], origin='lower')
+                              vmin=vmin_target[col], vmax=vmax_target[col], origin='lower')
                 ax.set_title(f'{channel_names[col] if col < len(channel_names) else f"Channel {col}"}\nTarget')
             elif row == 1:  # Prediction
                 im = ax.imshow(pred[0, :, :, col], cmap='RdBu_r',
-                              vmin=vmin_common[col], vmax=vmax_common[col], origin='lower')
+                              vmin=vmin_pred[col], vmax=vmax_pred[col], origin='lower')
                 ax.set_title(f'Prediction')
             else:  # Error
                 im = ax.imshow(error[0, :, :, col], cmap='RdBu_r',
@@ -1198,8 +1200,8 @@ def load_and_animate_predictions(log_path, dataset_type='long', save_animation=T
     anim1, fig1 = animate_predictions(save_data, log_path, save_animation, fps, num_steps, num_animation_frames)
     
     print("\nCreating spectral comparison animation...")
-    anim2, fig2 = animate_spectral_comparison(save_data, log_path, save_animation, 
-                                              fps, k_zoom_threshold, num_steps, num_animation_frames)
+    # anim2, fig2 = animate_spectral_comparison(save_data, log_path, save_animation, 
+                                            #   fps, k_zoom_threshold, num_steps, num_animation_frames)
     
     return anim1, anim2, fig1, fig2
 
@@ -1208,12 +1210,12 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     #if you dont have the dataloader, comment this line
-    model, test_loader, log_path = load_data_model(just_load_path=False)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
     
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
-    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
+    # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
     # #### 2. load the save_data and create animations
-    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
+    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
     
