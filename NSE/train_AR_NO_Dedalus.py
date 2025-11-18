@@ -50,9 +50,9 @@ parser.add_argument('--form',type=str, default='vorticity', choices=['vorticity'
 
 # ### dataset details
 parser.add_argument('--T_in', type=int, default=1)
-parser.add_argument('--T_ar', type=int, default=1)
-parser.add_argument('--T_bundle', type=int, default=1)
 parser.add_argument('--T_out', type=int, default=1, help='Number of steps ahead to predict (1 for one-step, 5 for five-step ahead)')
+parser.add_argument('--T_bundle', type=int, default=1)
+
 parser.add_argument('--pad', type=int, default=0)
 parser.add_argument('--normalize',type=int, default=1)
 parser.add_argument('--normalize_strategy',type=str, default='zscore')
@@ -131,27 +131,27 @@ print(f"Current working directory: {os.getcwd()}")
 ################################################################
 # load some toy data to run locally
 if not torch.cuda.is_available() and args.dataset != 'ns2d_dedalus':
-    train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, n_channels=3, normalize=args.normalize, train='train')
-    test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels=3, normalize=args.normalize, train='test')
+    train_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, n_channels=3, normalize=args.normalize, train='train')
+    test_dataset = LocalTemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, n_channels=3, normalize=args.normalize, train='test')
     val_dataset= test_dataset
 elif args.dataset == 'ns2d_dedalus_small':
     # train_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train')
     # test_dataset = DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='test')
     # val_dataset= DedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, form='vorticity', normalize=args.normalize, train='val')
-    train_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='train', strategy=args.normalize_strategy)
-    test_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='test', strategy=args.normalize_strategy)
-    val_dataset= MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form='vorticity', normalize=args.normalize, train='val', strategy=args.normalize_strategy)
+    train_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form='vorticity', normalize=args.normalize, train='train', strategy=args.normalize_strategy)
+    test_dataset = MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form='vorticity', normalize=args.normalize, train='test', strategy=args.normalize_strategy)
+    val_dataset= MemmapDedalusDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form='vorticity', normalize=args.normalize, train='val', strategy=args.normalize_strategy)
     # Mean/STD statistics are more consitent between training/validation/test sets
     train_dataset.predict_normalizing_statistics()
     test_dataset.predict_normalizing_statistics()
     val_dataset.predict_normalizing_statistics()
 elif args.dataset == 'ns2d_dedalus_big':
-    train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='train', strategy=args.normalize_strategy)
-    test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
-    val_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_ar, form=args.form, normalize=args.normalize, train='val', strategy=args.normalize_strategy)
+    train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='train', strategy=args.normalize_strategy)
+    test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
+    val_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='val', strategy=args.normalize_strategy)
 else:
     # load data and dataloader
-    train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_ar, train='train', normalize=args.normalize)
+    train_dataset = TemporalDataset2D(args.dataset, t_in = args.T_in, t_ar = args.T_out, train='train', normalize=args.normalize)
     val_dataset =  TemporalDataset2D(args.dataset,  t_in = args.T_in, t_ar =-1, train='val', normalize=args.normalize)
     test_dataset = TemporalDataset2D(args.dataset, t_in=args.T_in, t_ar=-1, n_channels = train_dataset.n_channels, train='test', normalize=args.normalize)
 
@@ -271,8 +271,6 @@ else:
 #### set optimizer
 if args.opt == 'lamb':
     optimizer = Lamb(model.parameters(), lr=args.lr, betas = (args.beta1, args.beta2), adam=True, debias=False,weight_decay=1e-4)
-elif args.opt == 'lion':
-    optimizer = Lion(model.parameters(), lr=args.lr, weight_decay = 0.01)
 else:
     optimizer = Adam(model.parameters(), lr=args.lr, betas=(args.beta1, args.beta2), weight_decay=1e-6)
 
@@ -428,8 +426,9 @@ for ep in pbar:
     for batch_id, data_batch in enumerate(train_loader):
         # Handle both old format (xx, yy) and new format (xx, yy, forcing_y)
         if len(data_batch) == 3:
-            xx, yy, forcing_y = data_batch
+            xx, yy, forcing_y = data_batch  # (B, H, W, T_in, C), (B, H, W, T_ar, C), (B, H, W, T_out-1, 2), forcing is used as inputs for the next step
             forcing_y = forcing_y.to(device, non_blocking=True) if forcing_y is not None else None
+            forcing_y = train_dataset.normalize_forcing_tensor(forcing_y, args.form)
         else:
             xx, yy = data_batch
             forcing_y = None  # Will extract from xx if not provided
@@ -442,7 +441,7 @@ for ep in pbar:
         
         # Non-blocking transfer for faster data loading
         xx = xx.to(device, non_blocking=True)  ## B, n, n, T_in, C
-        yy = yy.to(device, non_blocking=True)  ## B, n, n, T_ar, C
+        yy = yy.to(device, non_blocking=True)  ## B, n, n, T_ar, C (ground truth unnormalized output)
         
         # range check
         if ep == 0 and batch_id == 0:
@@ -453,94 +452,60 @@ for ep in pbar:
         
         # normalize it before the autoregressive predicting
         xx = train_dataset.normalize_x(xx)
-        yy_norm = train_dataset.normalize_x(yy)
+        yy_norm = train_dataset.normalize_x(yy) # ground truth normalized output
         
-        # Forward pass (FP32)
-        # For multi-step ahead prediction, we do autoregressive prediction for T_out steps
-        for t in range(0, yy_norm.shape[-2], args.T_bundle):
-            # Get target for the bundle (or up to T_out steps)
-            y_bundle = yy_norm[..., t:t + args.T_bundle, :]
+        if current_T_out == 1:
+            # One-step ahead: original behavior
+            time_indices = range(0, yy_norm.shape[-2], args.T_bundle)
+            pred_norm_list = []
+
+            for t in time_indices:
+                y = yy_norm[..., t:t + args.T_bundle, :]  # (B, H, W, 1, C)
+                pred_norm = model(xx)  # (B, H, W, 1, C_out) - normalized
+                pred_norm_list.append(pred_norm)
+            pred_norm = torch.cat(pred_norm_list, dim=-2)  # (B, H, W, T_bundle, C_out)
+            # Compute loss on normalized predictions
+            loss_output = myloss(pred_norm, yy_norm)
+        else:
+            # Multi-step ahead prediction: autoregressive for T_out steps
+            pred_norm_list = []
+            x_current = xx  # Start with normalized input (B, H, W, T_in, C_in)
             
-            if current_T_out == 1:
-                # One-step ahead: original behavior
-                y = y_bundle[..., 0:1, :]  # (B, H, W, 1, C)
-                pred = model(xx)  # (B, H, W, 1, C_out)
-                # Handle FourierLoss which returns (loss, pred_loss, fft_loss) tuple
-                loss_output = myloss(pred, y)
-                if isinstance(loss_output, tuple):
-                    loss += loss_output[0]  # Take the total loss (first element)
-                    batch_pred_loss += loss_output[1].item()  # pred_loss
-                    batch_fft_loss += loss_output[2].item()  # fft_loss
+            for step_idx in range(current_T_out):
+                # Use last timestep if T_in > 1
+                if x_current.shape[-2] > 1:
+                    x_input = x_current[..., -1:, :]  # (B, H, W, 1, C_in)
                 else:
-                    loss += loss_output
-                    # For RelL2Norm, pred_loss is the same as total loss
-                    batch_pred_loss += loss_output.item()
-            else:
-                # Multi-step ahead prediction: autoregressive prediction for T_out steps
-                # xx shape: (B, H, W, T_in, C_in) where C_in includes forcing (last 2 channels)
-                # We need to predict T_out steps ahead autoregressively
-                pred_steps = []
-                target_steps = []
-                x_current = xx  # (B, H, W, T_in, C_in)
+                    x_input = x_current  # (B, H, W, 1, C_in)
                 
-                # Determine number of forcing channels (typically 2: forcing_x, forcing_y)
-                # Assuming forcing is the last 2 channels of input
-                n_forcing_channels = 2
-                n_main_channels = x_current.shape[-1] - n_forcing_channels
+                # Predict one step (x_input is already normalized)
+                pred_step_norm = model(x_input)  # (B, H, W, 1, C_out) - normalized output
+                pred_norm_list.append(pred_step_norm)
                 
-                for step_idx in range(current_T_out):
-                    # Use last timestep if T_in > 1
-                    if x_current.shape[-2] > 1:
-                        x_input = x_current[..., -1:, :]  # (B, H, W, 1, C_in)
-                    else:
-                        x_input = x_current  # (B, H, W, 1, C_in)
+                # Prepare input for next step: combine predicted main variables with forcing
+                if step_idx < current_T_out - 1:  # Don't need to prepare next input for last step
+                    # Get forcing from ground truth for the next step
+                    # forcing_y shape: (B, H, W, T_out-1, 2) - forcing for steps 1 to T_out-1
+                    forcing = forcing_y[..., step_idx:step_idx+1, :]  # (B, H, W, 1, 2) - already normalized
                     
-                    # Predict one step
-                    pred_step = model(x_input)  # (B, H, W, 1, C_out) where C_out = main variables only
-                    pred_steps.append(pred_step)
-                    
-                    # Get target for this step (if available)
-                    if step_idx < y_bundle.shape[-2]:
-                        target_step = y_bundle[..., step_idx:step_idx+1, :]  # (B, H, W, 1, C_out)
-                        target_steps.append(target_step)
-                    
-                    # Prepare input for next step: combine predicted main variables with forcing
-                    if step_idx < current_T_out - 1:  # Don't need to prepare next input for last step
-                        # Get forcing from ground truth for the next step
-                        if forcing_y is not None:
-                            # Use ground truth forcing from dataset (shape: B, H, W, T_out, 2)
-                            forcing = forcing_y[..., step_idx:step_idx+1, :]  # (B, H, W, 1, 2)
-                        else:
-                            # Fallback: extract from xx (last timestep, last 2 channels)
-                            forcing = xx[..., -1:, -n_forcing_channels:]  # (B, H, W, 1, n_forcing)
-                        
-                        # Concatenate predicted main variables with forcing
-                        print("pred_step shape", pred_step.shape, "forcing shape", forcing.shape)
-                        x_next = torch.cat((pred_step, forcing), dim=-1)  # (B, H, W, 1, C_in)
-                        # Update x_current for next iteration (use last T_in timesteps)
-                        if x_current.shape[-2] > 1:
-                            # Keep last T_in-1 timesteps and add new one
-                            x_current = torch.cat((x_current[..., 1:, :], x_next), dim=-2)
-                        else:
-                            x_current = x_next
-                
-                # Stack predictions and targets
-                pred = torch.cat(pred_steps, dim=-2)  # (B, H, W, T_out, C_out)
-                if len(target_steps) > 0:
-                    y = torch.cat(target_steps, dim=-2)  # (B, H, W, T_out, C_out)
-                else:
-                    # Fallback: use first step target repeated
-                    y = y_bundle[..., 0:1, :].repeat(1, 1, 1, current_T_out, 1)
-                
-                # Compute loss directly on stacked predictions (loss function handles multiple steps)
-                loss_output = myloss(pred, y)
-                if isinstance(loss_output, tuple):
-                    loss += loss_output[0]  # Total loss
-                    batch_pred_loss += loss_output[1].item()  # pred_loss
-                    batch_fft_loss += loss_output[2].item()  # fft_loss
-                else:
-                    loss += loss_output
-                    batch_pred_loss += loss_output.item()
+                    # Concatenate predicted main variables (normalized) with forcing (normalized)
+                    x_next = torch.cat((pred_step_norm, forcing), dim=-1)  # (B, H, W, 1, C_in)
+                    # Update x_current for next iteration (use last T_in timesteps)
+                    x_current = x_next
+            
+            # Stack all predictions: (B, H, W, T_out, C_out)
+            pred_norm = torch.cat(pred_norm_list, dim=-2)  # Normalized for loss computation
+            # Compute loss on normalized predictions vs normalized targets
+            loss_output = myloss(pred_norm, yy_norm[..., :current_T_out, :])
+        
+        # Handle loss output (tuple for FourierLoss, scalar for RelL2Norm)
+        if isinstance(loss_output, tuple):
+            loss += loss_output[0]  # Total loss
+            batch_pred_loss += loss_output[1].item()  # pred_loss
+            batch_fft_loss += loss_output[2].item()  # fft_loss
+        else:
+            loss += loss_output
+            batch_pred_loss += loss_output.item()
         
         # Scale loss for gradient accumulation
         scaled_loss = loss / args.gradient_accumulation_steps
@@ -553,27 +518,18 @@ for ep in pbar:
         pbar.set_postfix(loss=f"{loss.item():.4f}", epoch=f"{ep}/{args.epochs}")
         # print("train input shape", xx.shape, "output shape", yy.shape, "pred shape", pred.shape, "mask shape", msk.shape)
         
-        # Denormalize for monitoring
+        # Denormalize for monitoring (pred is already denormalized from the loop)
         with torch.no_grad():
-            if current_T_out == 1:
-                pred_denorm = train_dataset.denormalize_x(pred)
-                # Check if loss returns a tuple (FourierLoss) or scalar (RelL2Norm)
-                loss_denorm_output = myloss(pred_denorm, yy[..., 0:1, :])
-                if isinstance(loss_denorm_output, tuple):
-                    loss_denorm = loss_denorm_output[1]  # pred_loss component from FourierLoss
-                else:
-                    loss_denorm = loss_denorm_output  # RelL2Norm returns scalar
-                train_l2_denorm += loss_denorm.item() * batch_size
+            # pred is already denormalized, yy is the original (denormalized) target
+            # Use the same number of steps as pred
+            pred = train_dataset.denormalize_x(pred_norm)
+            yy_subset = yy[..., :pred.shape[-2], :]  # Match pred's time dimension
+            loss_denorm_output = myloss(pred, yy_subset)
+            if isinstance(loss_denorm_output, tuple):
+                loss_denorm = loss_denorm_output[1]  # pred_loss component from FourierLoss
             else:
-                # For multi-step, denormalize all steps and compute loss directly
-                pred_denorm_all = train_dataset.denormalize_x(pred)
-                y_denorm_all = train_dataset.denormalize_x(y)
-                loss_denorm_output = myloss(pred_denorm_all, y_denorm_all)
-                if isinstance(loss_denorm_output, tuple):
-                    loss_denorm = loss_denorm_output[1]  # pred_loss component
-                else:
-                    loss_denorm = loss_denorm_output
-                train_l2_denorm += loss_denorm.item() * batch_size
+                loss_denorm = loss_denorm_output  # RelL2Norm returns scalar
+            train_l2_denorm += loss_denorm.item() * batch_size
 
         # Backward pass (use scaled loss for gradient accumulation)
         scaled_loss.backward()
@@ -623,12 +579,13 @@ for ep in pbar:
         with torch.no_grad():
             model.eval()
             # compute spectrum once per epoch (first test batch)
-            pred, target = [], []
+            pred_list, target_list = [], []
             for data_batch in val_loader:
                 # Handle both old format (xx, yy) and new format (xx, yy, forcing_y)
                 if len(data_batch) == 3:
                     xx, yy, forcing_y = data_batch
                     forcing_y = forcing_y.to(device)
+                    forcing_y = val_dataset.normalize_forcing_tensor(forcing_y, args.form)
                 else:
                     xx, yy = data_batch
                     forcing_y = None
@@ -646,14 +603,12 @@ for ep in pbar:
                         y = yy_norm[..., t:t + args.T_bundle, :]
                         pred_step = model(xx)
                         break # just test one step
-                    pred.append(pred_step)
-                    target.append(y)
-                else:
+                    pred_list.append(pred_step) # (B, H, W, T_bundle, C_out) normalized prediction
+                    target_list.append(y) # (B, H, W, T_bundle, C_out) normalized ground truth
+                else:                
                     # Multi-step ahead evaluation
                     pred_steps = []
-                    target_steps = []
                     x_current = xx  # (B, H, W, T_in, C_in)
-                    n_forcing_channels = 2
                     
                     for step_idx in range(eval_T_out):
                         # Use last timestep if T_in > 1
@@ -662,42 +617,26 @@ for ep in pbar:
                         else:
                             x_input = x_current  # (B, H, W, 1, C_in)
                         
-                        # Predict one step
                         pred_step = model(x_input)  # (B, H, W, 1, C_out)
                         pred_steps.append(pred_step)
                         
-                        # Get target for this step
-                        if step_idx < yy_norm.shape[-2]:
-                            target_step = yy_norm[..., step_idx:step_idx+1, :]  # (B, H, W, 1, C_out)
-                            target_steps.append(target_step)
-                        
                         # Prepare input for next step
                         if step_idx < eval_T_out - 1:
-                            # Get forcing from ground truth
+                            # Get forcing from ground truth for the next step
                             if forcing_y is not None:
+                                # forcing_y shape: (B, H, W, T_out-1, 2) - forcing for steps 1 to T_out-1
                                 forcing = forcing_y[..., step_idx:step_idx+1, :]  # (B, H, W, 1, 2)
+                                x_next = torch.cat((pred_step, forcing), dim=-1)  # (B, H, W, 1, C_in)
                             else:
-                                forcing = xx[..., -1:, -n_forcing_channels:]  # (B, H, W, 1, 2)
-                            
-                            x_next = torch.cat((pred_step, forcing), dim=-1)  # (B, H, W, 1, C_in)
-                            if x_current.shape[-2] > 1:
-                                x_current = torch.cat((x_current[..., 1:, :], x_next), dim=-2)
-                            else:
-                                x_current = x_next
+                                x_next = pred_step
+                            x_current = x_next
                     
-                    # Stack predictions and targets
-                    pred_multi = torch.cat(pred_steps, dim=-2)  # (B, H, W, T_out, C_out)
-                    if len(target_steps) > 0:
-                        target_multi = torch.cat(target_steps, dim=-2)  # (B, H, W, T_out, C_out)
-                    else:
-                        target_multi = yy_norm[..., 0:1, :].repeat(1, 1, 1, eval_T_out, 1)
-                    
-                    pred.append(pred_multi)
-                    target.append(target_multi)
-                    break  # just test one batch
+                    pred = torch.cat(pred_steps, dim=-2)  # (B, H, W, T_out, C_out) normalized prediction
+                    pred_list.append(pred)
+                    target_list.append(yy_norm[..., :pred.shape[-2], :])  # (B, H, W, T_out, C_out) normalized ground truth
 
-            pred = torch.cat(pred, dim=0)
-            target = torch.cat(target, dim=0)
+            pred = torch.cat(pred_list, dim=0)
+            target = torch.cat(target_list, dim=0)
             
             # denormalize the pred and target
             pred_denorm = train_dataset.denormalize_x(pred)

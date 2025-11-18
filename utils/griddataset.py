@@ -1706,7 +1706,7 @@ class MemmapDedalusBigDataset2D(Dataset):
         x = data[..., :self.t_in, :]
         y = data[..., self.t_in:self.t_in + self.t_out, :-2] # remove the last 2 channels (they are forcing terms)
         # Also return forcing for output timesteps (for multi-step ahead prediction)
-        forcing_y = data[..., self.t_in:self.t_in + self.t_out, -2:] # (H, W, T_out, 2) - forcing_x, forcing_y
+        forcing_y = data[..., self.t_in:self.t_in + self.t_out, -2:] # (H, W, T_out-1, 2) - forcing_x, forcing_y, they are used as input the next step
         return x, y, forcing_y
     
     def get_all_sequence(self):
@@ -1765,6 +1765,27 @@ class MemmapDedalusBigDataset2D(Dataset):
         
         x = (x - mean.to(x.device)) / (std.to(x.device) + 1e-6)
         return x
+
+    def normalize_forcing_tensor(self, forcing_tensor=None, form='velocity'):
+        """
+        Only normalize forcing channels using the dataset's normalization stats.
+        Returns None if normalization is not possible.
+        """
+        if forcing_tensor is None:
+            return None
+
+        n_forcing = forcing_tensor.shape[-1]
+        n_input_channels = self.n_channels_in.get(form, None)
+
+        if n_input_channels is None or n_input_channels < n_forcing:
+            return forcing_tensor
+        
+        # pad the non forcing input channels to run normalize_x but drop them after
+        padded = torch.zeros((n_input_channels,), device=forcing_tensor.device, dtype=forcing_tensor.dtype)
+        padded = torch.cat([padded, forcing_tensor], dim=-1)
+        padded = self.normalize_x(padded)
+        return padded[..., -n_forcing:]
+
 
     def denormalize_x(self, x):
         if self.norm_mean is None or self.norm_std is None:
