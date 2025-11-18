@@ -440,7 +440,8 @@ for ep in pbar:
         current_loss_type = args.loss_type
         if ep == args.warmup_epochs:
             myloss = final_loss
-            print(f"\nSwitching to {args.loss_type} loss at epoch {ep}")
+            print(f"\nSwitching to {args.loss_type} loss at epoch {ep}", "reinitialize the best loss to inf")
+            best_loss = np.inf
     
     # Determine T_out for this epoch: use 1 during warmup for training, then switch to specified T_out
     # For evaluation, always use args.T_out if > 1 (regardless of warmup)
