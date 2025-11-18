@@ -45,7 +45,7 @@ parser.add_argument('--model', type=str, default='FNO') # FNO, wavelet_transform
 parser.add_argument('--dataset',type=str, default='ns2d_dedalus_big') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
-parser.add_argument('--form',type=str, default='vorticity', choices=['vorticity', 'velocity'])
+parser.add_argument('--form',type=str, default='velocity', choices=['vorticity', 'velocity'])
 
 
 # ### dataset details
