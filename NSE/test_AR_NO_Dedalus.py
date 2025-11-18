@@ -655,20 +655,16 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     error = pred - target  # (N, H, W, C)
     
     # Find min/max per channel for consistent colorbar across all frames
-    # Use separate ranges for target and prediction to better show details in each
-    vmin_target = []
-    vmax_target = []
-    vmin_pred = []
-    vmax_pred = []
+    # Use target's range for both target and prediction (common scale based on target only)
+    vmin_common = []
+    vmax_common = []
     vmin_error = []
     vmax_error = []
     
     for col in range(num_channels):
-        # Separate ranges for target and prediction (per channel)
-        vmin_target.append(target[:, :, :, col].min())
-        vmax_target.append(target[:, :, :, col].max())
-        vmin_pred.append(pred[:, :, :, col].min())
-        vmax_pred.append(pred[:, :, :, col].max())
+        # Use target's range for both target and prediction (per channel)
+        vmin_common.append(target[:, :, :, col].min())
+        vmax_common.append(target[:, :, :, col].max())
         
         # Symmetric range for error (per channel)
         vmin_err_ch = error[:, :, :, col].min()
@@ -699,11 +695,11 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
             ax = axes[row, col]
             if row == 0:  # Target
                 im = ax.imshow(target[0, :, :, col], cmap='RdBu_r', 
-                              vmin=vmin_target[col], vmax=vmax_target[col], origin='lower')
+                              vmin=vmin_common[col], vmax=vmax_common[col], origin='lower')
                 ax.set_title(f'{channel_names[col] if col < len(channel_names) else f"Channel {col}"}\nTarget')
             elif row == 1:  # Prediction
                 im = ax.imshow(pred[0, :, :, col], cmap='RdBu_r',
-                              vmin=vmin_pred[col], vmax=vmax_pred[col], origin='lower')
+                              vmin=vmin_common[col], vmax=vmax_common[col], origin='lower')
                 ax.set_title(f'Prediction')
             else:  # Error
                 im = ax.imshow(error[0, :, :, col], cmap='RdBu_r',
