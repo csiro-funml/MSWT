@@ -1781,7 +1781,7 @@ class MemmapDedalusBigDataset2D(Dataset):
             return forcing_tensor
         
         # pad the non forcing input channels to run normalize_x but drop them after
-        padded = torch.zeros((n_input_channels,), device=forcing_tensor.device, dtype=forcing_tensor.dtype)
+        padded = torch.zeros((n_input_channels,), device=forcing_tensor.device, dtype=forcing_tensor.dtype).expand(*forcing_tensor.shape[:-1], n_input_channels)
         padded = torch.cat([padded, forcing_tensor], dim=-1)
         padded = self.normalize_x(padded)
         return padded[..., -n_forcing:]
