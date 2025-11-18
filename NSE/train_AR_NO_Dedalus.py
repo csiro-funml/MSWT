@@ -93,7 +93,7 @@ parser.add_argument('--lr_method',type=str, default='cossin') # cyclic for ViT p
 parser.add_argument('--grad_clip',type=float, default=10000.0)
 parser.add_argument('--step_size', type=int, default=20)
 parser.add_argument('--step_gamma', type=float, default=0.5)
-parser.add_argument('--warmup_epochs',type=int, default=100)
+parser.add_argument('--warmup_epochs',type=int, default=0)
 
 # Performance optimization arguments
 parser.add_argument('--use_compile', action='store_true', default=False, help='Use torch.compile for faster training (PyTorch 2.0+)')
