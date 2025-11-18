@@ -1775,7 +1775,7 @@ class MemmapDedalusBigDataset2D(Dataset):
             return None
 
         n_forcing = forcing_tensor.shape[-1]
-        n_input_channels = self.n_channels_in.get(form, None)
+        n_input_channels = self.n_channels_out.get(form, None)
 
         if n_input_channels is None or n_input_channels < n_forcing:
             return forcing_tensor
