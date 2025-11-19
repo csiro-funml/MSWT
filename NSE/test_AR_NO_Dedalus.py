@@ -1196,8 +1196,8 @@ def load_and_animate_predictions(log_path, dataset_type='long', save_animation=T
     anim1, fig1 = animate_predictions(save_data, log_path, save_animation, fps, num_steps, num_animation_frames)
     
     print("\nCreating spectral comparison animation...")
-    # anim2, fig2 = animate_spectral_comparison(save_data, log_path, save_animation, 
-                                            #   fps, k_zoom_threshold, num_steps, num_animation_frames)
+    anim2, fig2 = animate_spectral_comparison(save_data, log_path, save_animation, 
+                                              fps, k_zoom_threshold, num_steps, num_animation_frames)
     
     return anim1, anim2, fig1, fig2
 
