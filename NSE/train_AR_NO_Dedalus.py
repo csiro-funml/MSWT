@@ -352,8 +352,6 @@ if args.T_out > 1:
               f"(original={args.batch_size}) to reduce memory usage.")
         print(f"  You can also use gradient_accumulation_steps to maintain effective batch size.")
     
-    print(f"  Current settings: batch_size={args.batch_size}, gradient_accumulation_steps={args.gradient_accumulation_steps}")
-    print(f"  If you encounter OOM, try: --batch_size {suggested_batch_size} or --gradient_accumulation_steps {suggested_grad_accum}")
 
 start_epoch = 0
 best_loss_epoch = 0
