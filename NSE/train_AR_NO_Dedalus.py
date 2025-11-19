@@ -492,17 +492,11 @@ for ep in pbar:
         yy_norm = train_dataset.normalize_x(yy) # ground truth normalized output
         
         if current_T_out == 1:
-            # One-step ahead: original behavior
-            time_indices = range(0, yy_norm.shape[-2], args.T_bundle)
-            pred_norm_list = []
-
-            for t in time_indices:
-                y = yy_norm[..., t:t + args.T_bundle, :]  # (B, H, W, 1, C)
-                pred_norm = model(xx)  # (B, H, W, 1, C_out) - normalized
-                pred_norm_list.append(pred_norm)
-            pred_norm = torch.cat(pred_norm_list, dim=-2)  # (B, H, W, T_bundle, C_out)
+            # One-step ahead: original behavior (use only the first bundle)
+            y = yy_norm[..., 0:args.T_bundle, :]  # (B, H, W, T_bundle, C)
+            pred_norm = model(xx)  # (B, H, W, T_bundle, C_out)
             # Compute loss on normalized predictions
-            loss_output = myloss(pred_norm, yy_norm)
+            loss_output = myloss(pred_norm, y)
         else:
             # Multi-step ahead prediction: autoregressive for T_out steps
             pred_norm_list = []
