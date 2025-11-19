@@ -682,7 +682,7 @@ for ep in pbar:
                     pred = torch.cat(pred_steps, dim=-2)  # (B, H, W, T_out, C_out) normalized prediction
                     pred_list.append(pred)
                     target_list.append(yy_norm[..., :pred.shape[-2], :])  # (B, H, W, T_out, C_out) normalized ground truth
-
+                    break # todo: to be removedjust one batch for testing
             pred = torch.cat(pred_list, dim=0)
             target = torch.cat(target_list, dim=0)
             
