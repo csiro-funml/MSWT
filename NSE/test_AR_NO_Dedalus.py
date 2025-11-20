@@ -1171,7 +1171,7 @@ def load_and_animate_predictions(log_path, dataset_type='long', save_animation=T
         # New structure
         pred = save_data['pred']  # (T, H, W, C) or (T, H, W, 1, C)
         target = save_data['target']  # (T, H, W, C) or (T, H, W, 1, C)
-        if args.T_out > 1:
+        if len(target) > len(pred):
             target = target[..., 0, :]
         time_idx = save_data.get('time_idx', None)
         
