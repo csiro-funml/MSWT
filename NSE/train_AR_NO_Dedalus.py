@@ -206,9 +206,11 @@ testing_mode = 'FNO_testing'
 if testing_mode == 'FNO_testing':
     if args.loss_type == 'rel_l2' and args.T_out == 1:
         comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+    elif args.loss_type == 'rel_l2' and args.T_out > 1:
+        comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}_Tout{args.T_out}'
     else:
         comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}'
-            # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+                    # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
     # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
     # comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}_Tout{args.T_out}'
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
