@@ -119,7 +119,7 @@ def load_data_model(just_load_path=False):
         # load data and dataloader for big dedalus dataset
         train_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='train', strategy=args.normalize_strategy)
         if args.dataset_type == 'long':
-            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='test_long', strategy=args.normalize_strategy)
+            test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=1, form=args.form, normalize=args.normalize, train='test_long', strategy=args.normalize_strategy) # I think just 1 should be enough
         else:
             test_dataset = MemmapDedalusBigDataset2D(args.dataset, t_in=args.T_in, t_ar=args.T_out, form=args.form, normalize=args.normalize, train='test', strategy=args.normalize_strategy)
     elif args.dataset != 'ns2d_dedalus':
