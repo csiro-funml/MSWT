@@ -52,7 +52,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 #################################################################################################################################
 
 # Current active command (uncomment and modify as needed)
-CUDA_VISIBLE_DEVICES=0 python3 -u NSE/test_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO --modes 32 --width 32 --n_layers 4 --T_in 1 --T_out 2 --normalize 1 --normalize_strategy zscore --form velocity --batch_size 32 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 --warmup_epochs 500 --num_steps 50000 --dataset_type long --save_type pth
+CUDA_VISIBLE_DEVICES=0 python3 -u NSE/test_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model FNO --modes 32 --width 32 --n_layers 4 --T_in 1 --T_out 2 --normalize 1 --normalize_strategy zscore --form velocity --batch_size 32 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 --warmup_epochs 500 --num_steps 2000 --dataset_type long --save_type pth
 # Method 1 - Use the helper script (recommended):
 #   bash ablations/run_specific.sh steps_ahead 5 show    # Show T_out=5 commands
 #   bash ablations/run_specific.sh steps_ahead 5 train   # Show only training command

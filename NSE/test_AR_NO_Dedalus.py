@@ -1171,6 +1171,8 @@ def load_and_animate_predictions(log_path, dataset_type='long', save_animation=T
         # New structure
         pred = save_data['pred']  # (T, H, W, C) or (T, H, W, 1, C)
         target = save_data['target']  # (T, H, W, C) or (T, H, W, 1, C)
+        if args.T_out > 1:
+            target = target[..., 0, :]
         time_idx = save_data.get('time_idx', None)
         
         # Ensure pred and target have time dimension if needed
@@ -1208,9 +1210,9 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     #if you dont have the dataloader, comment this line
-    model, test_loader, log_path = load_data_model(just_load_path=False)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
     
-    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
+    # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
     # #### 2. load the save_data and create animations
     anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
