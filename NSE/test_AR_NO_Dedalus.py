@@ -1562,7 +1562,8 @@ if __name__ == '__main__':
     
     
     #### 2. Plot a pred. target and eror at any time step
-    for time_step in [64, 80, 100, 150, 200, 250, 300]:
+    # for time_step in [32, 64, 80, 100, 150, 200, 250, 300]:
+    for time_step in [32]:
         plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
     
     # #### 3. load the save_data and create animations
