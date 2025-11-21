@@ -261,9 +261,9 @@ if args.model == "FNO":
 elif args.model == 'wavelet_transformer':
     model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'HFS':
-    model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
-                     bottleneck_feature=512, 
-                     device=device).to(device)
+    model =ResUNet(in_c=train_dataset.n_channels_in[args.form],out_c=train_dataset.n_channels_out[args.form],
+                    target_params='small',
+                    device=device).to(device)
 elif args.model == 'wavelet_transformer_skip':
     model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
 elif args.model == 'WaveletTransV2':

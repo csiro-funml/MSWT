@@ -1,0 +1,100 @@
+#!/bin/bash
+# Model Comparison Ablation Study
+# Tests different model architectures: FNO, HFS, etc.
+# All models use the same base settings: modes=32 (where applicable), width=32, n_layers=4, T_out=1
+
+source "$(dirname "$0")/common_config.sh"
+
+echo "=========================================="
+echo "Model Comparison Ablation Study"
+echo "=========================================="
+
+# Models to test
+# Note: Some models don't use modes/width/n_layers parameters
+MODELS_LIST=("FNO" "HFS")
+
+# Fixed settings (same as model_size ablation with modes=32)
+FIXED_MODES=32
+FIXED_WIDTH=32
+FIXED_N_LAYERS=4
+FIXED_T_OUT=1
+
+# Function to build training command for a specific model
+build_model_train_cmd() {
+    local model=$1
+    local cmd="CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py"
+    cmd="$cmd --dataset $DATASET --model $model"
+    
+    # Add model-specific parameters
+    if [ "$model" = "FNO" ]; then
+        cmd="$cmd --modes $FIXED_MODES --width $FIXED_WIDTH --n_layers $FIXED_N_LAYERS"
+    fi
+    # HFS and other models don't use modes/width/n_layers
+    
+    cmd="$cmd --T_in $T_IN --T_out $FIXED_T_OUT"
+    cmd="$cmd --normalize $NORMALIZE --normalize_strategy $NORMALIZE_STRATEGY"
+    cmd="$cmd --form $FORM"
+    cmd="$cmd --batch_size $BATCH_SIZE --gradient_accumulation_steps $GRADIENT_ACCUMULATION_STEPS"
+    cmd="$cmd --epochs $EPOCHS"
+    cmd="$cmd --num_workers $NUM_WORKERS --pin_memory --prefetch_factor $PREFETCH_FACTOR"
+    cmd="$cmd --warmup_epochs 0"
+    
+    echo "$cmd"
+}
+
+# Function to build testing command for a specific model
+build_model_test_cmd() {
+    local model=$1
+    local cmd="CUDA_VISIBLE_DEVICES=0 python3 -u NSE/test_AR_NO_Dedalus.py"
+    cmd="$cmd --dataset $DATASET --model $model"
+    
+    # Add model-specific parameters
+    if [ "$model" = "FNO" ]; then
+        cmd="$cmd --modes $FIXED_MODES --width $FIXED_WIDTH --n_layers $FIXED_N_LAYERS"
+    fi
+    # HFS and other models don't use modes/width/n_layers
+    
+    cmd="$cmd --T_in $T_IN --T_out $FIXED_T_OUT"
+    cmd="$cmd --normalize $NORMALIZE --normalize_strategy $NORMALIZE_STRATEGY"
+    cmd="$cmd --form $FORM"
+    cmd="$cmd --batch_size $BATCH_SIZE --epochs $EPOCHS"
+    cmd="$cmd --num_workers $NUM_WORKERS --pin_memory --prefetch_factor $PREFETCH_FACTOR"
+    cmd="$cmd --warmup_epochs 0"
+    cmd="$cmd --num_steps 30 --dataset_type short --save_type pth"
+    
+    echo "$cmd"
+}
+
+# Training commands for different models
+echo ""
+echo "=== TRAINING COMMANDS ==="
+for model in "${MODELS_LIST[@]}"; do
+    echo ""
+    if [ "$model" = "FNO" ]; then
+        echo "# Training: model=$model, modes=$FIXED_MODES, width=$FIXED_WIDTH, n_layers=$FIXED_N_LAYERS"
+    else
+        echo "# Training: model=$model (using default architecture settings)"
+    fi
+    cmd=$(build_model_train_cmd $model)
+    echo "$cmd"
+done
+
+# Testing commands for different models
+echo ""
+echo "=== TESTING COMMANDS ==="
+for model in "${MODELS_LIST[@]}"; do
+    echo ""
+    if [ "$model" = "FNO" ]; then
+        echo "# Testing: model=$model, modes=$FIXED_MODES, width=$FIXED_WIDTH, n_layers=$FIXED_N_LAYERS"
+    else
+        echo "# Testing: model=$model (using default architecture settings)"
+    fi
+    cmd=$(build_model_test_cmd $model)
+    echo "$cmd"
+done
+
+echo ""
+echo "=========================================="
+echo "To run a specific experiment, uncomment the desired command above"
+echo "=========================================="
+
