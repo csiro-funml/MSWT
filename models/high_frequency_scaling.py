@@ -318,7 +318,7 @@ class ResUNet(nn.Module):
 
         # reshape back to (B, C_out, H, W) -> (B, H, W, T, C)
         out = out.permute(0, 2, 3, 1).contiguous()
-        out = out.view(B, H, W, -1, C)
+        out = out.view(B, H, W, -1, self.out_c)
         return out
        
     def set_input(self,input_data):
@@ -432,7 +432,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("Testing forward pass...")
     print("=" * 60)
-    x = torch.rand(2, 128, 128, T_in, n_channels)
+    x = torch.rand(2, 256, 256, T_in, n_channels)
     y = model_small(x)
     print(f"Input shape: {x.shape}")
     print(f"Output shape: {y.shape}")
