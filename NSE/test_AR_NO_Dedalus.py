@@ -1206,6 +1206,143 @@ def load_and_animate_predictions(log_path, dataset_type='long', save_animation=T
     return anim1, anim2, fig1, fig2
 
 
+def plot_time_step_comparison(log_path, time_step, dataset_type='long', save_path=None):
+    """
+    Generate a plot showing prediction, target, and error for all channels at a specific time step.
+    This is useful for visualizing oversmoothing at earlier stages, as the error plot uses a 
+    symmetric colormap centered at 0, making small errors more visible.
+    
+    Args:
+        log_path: Path to directory containing test_data_prediction file
+        time_step: Time step index to plot (0-based)
+        dataset_type: 'long' or 'short' to determine which file to load
+        save_path: Optional path to save the figure. If None, saves to log_path with filename.
+    
+    Returns:
+        fig: matplotlib figure object
+    """
+    # Load data based on dataset_type (similar to load_and_animate_predictions)
+    if dataset_type == 'long':
+        data_path = f'{log_path}/test_data_prediction_long.pth'
+    else:
+        data_path = f'{log_path}/test_data_prediction.pth'
+    
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"Data file not found: {data_path}")
+    
+    save_data = torch.load(data_path, map_location='cpu')
+    print(f"Loaded data from {data_path}")
+    
+    # Handle new data structure (pred, target, forcing, time_idx)
+    if 'pred' in save_data and 'target' in save_data:
+        # New structure
+        pred = save_data['pred']  # (T, H, W, C) or (T, H, W, 1, C)
+        target = save_data['target']  # (T, H, W, C) or (T, H, W, 1, C)
+        if len(target.shape) == 4 and len(pred.shape) == 5:
+            # Handle shape mismatch
+            target = target.unsqueeze(-2)  # (T, H, W, 1, C)
+        elif len(target.shape) == 5 and len(pred.shape) == 4:
+            pred = pred.unsqueeze(-2)  # (T, H, W, 1, C)
+        time_idx = save_data.get('time_idx', None)
+        
+        # Ensure pred and target have consistent shape
+        if len(pred.shape) == 4:  # (T, H, W, C)
+            pred = pred.unsqueeze(-2)  # (T, H, W, 1, C)
+        if len(target.shape) == 4:  # (T, H, W, C)
+            target = target.unsqueeze(-2)  # (T, H, W, 1, C)
+    else:
+        # Old structure (backward compatibility)
+        pred = save_data.get('pred')  # (T, H, W, 1, C)
+        target = save_data.get('output')  # (T, H, W, 1, C)
+        time_idx = None
+    
+    # Check if time_step is valid
+    if time_step < 0 or time_step >= pred.shape[0]:
+        raise ValueError(f"time_step {time_step} is out of range [0, {pred.shape[0]-1}]")
+    
+    # Extract data for the specific time step
+    # pred and target shape: (T, H, W, 1, C)
+    pred_step = pred[time_step, ..., 0, :].numpy()  # (H, W, C)
+    target_step = target[time_step, ..., 0, :].numpy()  # (H, W, C)
+    
+    # Compute error
+    error = pred_step - target_step  # (H, W, C)
+    
+    # Get number of channels
+    num_channels = pred_step.shape[-1]
+    
+    # Get channel names based on dataset form
+    dataset_form = save_data.get('dataset_form', 'velocity')
+    if dataset_form == 'vorticity':
+        channel_names = ['Vorticity', 'Streamfunction']
+    elif dataset_form == 'velocity':
+        channel_names = ['Pressure', 'Velocity X', 'Velocity Y']
+    else:
+        channel_names = [f'Channel {i}' for i in range(num_channels)]
+    
+    # Create figure with 3 rows (target, pred, error) and num_channels columns
+    fig, axes = plt.subplots(3, num_channels, figsize=(5*num_channels, 12))
+    if num_channels == 1:
+        axes = axes.reshape(-1, 1)
+    
+    # Get actual time index for display
+    if time_idx is not None:
+        time_idx = time_idx.numpy() if isinstance(time_idx, torch.Tensor) else time_idx
+        actual_time = time_idx[time_step] if time_step < len(time_idx) else time_step
+    else:
+        actual_time = time_step
+    
+    # Plot for each channel
+    for col in range(num_channels):
+        # Target (row 0)
+        ax = axes[0, col]
+        vmin_target = target_step[:, :, col].min()
+        vmax_target = target_step[:, :, col].max()
+        im_target = ax.imshow(target_step[:, :, col], cmap='RdBu_r', 
+                             vmin=vmin_target, vmax=vmax_target, origin='lower')
+        channel_name = channel_names[col] if col < len(channel_names) else f'Channel {col}'
+        ax.set_title(f'{channel_name}\nTarget (t={actual_time})')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        plt.colorbar(im_target, ax=ax)
+        
+        # Prediction (row 1)
+        ax = axes[1, col]
+        # Use same scale as target for fair comparison
+        im_pred = ax.imshow(pred_step[:, :, col], cmap='RdBu_r',
+                           vmin=vmin_target, vmax=vmax_target, origin='lower')
+        ax.set_title(f'Prediction')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        plt.colorbar(im_pred, ax=ax)
+        
+        # Error (row 2) - symmetric colormap centered at 0
+        ax = axes[2, col]
+        error_ch = error[:, :, col]
+        # Ensure symmetric range centered at 0 (mean is strictly 0)
+        vmax_error_abs = max(abs(error_ch.min()), abs(error_ch.max()))
+        # Use symmetric range to make small errors visible
+        im_error = ax.imshow(error_ch, cmap='RdBu_r',
+                             vmin=-vmax_error_abs, vmax=vmax_error_abs, origin='lower')
+        ax.set_title(f'Error (mean={error_ch.mean():.2e})')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        plt.colorbar(im_error, ax=ax)
+    
+    plt.tight_layout()
+    
+    # Save figure if requested
+    if save_path is None:
+        save_path = f'{log_path}/time_step_{actual_time}_comparison.png'
+    elif os.path.isdir(save_path):
+        save_path = os.path.join(save_path, f'time_step_{actual_time}_comparison.png')
+    
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    print(f"Saved comparison plot to {save_path}")
+    
+    return fig
+
+
 if __name__ == '__main__':
     
     #### 1. predict and save the data
@@ -1214,8 +1351,13 @@ if __name__ == '__main__':
     
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
-    # #### 2. load the save_data and create animations
-    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
+    
+    
+    #### 2. Plot a pred. target and eror at any time step
+    plot_time_step_comparison(log_path, time_step=32, dataset_type='long')
+    
+    # #### 3. load the save_data and create animations
+    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
     
