@@ -819,53 +819,15 @@ def animate_spectral_comparison(save_data, log_path=None, save_animation=True,
             pred_t = pred_step[..., 0, :].numpy()  # (H, W, C)
             target_t = target_step[..., 0, :].numpy()  # (H, W, C)
             
-            # Get velocity components
-            if dataset_form == 'vorticity':
-                if pred_t.shape[-1] >= 2:
-                    psi_pred = pred_t[..., 1]
-                    psi_target = target_t[..., 1]
-                    ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
-                    ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
-                else:
-                    continue
-            elif dataset_form == 'velocity':
-                if pred_t.shape[-1] >= 3:
-                    ux_pred = pred_t[..., 1]
-                    uy_pred = pred_t[..., 2]
-                    ux_target = target_t[..., 1]
-                    uy_target = target_t[..., 2]
-                else:
-                    continue
+            # Compute spectral data using reusable function
+            spectral_data = compute_spectral_data_single_step(pred_t, target_t, dataset_form=dataset_form, Lx=Lx, Ly=Ly)
+            
+            if spectral_data is not None:
+                spectral_data['time_step'] = step_idx
+                spectral_data['timestep_in_output'] = 0
+                spectral_data_list.append(spectral_data)
             else:
-                continue
-            
-            # Compute energy
-            Nx, Ny = ux_pred.shape[0], ux_pred.shape[1]
-            area = Lx * Ly
-            energy_pred = 0.5 * np.sum(ux_pred**2 + uy_pred**2) * area / (Nx * Ny)
-            energy_target = 0.5 * np.sum(ux_target**2 + uy_target**2) * area / (Nx * Ny)
-            
-            # Compute spectra
-            try:
-                k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
-                _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
-                
-                H = ux_pred.shape[0]
-                spectral_data_list.append({
-                    'time_step': step_idx,
-                    'timestep_in_output': 0,
-                    'k_bins': k_bins,
-                    'Ek_pred': Ek_pred,
-                    'Ek_target': Ek_target,
-                    'Zk_pred': Zk_pred,
-                    'Zk_target': Zk_target,
-                    'energy_pred': energy_pred,
-                    'energy_target': energy_target,
-                    'H': H,
-                    'Lx': Lx
-                })
-            except Exception as e:
-                print(f"Warning: Failed to compute spectra at step {step_idx}: {e}")
+                print(f"Warning: Failed to compute spectra at step {step_idx}")
                 continue
     
     if not spectral_data_list:
@@ -1206,6 +1168,225 @@ def load_and_animate_predictions(log_path, dataset_type='long', save_animation=T
     return anim1, anim2, fig1, fig2
 
 
+def compute_spectral_data_single_step(pred_step, target_step, dataset_form='velocity', Lx=2*np.pi, Ly=2*np.pi):
+    """
+    Compute spectral data (energy, enstrophy spectra) for a single time step.
+    
+    Args:
+        pred_step: Prediction array for single time step, shape (H, W, C)
+        target_step: Target array for single time step, shape (H, W, C)
+        dataset_form: 'velocity' or 'vorticity' to determine how to extract velocity
+        Lx: Domain size in x direction
+        Ly: Domain size in y direction
+    
+    Returns:
+        Dictionary with spectral data containing:
+        - k_bins: wavenumber bins
+        - Ek_pred, Ek_target: energy spectra
+        - Zk_pred, Zk_target: enstrophy spectra
+        - energy_pred, energy_target: overall energy
+        - H, Lx: grid resolution and domain size
+        None if computation fails
+    """
+    pred_t = pred_step  # (H, W, C)
+    target_t = target_step  # (H, W, C)
+    
+    # Get velocity components
+    if dataset_form == 'vorticity':
+        if pred_t.shape[-1] >= 2:
+            psi_pred = pred_t[..., 1]
+            psi_target = target_t[..., 1]
+            ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
+            ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
+        else:
+            return None
+    elif dataset_form == 'velocity':
+        if pred_t.shape[-1] >= 3:
+            ux_pred = pred_t[..., 1]  # velocity_x
+            uy_pred = pred_t[..., 2]  # velocity_y
+            ux_target = target_t[..., 1]
+            uy_target = target_t[..., 2]
+        else:
+            return None
+    else:
+        return None
+    
+    # Compute energy
+    Nx, Ny = ux_pred.shape[0], ux_pred.shape[1]
+    area = Lx * Ly
+    energy_pred = 0.5 * np.sum(ux_pred**2 + uy_pred**2) * area / (Nx * Ny)
+    energy_target = 0.5 * np.sum(ux_target**2 + uy_target**2) * area / (Nx * Ny)
+    
+    # Compute spectra
+    try:
+        k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
+        _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
+        
+        H = ux_pred.shape[0]
+        return {
+            'k_bins': k_bins,
+            'Ek_pred': Ek_pred,
+            'Ek_target': Ek_target,
+            'Zk_pred': Zk_pred,
+            'Zk_target': Zk_target,
+            'energy_pred': energy_pred,
+            'energy_target': energy_target,
+            'H': H,
+            'Lx': Lx
+        }
+    except Exception as e:
+        print(f"Warning: Failed to compute spectra: {e}")
+        return None
+
+
+def plot_spectral_comparison_single_step(spectral_data, time_step, k_zoom_threshold=20, save_path=None):
+    """
+    Plot energy and enstrophy spectra comparison for a single time step.
+    
+    Args:
+        spectral_data: Dictionary from compute_spectral_data_single_step
+        time_step: Time step index for display
+        k_zoom_threshold: Wavenumber threshold for zoomed view
+        save_path: Optional path to save the figure
+    
+    Returns:
+        fig: matplotlib figure object
+    """
+    if spectral_data is None:
+        print("Warning: No spectral data available")
+        return None
+    
+    k_bins = spectral_data['k_bins']
+    Ek_pred = spectral_data['Ek_pred']
+    Ek_target = spectral_data['Ek_target']
+    Zk_pred = spectral_data['Zk_pred']
+    Zk_target = spectral_data['Zk_target']
+    energy_pred = spectral_data['energy_pred']
+    energy_target = spectral_data['energy_target']
+    H = spectral_data.get('H', k_bins.shape[0])
+    Lx = spectral_data.get('Lx', 2 * np.pi)
+    
+    # Compute Nyquist truncation index (same as utilities.py)
+    k_nyquist = int((np.pi * H) // Lx)
+    start_truth = 1  # Skip k_bins[0] as in utilities.py
+    
+    # Apply truncation
+    k_plot = k_bins[start_truth:k_nyquist]
+    Ek_pred_plot = Ek_pred[start_truth:k_nyquist]
+    Ek_target_plot = Ek_target[start_truth:k_nyquist]
+    Zk_pred_plot = Zk_pred[start_truth:k_nyquist]
+    Zk_target_plot = Zk_target[start_truth:k_nyquist]
+    
+    # Remove zero values for log scale
+    mask = k_plot > 0
+    k_plot = k_plot[mask]
+    Ek_pred_plot = Ek_pred_plot[mask]
+    Ek_target_plot = Ek_target_plot[mask]
+    Zk_pred_plot = Zk_pred_plot[mask]
+    Zk_target_plot = Zk_target_plot[mask]
+    
+    # Remove zero energy/enstrophy values for log scale
+    Ek_pred_mask = Ek_pred_plot > 0
+    Ek_target_mask = Ek_target_plot > 0
+    Zk_pred_mask = Zk_pred_plot > 0
+    Zk_target_mask = Zk_target_plot > 0
+    
+    # Find index for zoom threshold
+    k_zoom_idx = np.where(k_plot > k_zoom_threshold)[0]
+    if len(k_zoom_idx) > 0:
+        zoom_start_idx = k_zoom_idx[0]
+    else:
+        zoom_start_idx = max(0, len(k_plot) - 10)
+    
+    # Find min/max for y-axis limits
+    Ek_max = max(np.max(Ek_pred_plot[Ek_pred_mask]), np.max(Ek_target_plot[Ek_target_mask]))
+    Ek_min = min(np.min(Ek_pred_plot[Ek_pred_mask]), np.min(Ek_target_plot[Ek_target_mask]))
+    Zk_max = max(np.max(Zk_pred_plot[Zk_pred_mask]), np.max(Zk_target_plot[Zk_target_mask]))
+    Zk_min = min(np.min(Zk_pred_plot[Zk_pred_mask]), np.min(Zk_target_plot[Zk_target_mask]))
+    
+    # Create figure with subplots: 2x2 grid (full and zoomed for energy and enstrophy)
+    fig = plt.figure(figsize=(14, 10))
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+    
+    # Full energy spectrum
+    ax_energy_full = fig.add_subplot(gs[0, 0])
+    ax_energy_full.set_xlabel('Wavenumber k')
+    ax_energy_full.set_ylabel('Energy E(k)')
+    ax_energy_full.set_title(f'Energy Spectrum (Full) - Step {time_step}')
+    ax_energy_full.set_xscale('log')
+    ax_energy_full.set_yscale('log')
+    ax_energy_full.grid(True, alpha=0.3)
+    ax_energy_full.plot(k_plot[Ek_target_mask], Ek_target_plot[Ek_target_mask], 'b-', label='Target', linewidth=2)
+    ax_energy_full.plot(k_plot[Ek_pred_mask], Ek_pred_plot[Ek_pred_mask], 'r--', label='Prediction', linewidth=2)
+    ax_energy_full.legend()
+    ax_energy_full.set_xlim(k_plot[0], k_plot[-1])
+    ax_energy_full.set_ylim(Ek_min, Ek_max)
+    
+    # Zoomed energy spectrum
+    ax_energy_zoom = fig.add_subplot(gs[1, 0])
+    ax_energy_zoom.set_xlabel('Wavenumber k')
+    ax_energy_zoom.set_ylabel('Energy E(k)')
+    ax_energy_zoom.set_title(f'Energy Spectrum (Zoom: k > {k_zoom_threshold})')
+    ax_energy_zoom.set_xscale('log')
+    ax_energy_zoom.set_yscale('log')
+    ax_energy_zoom.grid(True, alpha=0.3)
+    zoom_mask = k_plot >= k_plot[zoom_start_idx]
+    Ek_target_zoom_mask = zoom_mask & Ek_target_mask
+    Ek_pred_zoom_mask = zoom_mask & Ek_pred_mask
+    ax_energy_zoom.plot(k_plot[Ek_target_zoom_mask], Ek_target_plot[Ek_target_zoom_mask], 'b-', label='Target', linewidth=2)
+    ax_energy_zoom.plot(k_plot[Ek_pred_zoom_mask], Ek_pred_plot[Ek_pred_zoom_mask], 'r--', label='Prediction', linewidth=2)
+    ax_energy_zoom.legend()
+    if np.any(Ek_target_zoom_mask) or np.any(Ek_pred_zoom_mask):
+        k_zoom_min = k_plot[zoom_start_idx]
+        ax_energy_zoom.set_xlim(k_zoom_min, k_plot[-1])
+        ax_energy_zoom.set_ylim(Ek_min, Ek_max)
+    
+    # Full enstrophy spectrum
+    ax_enstrophy_full = fig.add_subplot(gs[0, 1])
+    ax_enstrophy_full.set_xlabel('Wavenumber k')
+    ax_enstrophy_full.set_ylabel('Enstrophy Z(k)')
+    ax_enstrophy_full.set_title(f'Enstrophy Spectrum (Full) - Step {time_step}')
+    ax_enstrophy_full.set_xscale('log')
+    ax_enstrophy_full.set_yscale('log')
+    ax_enstrophy_full.grid(True, alpha=0.3)
+    ax_enstrophy_full.plot(k_plot[Zk_target_mask], Zk_target_plot[Zk_target_mask], 'b-', label='Target', linewidth=2)
+    ax_enstrophy_full.plot(k_plot[Zk_pred_mask], Zk_pred_plot[Zk_pred_mask], 'r--', label='Prediction', linewidth=2)
+    ax_enstrophy_full.legend()
+    ax_enstrophy_full.set_xlim(k_plot[0], k_plot[-1])
+    ax_enstrophy_full.set_ylim(Zk_min, Zk_max)
+    
+    # Zoomed enstrophy spectrum
+    ax_enstrophy_zoom = fig.add_subplot(gs[1, 1])
+    ax_enstrophy_zoom.set_xlabel('Wavenumber k')
+    ax_enstrophy_zoom.set_ylabel('Enstrophy Z(k)')
+    ax_enstrophy_zoom.set_title(f'Enstrophy Spectrum (Zoom: k > {k_zoom_threshold})')
+    ax_enstrophy_zoom.set_xscale('log')
+    ax_enstrophy_zoom.set_yscale('log')
+    ax_enstrophy_zoom.grid(True, alpha=0.3)
+    Zk_target_zoom_mask = zoom_mask & Zk_target_mask
+    Zk_pred_zoom_mask = zoom_mask & Zk_pred_mask
+    ax_enstrophy_zoom.plot(k_plot[Zk_target_zoom_mask], Zk_target_plot[Zk_target_zoom_mask], 'b-', label='Target', linewidth=2)
+    ax_enstrophy_zoom.plot(k_plot[Zk_pred_zoom_mask], Zk_pred_plot[Zk_pred_zoom_mask], 'r--', label='Prediction', linewidth=2)
+    ax_enstrophy_zoom.legend()
+    if np.any(Zk_target_zoom_mask) or np.any(Zk_pred_zoom_mask):
+        k_zoom_min = k_plot[zoom_start_idx]
+        ax_enstrophy_zoom.set_xlim(k_zoom_min, k_plot[-1])
+        ax_enstrophy_zoom.set_ylim(Zk_min, Zk_max)
+    
+    # Add overall energy text
+    energy_text = f'Overall Energy: Target={energy_target:.6e}, Pred={energy_pred:.6e}, RelError={abs(energy_pred-energy_target)/energy_target*100:.2f}%'
+    fig.suptitle(energy_text, fontsize=12, y=0.02)
+    
+    plt.tight_layout()
+    
+    # Save figure if requested
+    if save_path is not None:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Saved spectral comparison plot to {save_path}")
+    
+    return fig
+
+
 def plot_time_step_comparison(log_path, time_step, dataset_type='long', save_path=None):
     """
     Generate a plot showing prediction, target, and error for all channels at a specific time step.
@@ -1331,14 +1512,41 @@ def plot_time_step_comparison(log_path, time_step, dataset_type='long', save_pat
     
     plt.tight_layout()
     
-    # Save figure if requested
+    # Determine base directory for saving
     if save_path is None:
-        save_path = f'{log_path}/time_step_{actual_time}_comparison.png'
+        base_dir = log_path
+        comparison_filename = f'time_step_{actual_time}_comparison.png'
     elif os.path.isdir(save_path):
-        save_path = os.path.join(save_path, f'time_step_{actual_time}_comparison.png')
+        base_dir = save_path
+        comparison_filename = f'time_step_{actual_time}_comparison.png'
+    else:
+        # If save_path is a file path, extract directory
+        base_dir = os.path.dirname(save_path)
+        comparison_filename = os.path.basename(save_path)
     
-    plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    print(f"Saved comparison plot to {save_path}")
+    # Save to rollout_metrics subdirectory
+    rollout_metrics_dir = os.path.join(base_dir, 'rollout_metrics')
+    os.makedirs(rollout_metrics_dir, exist_ok=True)
+    comparison_save_path = os.path.join(rollout_metrics_dir, comparison_filename)
+    
+    plt.savefig(comparison_save_path, dpi=150, bbox_inches='tight')
+    print(f"Saved comparison plot to {comparison_save_path}")
+    
+    # Also create spectral comparison plot
+    try:
+        spectral_data = compute_spectral_data_single_step(pred_step, target_step, dataset_form=dataset_form)
+        if spectral_data is not None:
+            # Create spectral plot save path (replace _comparison with _spectral_comparison)
+            spectral_filename = comparison_filename.replace('_comparison.png', '_spectral_comparison.png')
+            spectral_save_path = os.path.join(rollout_metrics_dir, spectral_filename)
+            spectral_fig = plot_spectral_comparison_single_step(spectral_data, actual_time, save_path=spectral_save_path)
+            plt.close(spectral_fig)  # Close to free memory
+        else:
+            print(f"Warning: Could not compute spectral data for time step {actual_time}")
+    except Exception as e:
+        print(f"Warning: Failed to create spectral comparison plot: {e}")
+        import traceback
+        traceback.print_exc()
     
     return fig
 

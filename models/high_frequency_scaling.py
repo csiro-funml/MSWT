@@ -126,12 +126,104 @@ class ResidualBlock2(nn.Module):
         out = self.residual(x)
         return out+shortcut
 
+def get_model_config(target_params='medium', custom_width_multiplier=None):
+    """
+    Get model configuration based on target parameter count.
+    
+    Args:
+        target_params: Target parameter count. Options:
+            - 'small': ~16M parameters (width_multiplier ~0.5)
+            - 'medium': ~32M parameters (width_multiplier ~0.7)
+            - 'large': ~64M parameters (width_multiplier ~1.0, default)
+            - int: Custom target parameter count in millions
+        custom_width_multiplier: Optional custom width multiplier (overrides target_params if provided)
+    
+    Returns:
+        Dictionary with 'features', 'bottleneck_feature', 'width_multiplier'
+    """
+    # Base configuration (roughly 64M parameters at multiplier 1.0)
+    base_features = [64, 128, 256, 512, 512]
+    base_bottleneck = 1024
+    
+    if custom_width_multiplier is not None:
+        width_multiplier = custom_width_multiplier
+    elif isinstance(target_params, str):
+        if target_params.lower() == 'small':
+            width_multiplier = 0.5  # ~16M params
+        elif target_params.lower() == 'medium':
+            width_multiplier = 0.7  # ~32M params
+        elif target_params.lower() in ['large', 'huge']:
+            width_multiplier = 1.0  # ~64M params (original)
+        else:
+            raise ValueError(f"Unknown target_params string: {target_params}. Use 'small', 'medium', 'large', or a number.")
+    elif isinstance(target_params, (int, float)):
+        # Interpolate width multiplier based on target parameter count
+        if target_params <= 20:
+            width_multiplier = 0.5  # ~16M
+        elif target_params <= 40:
+            width_multiplier = 0.7  # ~32M
+        else:
+            width_multiplier = 1.0  # ~64M
+    else:
+        width_multiplier = 1.0  # Default to large
+    
+    # Scale features and bottleneck
+    features = [int(f * width_multiplier) for f in base_features]
+    bottleneck_feature = int(base_bottleneck * width_multiplier)
+    
+    # Ensure minimum channel sizes
+    features = [max(f, 16) for f in features]  # At least 16 channels
+    bottleneck_feature = max(bottleneck_feature, 64)  # At least 64 bottleneck channels
+    
+    # Round to nearest 8 for better GPU utilization
+    features = [((f + 4) // 8) * 8 for f in features]
+    bottleneck_feature = ((bottleneck_feature + 4) // 8) * 8
+    
+    return {
+        'features': features,
+        'bottleneck_feature': bottleneck_feature,
+        'width_multiplier': width_multiplier
+    }
+
+
 class ResUNet(nn.Module):
-    def __init__(self, in_c,out_c, features = [64,128,256,512,512],bottleneck_feature=1024, patch_size_enc = [16,8,4,2,1], patch_size_dec=[16,8,4,2,1],activation_name='GELU'
-                 ,device=torch.device('cpu')):
+    def __init__(self, in_c, out_c, features=None, bottleneck_feature=None, 
+                 patch_size_enc=[16,8,4,2,1], patch_size_dec=[16,8,4,2,1],
+                 activation_name='GELU', device=torch.device('cpu'),
+                 target_params='large', width_multiplier=None):
+        """
+        ResUNet with configurable model size.
+        
+        Args:
+            in_c: Input channels
+            out_c: Output channels
+            features: List of feature dimensions for encoder/decoder. If None, determined by target_params or width_multiplier
+            bottleneck_feature: Bottleneck feature dimension. If None, determined by target_params or width_multiplier
+            patch_size_enc: Patch sizes for encoder featscale layers
+            patch_size_dec: Patch sizes for decoder featscale layers
+            activation_name: Activation function name
+            device: Device to run on
+            target_params: Target parameter count ('small'~16M, 'medium'~32M, 'large'~64M, or number)
+            width_multiplier: Custom width multiplier (overrides target_params if provided)
+        """
         super(ResUNet, self).__init__()
+        
+        # Get model configuration
+        if features is None or bottleneck_feature is None:
+            config = get_model_config(target_params, width_multiplier)
+            if features is None:
+                features = config['features']
+            if bottleneck_feature is None:
+                bottleneck_feature = config['bottleneck_feature']
+            self.width_multiplier = config.get('width_multiplier', None)
+        else:
+            # If both features and bottleneck are explicitly provided, width_multiplier is None
+            self.width_multiplier = None
+        
         self.in_c = in_c
         self.out_c = out_c
+        self.features = features  # Store features for reference
+        self.bottleneck_feature = bottleneck_feature  # Store bottleneck for reference
         self.lamb1_history = []
         self.lamb2_history = []
         self.activation = get_activation(activation_name)
@@ -198,8 +290,8 @@ class ResUNet(nn.Module):
         # absort the time dimension into the channel dimensionx = x.view(*x.shape[:-2], -1)           #### B, X, Y, T*C
         B, H, W, T, C = x.shape
         x = x.view(*x.shape[:-2], -1)           #### B, H, W, T*C
-        grid = self.get_grid(x)
-        x = torch.cat((x, grid), dim=-1)        #### B, H, W, T*C +2
+        # grid = self.get_grid(x)
+        # x = torch.cat((x, grid), dim=-1)        #### B, H, W, T*C +2
         x = x.permute(0, 3, 1, 2).contiguous() # (B, T*C+2, H, W)
         
         #Downsampling path
@@ -284,13 +376,72 @@ class ResUNet(nn.Module):
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     n_channels = 3
-    T_in = 7
+    T_in = 1
     T_ar = 1
-    model =  ResUNet(in_c = n_channels * T_in + 2 ,out_c = n_channels, 
-                     bottleneck_feature=512, 
-                     device=device).to(device)
     
-    # x = torch.rand(2, 96, 192, T_in, n_channels)
+    # Example 1: Use predefined size ('small', 'medium', 'large')
+    print("=" * 60)
+    print("Example 1: Small model (~16M parameters)")
+    print("=" * 60)
+    model_small = ResUNet(in_c=n_channels, out_c=n_channels, 
+                         target_params='small',
+                         device=device).to(device)
+    n_params_small = sum(p.numel() for p in model_small.parameters())
+    print(f"Small model parameters: {n_params_small:,} ({n_params_small/1e6:.2f}M)")
+    print(f"Features: {model_small.features}")
+    print(f"Bottleneck: {model_small.bottleneck_feature}")
+    print(f"Width multiplier: {model_small.width_multiplier}")
+    
+    print("\n" + "=" * 60)
+    print("Example 2: Medium model (~32M parameters)")
+    print("=" * 60)
+    model_medium = ResUNet(in_c=n_channels, out_c=n_channels, 
+                          target_params='medium',
+                          device=device).to(device)
+    n_params_medium = sum(p.numel() for p in model_medium.parameters())
+    print(f"Medium model parameters: {n_params_medium:,} ({n_params_medium/1e6:.2f}M)")
+    print(f"Features: {model_medium.features}")
+    print(f"Bottleneck: {model_medium.bottleneck_feature}")
+    print(f"Width multiplier: {model_medium.width_multiplier}")
+    
+    print("\n" + "=" * 60)
+    print("Example 3: Large model (~64M parameters, default)")
+    print("=" * 60)
+    model_large = ResUNet(in_c=n_channels, out_c=n_channels, 
+                         target_params='large',
+                         device=device).to(device)
+    n_params_large = sum(p.numel() for p in model_large.parameters())
+    print(f"Large model parameters: {n_params_large:,} ({n_params_large/1e6:.2f}M)")
+    print(f"Features: {model_large.features}")
+    print(f"Bottleneck: {model_large.bottleneck_feature}")
+    print(f"Width multiplier: {model_large.width_multiplier}")
+    
+    print("\n" + "=" * 60)
+    print("Example 4: Custom width multiplier")
+    print("=" * 60)
+    model_custom = ResUNet(in_c=n_channels, out_c=n_channels, 
+                          width_multiplier=0.6,  # Custom size
+                          device=device).to(device)
+    n_params_custom = sum(p.numel() for p in model_custom.parameters())
+    print(f"Custom model parameters: {n_params_custom:,} ({n_params_custom/1e6:.2f}M)")
+    print(f"Features: {model_custom.features}")
+    print(f"Bottleneck: {model_custom.bottleneck_feature}")
+    print(f"Width multiplier: {model_custom.width_multiplier}")
+    
+    # Test forward pass
+    print("\n" + "=" * 60)
+    print("Testing forward pass...")
+    print("=" * 60)
     x = torch.rand(2, 128, 128, T_in, n_channels)
-    y = model(x)
-    print(y.shape)
+    y = model_small(x)
+    print(f"Input shape: {x.shape}")
+    print(f"Output shape: {y.shape}")
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("Parameter Count Summary")
+    print("=" * 60)
+    print(f"Small  (target_params='small'):     {n_params_small/1e6:6.2f}M")
+    print(f"Medium (target_params='medium'):    {n_params_medium/1e6:6.2f}M")
+    print(f"Large  (target_params='large'):     {n_params_large/1e6:6.2f}M")
+    print(f"Custom (width_multiplier=0.6):      {n_params_custom/1e6:6.2f}M")
