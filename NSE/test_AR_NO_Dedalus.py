@@ -186,16 +186,43 @@ def load_data_model(just_load_path=False):
     # model_path = log_path + '/model.pth' # for testing, note: to be deleted later
     print(model_path)
     
-    # Create a function to generate log paths for different models
+    # Create a function to find log paths for different models
+    # Search for existing directories that match the pattern
+    log_dir = os.path.dirname(log_path)  # e.g., './logs' or parent directory
+    
     def get_log_path_for_model(model_name):
-        """Generate log path for a given model name by replacing args.model in the comment."""
-        # Replace args.model with the new model_name in the comment
+        """Find log path for a given model name by searching existing directories."""
+        # Replace args.model with the new model_name in the comment to create search pattern
         comment_with_new_model = comment.replace(f'_{args.model}_', f'_{model_name}_')
         if comment_with_new_model == comment:  # If no replacement happened, try without underscores
             comment_with_new_model = comment.replace(args.model, model_name, 1)
-        # Generate path using the same logic as above
-        new_log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment_with_new_model if len(args.log_path)==0 else os.path.join('./logs', args.log_path + comment_with_new_model)
-        return new_log_path
+        
+        # Search for directories matching the pattern
+        # Pattern format: *{comment_with_new_model} (may have prefix)
+        if not os.path.exists(log_dir):
+            return None
+            
+        # Get all directories in log_dir
+        try:
+            all_dirs = [d for d in os.listdir(log_dir) if os.path.isdir(os.path.join(log_dir, d))]
+        except:
+            return None
+        
+        # Find directories that end with the comment pattern
+        matching_dirs = [d for d in all_dirs if d.endswith(comment_with_new_model)]
+        
+        if matching_dirs:
+            # Return the first matching directory (full path)
+            return os.path.join(log_dir, matching_dirs[0])
+        else:
+            # If no exact match, try to find any directory containing the model name and dataset
+            # Look for pattern like: *{dataset}_{model_name}_*
+            search_pattern = f'{args.dataset}_{model_name}_'
+            matching_dirs = [d for d in all_dirs if search_pattern in d]
+            if matching_dirs:
+                return os.path.join(log_dir, matching_dirs[0])
+        
+        return None
     
     # if just_load_path, return the log_path and the generator function
     if just_load_path:
@@ -1953,8 +1980,13 @@ if __name__ == '__main__':
     log_paths_dict = {}
     for model_name in model_names:
         generated_path = get_log_path_for_model(model_name)
+        print(f"Checking path for {model_name}: {generated_path}")
+        print(f"  Path exists: {os.path.exists(generated_path)}")
         if os.path.exists(generated_path):
             log_paths_dict[model_name] = generated_path
+            print(f"  Added {model_name} to comparison")
+        else:
+            print(f"  Warning: Path does not exist for {model_name}, skipping")
     
     # Create save directory in parent folder with dataset and dataset_type name
     # e.g., ./logs/ns2d_dedalus_big_long/
