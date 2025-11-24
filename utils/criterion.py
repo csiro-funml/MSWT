@@ -618,7 +618,7 @@ class Rel_Spectral_bias(_WeightedLoss):
         nyquist_freq = int((np.pi * pred.shape[1]) / Lx)
         start_freq = 1
         # compute the relative spectral bias, shape (B, K_range)
-        rel_spectral_bias = torch.abs(Ek_pred[:, start_freq:nyquist_freq] - Ek_target[:, start_freq:nyquist_freq]) / (Ek_target[:, start_freq:nyquist_freq] + 1e-8)
+        rel_spectral_bias = torch.abs(Ek_pred[:, start_freq:nyquist_freq] - Ek_target[:, start_freq:nyquist_freq]) / (torch.abs(Ek_target[:, start_freq:nyquist_freq]))
         # print("rel_spectral_bias shape", rel_spectral_bias.shape)
         # get the energy spectrum of the error
         if method == 'avg':

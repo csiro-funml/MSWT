@@ -1972,30 +1972,30 @@ if __name__ == '__main__':
     
     
     # # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
-    # compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
+    compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
     
     # #### 4. Compare metrics across different methods
     # Create log_paths_dict using the path generator function
-    model_names = ['FNO', 'HFS']  # Specify which models to compare
-    log_paths_dict = {}
-    for model_name in model_names:
-        generated_path = get_log_path_for_model(model_name)
-        print(f"Checking path for {model_name}: {generated_path}")
-        print(f"  Path exists: {os.path.exists(generated_path)}")
-        if os.path.exists(generated_path):
-            log_paths_dict[model_name] = generated_path
-            print(f"  Added {model_name} to comparison")
-        else:
-            print(f"  Warning: Path does not exist for {model_name}, skipping")
+    # model_names = ['FNO', 'HFS']  # Specify which models to compare
+    # log_paths_dict = {}
+    # for model_name in model_names:
+    #     generated_path = get_log_path_for_model(model_name)
+    #     print(f"Checking path for {model_name}: {generated_path}")
+    #     print(f"  Path exists: {os.path.exists(generated_path)}")
+    #     if os.path.exists(generated_path):
+    #         log_paths_dict[model_name] = generated_path
+    #         print(f"  Added {model_name} to comparison")
+    #     else:
+    #         print(f"  Warning: Path does not exist for {model_name}, skipping")
     
-    # Create save directory in parent folder with dataset and dataset_type name
-    # e.g., ./logs/ns2d_dedalus_big_long/
-    log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
-    comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
+    # # Create save directory in parent folder with dataset and dataset_type name
+    # # e.g., ./logs/ns2d_dedalus_big_long/
+    # log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
+    # comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
     
-    combined_df, figures = compare_methods_metrics(
-        log_paths_dict=log_paths_dict,
-        dataset_type=args.dataset_type,
-        save_dir=comparison_save_dir,
-        metrics_to_plot=None  # Plots all metrics if None
-    )
+    # combined_df, figures = compare_methods_metrics(
+    #     log_paths_dict=log_paths_dict,
+    #     dataset_type=args.dataset_type,
+    #     save_dir=comparison_save_dir,
+    #     metrics_to_plot=None  # Plots all metrics if None
+    # )
