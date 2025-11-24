@@ -457,6 +457,198 @@ class EnergySpectrumBias1D(_WeightedLoss):
         loss = Ek_error.mean() # average over frequency bins and over the samples
         return loss
 
+
+
+class Rel_Spectral_bias(_WeightedLoss):
+    def __init__(self, target_data=None, Lx=2*np.pi, Ly=2*np.pi, 
+                 ux_dim=1, uy_dim=2, low_percentile=0.7, high_percentile=0.97,
+                 dataset_form='velocity', convert_streamfunction=True, method=None):
+        """
+        target_data: Optional target data (T, H, W, C) to compute k_low and k_high from.
+                     If provided, averages over time steps and computes frequency bands.
+        Lx, Ly: Domain sizes (default 2*pi)
+        ux_dim, uy_dim: Channel dimensions for velocity components
+        low_percentile, high_percentile: Percentiles for frequency band computation
+        dataset_form: 'velocity' or 'vorticity' to determine data format
+        convert_streamfunction: If True and dataset_form='vorticity', convert streamfunction to velocity
+        method: Deprecated. Method is now passed to forward() instead. Kept for backward compatibility.
+        """
+        super(Rel_Spectral_bias, self).__init__()
+        self.Lx = Lx
+        self.Ly = Ly
+        self.ux_dim = ux_dim
+        self.uy_dim = uy_dim
+        self.low_percentile = low_percentile
+        self.high_percentile = high_percentile
+        self.dataset_form = dataset_form
+        self.convert_streamfunction = convert_streamfunction
+        
+        # Handle deprecated method parameter (backward compatibility)
+        if method is not None:
+            import warnings
+            warnings.warn("The 'method' parameter in __init__ is deprecated. Pass method to forward() instead.", 
+                         DeprecationWarning, stacklevel=2)
+        
+        # Initialize k_low and k_high (will be computed if target_data provided)
+        self.k_low = None
+        self.k_high = None
+        
+        # Compute frequency bands from target data if provided
+        if target_data is not None:
+            self.set_frequency_bands(target_data, dataset_form=dataset_form, 
+                                     convert_streamfunction=convert_streamfunction)
+        
+    def set_frequency_bands(self, target_data, Lx=None, Ly=None, ux_dim=None, uy_dim=None, 
+                            dataset_form='velocity', convert_streamfunction=True):
+        """
+        Compute k_low and k_high from target data by computing energy spectrum for each time step
+        and then averaging the spectra (not averaging the fields first).
+        
+        Args:
+            target_data: Target data tensor with shape (T, H, W, C)
+            Lx, Ly: Domain sizes (uses class defaults if None)
+            ux_dim, uy_dim: Velocity channel dimensions (uses class defaults if None).
+                           For vorticity form, these refer to streamfunction channel if convert_streamfunction=True.
+            dataset_form: 'velocity' or 'vorticity' to determine data format
+            convert_streamfunction: If True and dataset_form='vorticity', convert streamfunction to velocity
+        """
+        Lx = Lx if Lx is not None else self.Lx
+        Ly = Ly if Ly is not None else self.Ly
+        ux_dim = ux_dim if ux_dim is not None else self.ux_dim
+        uy_dim = uy_dim if uy_dim is not None else self.uy_dim
+        
+        # Ensure target_data is torch tensor
+        if not isinstance(target_data, torch.Tensor):
+            target_data = torch.tensor(target_data, dtype=torch.float32)
+        
+        # target_data shape: (T, H, W, C)
+        T = target_data.shape[0]
+        H, W = target_data.shape[1], target_data.shape[2]
+        
+        # Import streamfunction conversion if needed
+        if dataset_form == 'vorticity' and convert_streamfunction:
+            from utils.compute_diagnostics import streamfunction_to_velocity
+        
+        # Compute energy spectrum for each time step, then average
+        Ek_list = []
+        k_bins = None
+        
+        for t_idx in range(T):
+            target_t = target_data[t_idx]  # (H, W, C)
+            
+            # Extract velocity components based on dataset form
+            if dataset_form == 'vorticity' and convert_streamfunction:
+                # For vorticity form, extract streamfunction and convert to velocity
+                if target_t.shape[-1] > max(ux_dim, uy_dim):
+                    # Assume streamfunction is at the channel index specified by ux_dim
+                    # (typically channel 1 for [vorticity, streamfunction])
+                    psi_t = target_t[..., ux_dim]  # (H, W) - streamfunction
+                    # Convert streamfunction to velocity using numpy version (for initialization)
+                    ux_t_np, uy_t_np = streamfunction_to_velocity(psi_t.detach().cpu().numpy(), Lx, Ly)
+                    ux_t = torch.from_numpy(ux_t_np).to(target_t.device).to(target_t.dtype)
+                    uy_t = torch.from_numpy(uy_t_np).to(target_t.device).to(target_t.dtype)
+                else:
+                    raise ValueError(f"Vorticity form requires at least {max(ux_dim, uy_dim)+1} channels, but got {target_t.shape[-1]}")
+            else:
+                # For velocity form or when not converting, use channels directly
+                ux_t = target_t[..., ux_dim]  # (H, W)
+                uy_t = target_t[..., uy_dim]  # (H, W)
+            
+            # Compute spectral energy for this time step (returns (mmax+1,) for single sample)
+            k_bins_t, Ek_t = compute_spectra_torch(ux_t, uy_t, Lx, Ly)
+            
+            # Store k_bins from first time step (should be the same for all)
+            if k_bins is None:
+                k_bins = k_bins_t
+            
+            # Store energy spectrum for this time step
+            Ek_list.append(Ek_t)
+        
+        # Average energy spectra across all time steps
+        # Stack all spectra: each Ek_t has shape (mmax+1,), stack to get (T, mmax+1)
+        Ek_stack = torch.stack(Ek_list, dim=0)  # (T, mmax+1)
+        Ek_target_avg = Ek_stack.mean(dim=0)  # (mmax+1,) - average over time
+        
+        # Get nyquist frequency
+        nyquist_freq = int((np.pi * H) / Lx)
+        start_freq = 1
+        
+        # Extract frequency range
+        E_freq = Ek_target_avg[start_freq:nyquist_freq].detach().cpu().numpy()  # (K_range,)
+        
+        # Compute cumulative sum
+        E_freq_cumsum = np.cumsum(E_freq)
+        if E_freq_cumsum[-1] > 0:
+            E_freq_cumsum = E_freq_cumsum / E_freq_cumsum[-1]
+        else:
+            # Handle edge case where all energy is zero
+            E_freq_cumsum = np.ones_like(E_freq_cumsum)
+        
+        # Find frequency indices from percentiles
+        self.k_low, self.k_high = find_freq_from_percentile(
+            E_freq_cumsum, self.low_percentile, self.high_percentile
+        )
+        
+        # Store k_bins for reference (first few for debugging)
+        self.k_bins_sample = k_bins.detach().cpu().numpy() if isinstance(k_bins, torch.Tensor) else k_bins
+
+    def forward(self, pred, target, method='avg', Lx=None, Ly=None, ux_dim=None, uy_dim=None, 
+                low_percentile=None, high_percentile=None):
+        """
+        pred: (B, H, W, T, C)
+        target: (B, H, W, T, C)
+        method: 'avg' for average over frequency bins and over the samples
+                'high' for high frequency bins
+                'mid' for mid frequency bins
+                'low' for low frequency bins
+        Lx, Ly: Domain sizes (uses class defaults if None)
+        ux_dim, uy_dim: Velocity channel dimensions (uses class defaults if None)
+        low_percentile, high_percentile: Percentiles (uses class defaults if None, 
+                                         only used if k_low/k_high not precomputed)
+        """
+        # Use class defaults if not provided
+        Lx = Lx if Lx is not None else self.Lx
+        Ly = Ly if Ly is not None else self.Ly
+        ux_dim = ux_dim if ux_dim is not None else self.ux_dim
+        uy_dim = uy_dim if uy_dim is not None else self.uy_dim
+        
+        k_bins, Ek_pred = compute_spectra_torch(pred[...,0,ux_dim], pred[...,0,uy_dim], Lx, Ly) # Ek shape (B,K_max+1)
+        k_bins, Ek_target = compute_spectra_torch(target[...,0,ux_dim], target[...,0,uy_dim], Lx, Ly)
+        # get the nyquist frequency
+        nyquist_freq = int((np.pi * pred.shape[1]) / Lx)
+        start_freq = 1
+        # compute the relative spectral bias, shape (B, K_range)
+        rel_spectral_bias = torch.abs(Ek_pred[:, start_freq:nyquist_freq] - Ek_target[:, start_freq:nyquist_freq]) / (Ek_target[:, start_freq:nyquist_freq] + 1e-8)
+        print("rel_spectral_bias shape", rel_spectral_bias.shape)
+        # get the energy spectrum of the error
+        if method == 'avg':
+            loss = rel_spectral_bias.mean()
+        else:
+            # Use precomputed k_low and k_high if available, otherwise compute from current batch
+            if self.k_low is not None and self.k_high is not None:
+                k_low = self.k_low
+                k_high = self.k_high
+            else:
+                # Fallback to per-batch computation (backward compatibility)
+                low_percentile = low_percentile if low_percentile is not None else self.low_percentile
+                high_percentile = high_percentile if high_percentile is not None else self.high_percentile
+                E_freq = Ek_target[:, start_freq:nyquist_freq].mean(dim=0)  # shape (K_range,)
+                E_freq_cumsum = np.cumsum(E_freq.detach().cpu().numpy())
+                if E_freq_cumsum[-1] > 0:
+                    E_freq_cumsum = E_freq_cumsum / E_freq_cumsum[-1]
+                else:
+                    E_freq_cumsum = np.ones_like(E_freq_cumsum)
+                k_low, k_high = find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile)
+
+            if method == 'high':
+                loss = rel_spectral_bias[:, :k_high].mean()
+            elif method == 'mid':
+                loss = rel_spectral_bias[:, k_low:k_high].mean()
+            elif method == 'low':
+                loss = rel_spectral_bias[:, :k_low].mean()
+        return loss
+
+
 class FourierLoss1D(_WeightedLoss):
     """ 1D fourier loss 
     aggregate the spectral into radial bins and then compute the loss

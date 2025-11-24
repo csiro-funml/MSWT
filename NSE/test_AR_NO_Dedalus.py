@@ -32,7 +32,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import scipy.stats as stats
-from utils.criterion import RelL2Norm, RMSE, BoundaryRMSE, MaxAbsError, GlobalMaxAbsError, SpectralError, Energy_Enstropy_SpectrumError
+from utils.criterion import RelL2Norm, Rel_Spectral_bias
 from visualizations import plot_enstrophy_spectrum, spectrum_2d
 from utils.compute_physical_statistics import compute_spectra
 from utils.compute_diagnostics import streamfunction_to_velocity
@@ -1551,24 +1551,384 @@ def plot_time_step_comparison(log_path, time_step, dataset_type='long', save_pat
     return fig
 
 
+
+def compute_evalutation_metrics(log_path='', dataset_type='long', model_name=None):
+    """
+    Compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias, rel_spectral_bias high/mid/low)
+    
+    Args:
+        log_path: Path to directory containing test_data_prediction file
+        dataset_type: 'long' or 'short' to determine which file to load
+        model_name: Optional model name. If None, extracted from log_path
+    
+    Returns:
+        DataFrame with columns: step, time_step (if time_idx exists), rel_l2_norm, avg_rel_spectral_bias, 
+                                rel_spectral_bias_high, rel_spectral_bias_mid, rel_spectral_bias_low, model_name
+    """
+    # Load data based on dataset_type (similar to load_and_animate_predictions)
+    if dataset_type == 'long':
+        data_path = f'{log_path}/test_data_prediction_long.pth'
+    else:
+        data_path = f'{log_path}/test_data_prediction.pth'
+    
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"Data file not found: {data_path}")
+    
+    save_data = torch.load(data_path, map_location='cpu')
+    print(f"Loaded data from {data_path}")
+    
+    # Extract model name from log_path if not provided
+    if model_name is None:
+        # Extract model name from log_path (e.g., "FNO", "HFS", etc.)
+        # log_path format: ./logs/ns2d_dedalus_big_FNO_mod32_... or ./logs/something/FNO_mod32_...
+        path_parts = log_path.replace('\\', '/').split('/')
+        last_part = path_parts[-1] if path_parts else log_path
+        # Try to find model name (FNO, HFS, etc.) in the path
+        model_candidates = ['FNO', 'HFS', 'UNet', 'HANO', 'UNO', 'WaveletTrans', 'PDERefiner']
+        model_name = 'Unknown'
+        for candidate in model_candidates:
+            if candidate in last_part:
+                model_name = candidate
+                break
+    
+    # Handle new data structure (pred, target, forcing, time_idx)
+    if 'pred' in save_data and 'target' in save_data:
+        # New structure
+        pred = save_data['pred']  # (T, H, W, C) or (T, H, W, 1, C)
+        target = save_data['target']  # (T, H, W, C) or (T, H, W, 1, C)
+        if len(target.shape) == 4 and len(pred.shape) == 5:
+            # Handle shape mismatch
+            target = target.unsqueeze(-2)  # (T, H, W, 1, C)
+        elif len(target.shape) == 5 and len(pred.shape) == 4:
+            pred = pred.unsqueeze(-2)  # (T, H, W, 1, C)
+        time_idx = save_data.get('time_idx', None)
+        
+        # Ensure pred and target have consistent shape
+        if len(pred.shape) == 4:  # (T, H, W, C)
+            pred = pred.unsqueeze(-2)  # (T, H, W, 1, C)
+        if len(target.shape) == 4:  # (T, H, W, C)
+            target = target.unsqueeze(-2)  # (T, H, W, 1, C)
+    else:
+        # Old structure (backward compatibility)
+        pred = save_data.get('pred')  # (T, H, W, 1, C)
+        target = save_data.get('output')  # (T, H, W, 1, C)
+        time_idx = None
+    
+    print("Compute the evaluation metrics over time, pred shape", pred.shape, "target shape", target.shape)
+    
+    # Determine velocity channel dimensions based on dataset form
+    dataset_form = save_data.get('dataset_form', 'velocity')
+    if dataset_form == 'velocity':
+        ux_dim, uy_dim = 1, 2  # velocity_x and velocity_y
+    elif dataset_form == 'vorticity':
+        # For vorticity form, we need to extract streamfunction first
+        # But Rel_Spectral_bias expects velocity, so we'll use ux_dim=1, uy_dim=2
+        # and let the user handle conversion if needed
+        ux_dim, uy_dim = 1, 2
+    else:
+        ux_dim, uy_dim = 1, 2  # Default
+    
+    # Domain size (default to 2*pi)
+    domain_size = save_data.get('domain_size', {'Lx': 2*np.pi, 'Ly': 2*np.pi})
+    Lx = domain_size.get('Lx', 2*np.pi)
+    Ly = domain_size.get('Ly', 2*np.pi)
+    
+    
+    # Initialize loss functions
+    loss_dict = {}
+    loss_dict['rel_l2_norm'] = RelL2Norm()
+    
+    # Create a single Rel_Spectral_bias instance with target data to compute k_low and k_high once
+    # The averaged spectrum will be computed only once in set_frequency_bands
+    rel_spectral_bias_loss = Rel_Spectral_bias(target_data=target.squeeze(-2),
+                                               Lx=Lx, Ly=Ly, ux_dim=ux_dim, uy_dim=uy_dim,
+                                               dataset_form=dataset_form, convert_streamfunction=True)
+    
+    # Extract k_low and k_high
+    k_low = rel_spectral_bias_loss.k_low
+    k_high = rel_spectral_bias_loss.k_high
+    if k_low is not None and k_high is not None:
+        print(f"Computed frequency bands from target (form={dataset_form}): k_low={k_low}, k_high={k_high}")
+    else:
+        print(f"Warning: k_low and k_high not computed")
+    
+    # Initialize DataFrame to store metrics
+    # Wide format: one row per time step, with columns for each metric
+    metrics_list = []
+    
+    # Get time indices for actual step numbers
+    if time_idx is not None:
+        time_idx = time_idx.numpy() if isinstance(time_idx, torch.Tensor) else time_idx
+    else:
+        time_idx = np.arange(pred.shape[0])
+    
+    # Compute metrics for each time step
+    for step_idx in range(pred.shape[0]):
+        # Get prediction and target for this step
+        # pred shape: (T, H, W, 1, C), we need (B, H, W, T, C) for loss functions
+        pred_step = pred[step_idx]  # (H, W, 1, C)
+        target_step = target[step_idx]  # (H, W, 1, C)
+        
+        # Add batch dimension and ensure correct shape (B, H, W, T, C)
+        pred_step = pred_step.unsqueeze(0)  # (1, H, W, 1, C)
+        target_step = target_step.unsqueeze(0)  # (1, H, W, 1, C)
+        
+        # Initialize row dictionary
+        row_dict = {
+            'step': step_idx,  # Sequential index
+            'time_step': int(time_idx[step_idx]),  # Actual time step (may be exponential)
+            'model_name': model_name,
+            'k_low': k_low if k_low is not None else np.nan,  # Frequency band indices
+            'k_high': k_high if k_high is not None else np.nan
+        }
+        
+        # Compute each metric
+        for key, loss_func in loss_dict.items():
+            # Loss functions expect (B, H, W, T, C) shape where:
+            # B = batch, H/W = spatial, T = time, C = channels
+            # Our shape (1, H, W, 1, C) matches this format
+            loss_metric = loss_func(pred_step, target_step)
+            row_dict[key] = loss_metric.item()
+            if step_idx < 5:  # Print first few steps
+                print(f"Step {step_idx} (time={int(time_idx[step_idx])}) {key}: {loss_metric.item():.6f}")
+        
+        # Compute spectral bias metrics using the single instance with different methods
+        row_dict['avg_rel_spectral_bias'] = rel_spectral_bias_loss(pred_step, target_step, method='avg').item()
+        row_dict['rel_spectral_bias_high'] = rel_spectral_bias_loss(pred_step, target_step, method='high').item()
+        row_dict['rel_spectral_bias_mid'] = rel_spectral_bias_loss(pred_step, target_step, method='mid').item()
+        row_dict['rel_spectral_bias_low'] = rel_spectral_bias_loss(pred_step, target_step, method='low').item()
+        
+        if step_idx < 5:  # Print first few steps
+            print(f"Step {step_idx} (time={int(time_idx[step_idx])}) avg_rel_spectral_bias: {row_dict['avg_rel_spectral_bias']:.6f}")
+            print(f"Step {step_idx} (time={int(time_idx[step_idx])}) rel_spectral_bias_high: {row_dict['rel_spectral_bias_high']:.6f}")
+            print(f"Step {step_idx} (time={int(time_idx[step_idx])}) rel_spectral_bias_mid: {row_dict['rel_spectral_bias_mid']:.6f}")
+            print(f"Step {step_idx} (time={int(time_idx[step_idx])}) rel_spectral_bias_low: {row_dict['rel_spectral_bias_low']:.6f}")
+        
+        metrics_list.append(row_dict)
+    
+    # Create DataFrame
+    metrics_df = pd.DataFrame(metrics_list)
+    
+    print(f"\nMetrics DataFrame shape: {metrics_df.shape}")
+    print(f"Metrics DataFrame columns: {metrics_df.columns.tolist()}")
+    print(f"\nFirst few rows:\n{metrics_df.head(10)}")
+    print(f"\nLast few rows:\n{metrics_df.tail(10)}")
+    
+    # Save to CSV
+    csv_filename = f"{log_path}/evaluation_metrics_{model_name}_{dataset_type}.csv"
+    metrics_df.to_csv(csv_filename, index=False)
+    print(f"\nSaved metrics to {csv_filename}")
+    
+    return metrics_df
+
+
+def compare_methods_metrics(log_paths_dict, dataset_type='long', save_dir=None, metrics_to_plot=None):
+    """
+    Compare evaluation metrics across different methods/models by loading saved CSV files.
+    
+    Args:
+        log_paths_dict: Dictionary mapping model names to their log paths
+                       Example: {'FNO': './logs/ns2d_dedalus_big_FNO_...', 
+                                'HFS': './logs/ns2d_dedalus_big_HFS_...'}
+        dataset_type: 'long' or 'short' to determine which CSV file to load
+        save_dir: Directory to save comparison plots. If None, uses first log_path's directory
+        metrics_to_plot: List of metrics to plot. If None, plots all available metrics.
+                        Options: ['rel_l2_norm', 'avg_rel_spectral_bias', 'rel_spectral_bias_high', 
+                                 'rel_spectral_bias_mid', 'rel_spectral_bias_low']
+    
+    Returns:
+        combined_df: Combined DataFrame with all methods' metrics
+        figures: Dictionary of matplotlib figures for each metric
+    """
+    if metrics_to_plot is None:
+        metrics_to_plot = ['rel_l2_norm', 'avg_rel_spectral_bias', 'rel_spectral_bias_high', 
+                          'rel_spectral_bias_mid', 'rel_spectral_bias_low']
+    
+    # Load CSV files for each method
+    all_dataframes = []
+    for model_name, log_path in log_paths_dict.items():
+        csv_path = f"{log_path}/evaluation_metrics_{model_name}_{dataset_type}.csv"
+        if not os.path.exists(csv_path):
+            print(f"Warning: CSV file not found for {model_name} at {csv_path}")
+            print(f"  Attempting to compute metrics...")
+            try:
+                # Try to compute metrics if CSV doesn't exist
+                compute_evalutation_metrics(log_path=log_path, dataset_type=dataset_type, model_name=model_name)
+            except Exception as e:
+                print(f"  Failed to compute metrics for {model_name}: {e}")
+                continue
+        
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            print(f"Loaded metrics for {model_name}: {df.shape[0]} time steps")
+            all_dataframes.append(df)
+        else:
+            print(f"  CSV still not found after computation attempt, skipping {model_name}")
+    
+    if not all_dataframes:
+        raise ValueError("No valid metrics found for any method. Please ensure CSV files exist or can be computed.")
+    
+    # Combine all dataframes
+    combined_df = pd.concat(all_dataframes, ignore_index=True)
+    print(f"\nCombined DataFrame shape: {combined_df.shape}")
+    print(f"Methods included: {combined_df['model_name'].unique().tolist()}")
+    
+    # Determine save directory
+    if save_dir is None:
+        save_dir = list(log_paths_dict.values())[0]
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # Get available metrics (intersection of requested and available)
+    available_metrics = [m for m in metrics_to_plot if m in combined_df.columns]
+    if not available_metrics:
+        raise ValueError(f"None of the requested metrics {metrics_to_plot} found in the data. Available columns: {combined_df.columns.tolist()}")
+    
+    # Create plots for each metric
+    figures = {}
+    n_methods = len(combined_df['model_name'].unique())
+    colors = plt.cm.tab10(np.linspace(0, 1, n_methods))
+    color_map = {name: colors[i] for i, name in enumerate(sorted(combined_df['model_name'].unique()))}
+    
+    for metric in available_metrics:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        # Plot each method
+        for model_name in sorted(combined_df['model_name'].unique()):
+            model_data = combined_df[combined_df['model_name'] == model_name].copy()
+            model_data = model_data.sort_values('time_step')
+            
+            # Use time_step for x-axis if available, otherwise use step
+            if 'time_step' in model_data.columns:
+                x_values = model_data['time_step'].values
+                x_label = 'Time Step'
+            else:
+                x_values = model_data['step'].values
+                x_label = 'Step Index'
+            
+            y_values = model_data[metric].values
+            
+            ax.plot(x_values, y_values, 
+                   label=model_name, 
+                   color=color_map[model_name],
+                   linewidth=2,
+                   marker='o',
+                   markersize=3,
+                   alpha=0.8)
+        
+        ax.set_xlabel(x_label, fontsize=12)
+        ax.set_ylabel(metric.replace('_', ' ').title(), fontsize=12)
+        ax.set_title(f'{metric.replace("_", " ").title()} Comparison Across Methods', fontsize=14, fontweight='bold')
+        ax.legend(fontsize=10, loc='best')
+        ax.grid(True, alpha=0.3)
+        
+        # Use log scale for y-axis if metric contains 'spectral' or values span orders of magnitude
+        if 'spectral' in metric.lower() or combined_df[metric].max() / (combined_df[metric].min() + 1e-10) > 100:
+            ax.set_yscale('log')
+        
+        plt.tight_layout()
+        
+        # Save figure
+        save_path = os.path.join(save_dir, f'metrics_comparison_{metric}_{dataset_type}.png')
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Saved comparison plot for {metric} to {save_path}")
+        
+        figures[metric] = fig
+    
+    # Create a combined plot with all metrics in subplots
+    n_metrics = len(available_metrics)
+    n_cols = min(3, n_metrics)
+    n_rows = (n_metrics + n_cols - 1) // n_cols
+    
+    fig_combined, axes = plt.subplots(n_rows, n_cols, figsize=(6*n_cols, 4*n_rows))
+    if n_metrics == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten() if n_rows > 1 else axes
+    
+    for idx, metric in enumerate(available_metrics):
+        ax = axes[idx]
+        
+        # Plot each method
+        for model_name in sorted(combined_df['model_name'].unique()):
+            model_data = combined_df[combined_df['model_name'] == model_name].copy()
+            model_data = model_data.sort_values('time_step')
+            
+            if 'time_step' in model_data.columns:
+                x_values = model_data['time_step'].values
+            else:
+                x_values = model_data['step'].values
+            
+            y_values = model_data[metric].values
+            
+            ax.plot(x_values, y_values, 
+                   label=model_name, 
+                   color=color_map[model_name],
+                   linewidth=2,
+                   marker='o',
+                   markersize=2,
+                   alpha=0.8)
+        
+        ax.set_xlabel('Time Step', fontsize=10)
+        ax.set_ylabel(metric.replace('_', ' ').title(), fontsize=10)
+        ax.set_title(metric.replace('_', ' ').title(), fontsize=11, fontweight='bold')
+        ax.legend(fontsize=8, loc='best')
+        ax.grid(True, alpha=0.3)
+        
+        if 'spectral' in metric.lower() or combined_df[metric].max() / (combined_df[metric].min() + 1e-10) > 100:
+            ax.set_yscale('log')
+    
+    # Hide unused subplots
+    for idx in range(n_metrics, len(axes)):
+        axes[idx].axis('off')
+    
+    plt.tight_layout()
+    
+    # Save combined figure
+    combined_save_path = os.path.join(save_dir, f'metrics_comparison_all_{dataset_type}.png')
+    plt.savefig(combined_save_path, dpi=150, bbox_inches='tight')
+    print(f"Saved combined comparison plot to {combined_save_path}")
+    
+    figures['combined'] = fig_combined
+    
+    # Save combined DataFrame to CSV
+    combined_csv_path = os.path.join(save_dir, f'metrics_combined_{dataset_type}.csv')
+    combined_df.to_csv(combined_csv_path, index=False)
+    print(f"Saved combined metrics DataFrame to {combined_csv_path}")
+    
+    return combined_df, figures
+
+
 if __name__ == '__main__':
     
     #### 1. predict and save the data
     #if you dont have the dataloader, comment this line
-    model, test_loader, log_path = load_data_model(just_load_path=False)
+    model, test_loader, log_path = load_data_model(just_load_path=True)
     
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
-    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
+    # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
     
     
     #### 2. Plot a pred. target and eror as well as spectral comparison at any time step
     # for time_step in [32, 64, 80, 100, 150, 200, 250, 300]:
     # for time_step in [32]:
-        # plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
+    #     plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
     
     # #### 3. load the save_data and create animations (prediction and spectral comparison)c
     # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
     # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
-    # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
+    compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
+    
+    # #### 4. Compare metrics across different methods
+    # Example usage:
+    # log_paths_dict = {
+    #     'FNO': './logs/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_normalizer_zscore_form_velocity',
+    #     'HFS': './logs/ns2d_dedalus_big_HFS_mod16_wid64_lay8_ntrain32006_normalizer_zscore_form_velocity'
+    # }
+    # combined_df, figures = compare_methods_metrics(
+    #     log_paths_dict=log_paths_dict,
+    #     dataset_type=args.dataset_type,
+    #     save_dir=None,  # Uses first log_path if None
+    #     metrics_to_plot=None  # Plots all metrics if None
+    # )
