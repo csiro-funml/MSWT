@@ -461,7 +461,7 @@ class EnergySpectrumBias1D(_WeightedLoss):
 
 class Rel_Spectral_bias(_WeightedLoss):
     def __init__(self, target_data=None, Lx=2*np.pi, Ly=2*np.pi, 
-                 ux_dim=1, uy_dim=2, low_percentile=0.7, high_percentile=0.97,
+                 ux_dim=1, uy_dim=2, low_percentile=0.7, high_percentile=0.99,
                  dataset_form='velocity', convert_streamfunction=True, method=None):
         """
         target_data: Optional target data (T, H, W, C) to compute k_low and k_high from.
@@ -619,7 +619,7 @@ class Rel_Spectral_bias(_WeightedLoss):
         start_freq = 1
         # compute the relative spectral bias, shape (B, K_range)
         rel_spectral_bias = torch.abs(Ek_pred[:, start_freq:nyquist_freq] - Ek_target[:, start_freq:nyquist_freq]) / (Ek_target[:, start_freq:nyquist_freq] + 1e-8)
-        print("rel_spectral_bias shape", rel_spectral_bias.shape)
+        # print("rel_spectral_bias shape", rel_spectral_bias.shape)
         # get the energy spectrum of the error
         if method == 'avg':
             loss = rel_spectral_bias.mean()
