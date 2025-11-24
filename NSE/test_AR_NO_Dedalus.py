@@ -1555,32 +1555,20 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     #if you dont have the dataloader, comment this line
-    model, test_loader, log_path = load_data_model(just_load_path=True)
+    model, test_loader, log_path = load_data_model(just_load_path=False)
     
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
-    # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
+    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
     
     
-    #### 2. Plot a pred. target and eror at any time step
+    #### 2. Plot a pred. target and eror as well as spectral comparison at any time step
     # for time_step in [32, 64, 80, 100, 150, 200, 250, 300]:
-    for time_step in [32]:
-        plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
+    # for time_step in [32]:
+        # plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
     
-    # #### 3. load the save_data and create animations
+    # #### 3. load the save_data and create animations (prediction and spectral comparison)c
     # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
-    
-    
-    
-    # #### 3. compute different types of metrics
+    # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
     # compute_evalutation_metrics(save_data, model_name=args.model, log_path=log_path)
-
-    #### 4. postprocessing save the data for diffusion training
-    # no_postprocessing_pred_save_data(args)
-
-    #### 5. plot the spectral error
-    # plot_spectral_error(save_data, model_name=args.model, log_path=log_path)
-    
-    #### 6. create animations (uncomment to generate animations)
-    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, save_animation=True, fps=10, k_zoom_threshold=20)
