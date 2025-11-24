@@ -244,9 +244,9 @@ def load_data_model(just_load_path=False):
     elif args.model == 'wavelet_transformer':
         model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
     elif args.model == 'HFS':
-        model =  ResUNet(in_c = train_dataset.n_channels * args.T_in + 2 ,out_c = train_dataset.n_channels, 
-                 bottleneck_feature=512, 
-                 device=device).to(device)
+        model =ResUNet(in_c=train_dataset.n_channels_in[args.form],out_c=train_dataset.n_channels_out[args.form],
+                    target_params='small',
+                    device=device).to(device)
     elif args.model == 'wavelet_transformer_skip':
         model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
     elif args.model == 'WaveletTransV2':
@@ -1929,41 +1929,41 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     #if you dont have the dataloader, comment this line
-    model, test_loader, log_path, get_log_path_for_model = load_data_model(just_load_path=True)
+    model, test_loader, log_path, get_log_path_for_model = load_data_model(just_load_path=False)
     
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
-    # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
+    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
     
     
     #### 2. Plot a pred. target and eror as well as spectral comparison at any time step
-    # for time_step in [32, 64, 80, 100, 150, 200, 250, 300]:
+    for time_step in [32, 64, 80, 100, 150, 200, 250, 300]:
     # for time_step in [32]:
-    #     plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
+        plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
     
     # #### 3. load the save_data and create animations (prediction and spectral comparison)c
-    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
+    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
     # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
-    # compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
+    compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
     
     # #### 4. Compare metrics across different methods
     # Create log_paths_dict using the path generator function
-    model_names = ['FNO',]  # Specify which models to compare
-    log_paths_dict = {}
-    for model_name in model_names:
-        generated_path = get_log_path_for_model(model_name)
-        if os.path.exists(generated_path):
-            log_paths_dict[model_name] = generated_path
+    # model_names = ['FNO',]  # Specify which models to compare
+    # log_paths_dict = {}
+    # for model_name in model_names:
+    #     generated_path = get_log_path_for_model(model_name)
+    #     if os.path.exists(generated_path):
+    #         log_paths_dict[model_name] = generated_path
     
-    # Create save directory in parent folder with dataset and dataset_type name
-    # e.g., ./logs/ns2d_dedalus_big_long/
-    log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
-    comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
+    # # Create save directory in parent folder with dataset and dataset_type name
+    # # e.g., ./logs/ns2d_dedalus_big_long/
+    # log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
+    # comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
     
-    combined_df, figures = compare_methods_metrics(
-        log_paths_dict=log_paths_dict,
-        dataset_type=args.dataset_type,
-        save_dir=comparison_save_dir,
-        metrics_to_plot=None  # Plots all metrics if None
-    )
+    # combined_df, figures = compare_methods_metrics(
+    #     log_paths_dict=log_paths_dict,
+    #     dataset_type=args.dataset_type,
+    #     save_dir=comparison_save_dir,
+    #     metrics_to_plot=None  # Plots all metrics if None
+    # )
