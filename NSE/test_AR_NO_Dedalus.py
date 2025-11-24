@@ -1929,14 +1929,14 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     #if you dont have the dataloader, comment this line
-    model, test_loader, log_path, get_log_path_for_model = load_data_model(just_load_path=False)
+    model, test_loader, log_path, get_log_path_for_model = load_data_model(just_load_path=True)
     
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
-    pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
+    # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
     
     
     #### 2. Plot a pred. target and eror as well as spectral comparison at any time step
-    for time_step in [32, 64, 80, 100, 150, 200, 250, 300]:
+    for time_step in [32, 64, 80, 100, 150, 200, 250]:
     # for time_step in [32]:
         plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
     
@@ -1949,21 +1949,21 @@ if __name__ == '__main__':
     
     # #### 4. Compare metrics across different methods
     # Create log_paths_dict using the path generator function
-    # model_names = ['FNO',]  # Specify which models to compare
-    # log_paths_dict = {}
-    # for model_name in model_names:
-    #     generated_path = get_log_path_for_model(model_name)
-    #     if os.path.exists(generated_path):
-    #         log_paths_dict[model_name] = generated_path
+    model_names = ['FNO', 'HFS']  # Specify which models to compare
+    log_paths_dict = {}
+    for model_name in model_names:
+        generated_path = get_log_path_for_model(model_name)
+        if os.path.exists(generated_path):
+            log_paths_dict[model_name] = generated_path
     
-    # # Create save directory in parent folder with dataset and dataset_type name
-    # # e.g., ./logs/ns2d_dedalus_big_long/
-    # log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
-    # comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
+    # Create save directory in parent folder with dataset and dataset_type name
+    # e.g., ./logs/ns2d_dedalus_big_long/
+    log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
+    comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
     
-    # combined_df, figures = compare_methods_metrics(
-    #     log_paths_dict=log_paths_dict,
-    #     dataset_type=args.dataset_type,
-    #     save_dir=comparison_save_dir,
-    #     metrics_to_plot=None  # Plots all metrics if None
-    # )
+    combined_df, figures = compare_methods_metrics(
+        log_paths_dict=log_paths_dict,
+        dataset_type=args.dataset_type,
+        save_dir=comparison_save_dir,
+        metrics_to_plot=None  # Plots all metrics if None
+    )
