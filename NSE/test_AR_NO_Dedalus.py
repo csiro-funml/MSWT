@@ -1786,8 +1786,24 @@ def compare_methods_metrics(log_paths_dict, dataset_type='long', save_dir=None, 
     
     # Determine save directory
     if save_dir is None:
-        save_dir = list(log_paths_dict.values())[0]
+        # Fallback: use parent of first log_path with dataset and dataset_type
+        first_log_path = list(log_paths_dict.values())[0]
+        log_path_parent = os.path.dirname(first_log_path)
+        # Extract dataset name from log path (e.g., ns2d_dedalus_big from ns2d_dedalus_big_FNO_...)
+        first_path_name = os.path.basename(first_log_path)
+        # Find dataset name (everything before the first model name)
+        dataset_name = None
+        for model in ['FNO', 'HFS', 'UNet', 'HANO', 'UNO', 'WaveletTrans', 'PDERefiner']:
+            if f'_{model}_' in first_path_name:
+                dataset_name = first_path_name.split(f'_{model}_')[0]
+                break
+        if dataset_name is None:
+            dataset_name = 'unknown_dataset'
+        save_dir = os.path.join(log_path_parent, f'{dataset_name}_{dataset_type}')
+    
+    # Create save directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
+    print(f"Saving comparison results to: {save_dir}")
     
     # Get available metrics (intersection of requested and available)
     available_metrics = [m for m in metrics_to_plot if m in combined_df.columns]
@@ -1940,9 +1956,14 @@ if __name__ == '__main__':
         if os.path.exists(generated_path):
             log_paths_dict[model_name] = generated_path
     
+    # Create save directory in parent folder with dataset and dataset_type name
+    # e.g., ./logs/ns2d_dedalus_big_long/
+    log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
+    comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
+    
     combined_df, figures = compare_methods_metrics(
         log_paths_dict=log_paths_dict,
         dataset_type=args.dataset_type,
-        save_dir=None,  # Uses first log_path if None
+        save_dir=comparison_save_dir,
         metrics_to_plot=None  # Plots all metrics if None
     )
