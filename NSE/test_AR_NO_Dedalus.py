@@ -1941,11 +1941,11 @@ if __name__ == '__main__':
     #     plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
     
     # #### 3. load the save_data and create animations (prediction and spectral comparison)c
-    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
+    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
-    # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
-    compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
+    # # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
+    # compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
     
     # #### 4. Compare metrics across different methods
     # Create log_paths_dict using the path generator function
