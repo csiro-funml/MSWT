@@ -186,9 +186,20 @@ def load_data_model(just_load_path=False):
     # model_path = log_path + '/model.pth' # for testing, note: to be deleted later
     print(model_path)
     
-    # if just_load_path, return the log_path
+    # Create a function to generate log paths for different models
+    def get_log_path_for_model(model_name):
+        """Generate log path for a given model name by replacing args.model in the comment."""
+        # Replace args.model with the new model_name in the comment
+        comment_with_new_model = comment.replace(f'_{args.model}_', f'_{model_name}_')
+        if comment_with_new_model == comment:  # If no replacement happened, try without underscores
+            comment_with_new_model = comment.replace(args.model, model_name, 1)
+        # Generate path using the same logic as above
+        new_log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment_with_new_model if len(args.log_path)==0 else os.path.join('./logs', args.log_path + comment_with_new_model)
+        return new_log_path
+    
+    # if just_load_path, return the log_path and the generator function
     if just_load_path:
-        return None, test_loader,log_path
+        return None, test_loader, log_path, get_log_path_for_model
     
     if args.use_writer:
         writer = SummaryWriter(log_dir=log_path)
@@ -259,7 +270,7 @@ def load_data_model(just_load_path=False):
     print("resume training from epoch:", start_epoch)
     best_loss_epoch = start_epoch
     
-    return model, test_loader, log_path
+    return model, test_loader, log_path, get_log_path_for_model
 
 ################################################################
 # Function 1 Report Average step, step-wise, and full prediction relative l2 norm
@@ -1902,7 +1913,7 @@ if __name__ == '__main__':
     
     #### 1. predict and save the data
     #if you dont have the dataloader, comment this line
-    model, test_loader, log_path = load_data_model(just_load_path=True)
+    model, test_loader, log_path, get_log_path_for_model = load_data_model(just_load_path=True)
     
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps)
     # pred, target, forcing, time_idx = predict_and_save(model, test_loader, log_path=log_path, save_type=args.save_type, max_steps=args.num_steps, use_exponential_indices=False)
@@ -1918,17 +1929,20 @@ if __name__ == '__main__':
     
     
     # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
-    compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
+    # compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
     
     # #### 4. Compare metrics across different methods
-    # Example usage:
-    # log_paths_dict = {
-    #     'FNO': './logs/ns2d_dedalus_big_FNO_mod32_wid32_lay4_ntrain32006_normalizer_zscore_form_velocity',
-    #     'HFS': './logs/ns2d_dedalus_big_HFS_mod16_wid64_lay8_ntrain32006_normalizer_zscore_form_velocity'
-    # }
-    # combined_df, figures = compare_methods_metrics(
-    #     log_paths_dict=log_paths_dict,
-    #     dataset_type=args.dataset_type,
-    #     save_dir=None,  # Uses first log_path if None
-    #     metrics_to_plot=None  # Plots all metrics if None
-    # )
+    # Create log_paths_dict using the path generator function
+    model_names = ['FNO',]  # Specify which models to compare
+    log_paths_dict = {}
+    for model_name in model_names:
+        generated_path = get_log_path_for_model(model_name)
+        if os.path.exists(generated_path):
+            log_paths_dict[model_name] = generated_path
+    
+    combined_df, figures = compare_methods_metrics(
+        log_paths_dict=log_paths_dict,
+        dataset_type=args.dataset_type,
+        save_dir=None,  # Uses first log_path if None
+        metrics_to_plot=None  # Plots all metrics if None
+    )
