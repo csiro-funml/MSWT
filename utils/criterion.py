@@ -639,6 +639,8 @@ class Rel_Spectral_bias(_WeightedLoss):
                 else:
                     E_freq_cumsum = np.ones_like(E_freq_cumsum)
                 k_low, k_high = find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile)
+                k_low += start_freq
+                k_high += start_freq
 
             if method == 'high':
                 loss = rel_spectral_bias[:, :k_high].mean()
