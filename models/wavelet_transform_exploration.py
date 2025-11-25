@@ -4,7 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from einops import rearrange
-
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__)))
 from wavelet_transform import DWT_2D, IDWT_2D
 from wavelet_transform import RelativePositionBias, Transformer
 
