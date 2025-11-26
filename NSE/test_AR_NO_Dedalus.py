@@ -24,7 +24,7 @@ from utils.make_master_file import DATASET_DICT
 # from models.fno import FNO2d
 from models.fno import FNO2d_Tin1_Tout1 as FNO2d
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
-from models.wavelet_transform_exploration import WaveletTransformer
+from models.wavelet_transform_exploration import WaveletTransformer, WaveletTransformerHFSKip
 from models.high_frequency_scaling import ResUNet
 import pickle
 from tqdm import tqdm
@@ -275,11 +275,12 @@ def load_data_model(just_load_path=False):
                     target_params='small',
                     device=device).to(device)
     elif args.model == 'wavelet_transformer_skip':
-        model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+        model = WaveletTransformerHFSKip(in_timesteps = args.T_in, in_chans=train_dataset.n_channels_in[args.form], out_chans=train_dataset.n_channels_out[args.form], 
+                                dim=96, depth=4, num_levels=4).to(device)
     elif args.model == 'WaveletTransV2':
-        model = WaveletTransformer(in_timesteps = args.T_in, 
-        in_chans=train_dataset.n_channels, out_chans=train_dataset.n_channels
-        ,output_size=(train_dataset.res[0], train_dataset.res[1])).to(device)
+        model = WaveletTransformer(in_timesteps = args.T_in, in_chans=train_dataset.n_channels_in[args.form], out_chans=train_dataset.n_channels_out[args.form],
+                              dim=128, depth=4
+                              ).to(device)
     else:
         print("model not implemented", args.model)
         raise NotImplementedError
@@ -1976,7 +1977,7 @@ if __name__ == '__main__':
     
     # #### 4. Compare metrics across different methods
     # Create log_paths_dict using the path generator function
-    model_names = ['FNO', 'HFS']  # Specify which models to compare
+    model_names = ['FNO', 'HFS', 'WaveletTransV2']  # Specify which models to compare
     log_paths_dict = {}
     for model_name in model_names:
         generated_path = get_log_path_for_model(model_name)
