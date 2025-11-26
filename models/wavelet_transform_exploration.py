@@ -176,6 +176,229 @@ class WaveletTransformer(nn.Module):
 
 
 
+class WaveletTransformerOverlap(WaveletTransformer):
+    """
+    Variant with overlapping patch embeddings and a light deblocking head to
+    mitigate 4x4 blocking artifacts without changing the wavelet/transformer core.
+    """
+    def __init__(self, patch_stride=2, use_deblock=True, **kwargs):
+        super().__init__(**kwargs)
+        self.patch_stride = patch_stride
+        self.use_deblock = use_deblock
+        self.out_chans = kwargs.get('out_chans', 3)
+        self.embed_dim = self.scale_embeddings[0].shape[-1]
+        patch_h, patch_w = self.patch_size
+        padding = (patch_h // 2, patch_w // 2)
+
+        in_ch = kwargs.get('in_timesteps', 4) * kwargs.get('in_chans', 3)
+        out_ch = self.out_chans * (2 if self.meanstd else 1)
+
+        # Overlapping convs replace the stride=patch embedding
+        self.input_proj = nn.Sequential(
+            nn.Conv2d(in_ch, self.embed_dim,
+                      kernel_size=self.patch_size, stride=self.patch_stride,
+                      padding=padding),
+            nn.BatchNorm2d(self.embed_dim),
+            nn.ELU(inplace=True),
+        )
+        self.output_proj = nn.ConvTranspose2d(self.embed_dim, out_ch,
+                                              kernel_size=self.patch_size, stride=self.patch_stride,
+                                              padding=padding)
+
+        if use_deblock:
+            deblock_channels = self.out_chans
+            self.deblock = nn.Sequential(
+                nn.Conv2d(deblock_channels, deblock_channels, kernel_size=3, padding=1),
+                nn.GELU(),
+                nn.Conv2d(deblock_channels, deblock_channels, kernel_size=3, padding=1),
+            )
+
+    def forward(self, x):
+        orig_h, orig_w = x.shape[1], x.shape[2]
+        if self.normalize:
+            mu, sigma = x.mean(dim=(1,2,3),keepdim=True), x.std(dim=(1,2,3),keepdim=True) + 1e-6
+            x = (x - mu)/ sigma
+        x = x.view(*x.shape[:-2], -1).permute(0, 3, 1, 2).contiguous()
+
+        x = self.input_proj(x)
+        proj_h, proj_w = x.shape[-2], x.shape[-1]
+
+        x_scale, img_size, img_dims = [], [], []
+        for i in range(self.num_dwt_blocks):
+            x = self.dwt_project[i](x)
+            if min(x.shape[-1], x.shape[-2]) ==1:
+                break
+            orig_h_dwt, orig_w_dwt = x.shape[-2], x.shape[-1]
+            img_dims.append((orig_h_dwt, orig_w_dwt))
+            x = self.dwt(x)
+            img_size.append((x.shape[2]*x.shape[3]))
+            x_scale_input = rearrange(x, 'b d h w -> b (h w) d')
+            pos_embed = self.relative_position_embeddings(x.shape[2], x.shape[3], x.device)
+            scale_embed = self.scale_embeddings[i]
+            x_scale_input = x_scale_input + pos_embed + scale_embed
+            x_scale.append(x_scale_input)
+
+        x = torch.cat(x_scale, dim=1)
+        x = self.transformer(x)
+        x = rearrange(x, 'b n d -> b d n')
+
+        x_splits = torch.split(x, img_size, dim=-1)
+        x_recov = torch.zeros_like(x_splits[-1])
+        for i, x_split in enumerate(x_splits[::-1]):
+            x_recov = x_recov + x_split
+            scale_idx = len(x_splits) - 1 - i
+            orig_h_dwt, orig_w_dwt = img_dims[scale_idx]
+            dwt_h = (orig_h_dwt + 1) // 2
+            dwt_w = (orig_w_dwt + 1) // 2
+            x_recov = rearrange(x_recov, 'b (p d) (h w) -> b p d h w',
+                                p = self.num_dwt_blocks, h=dwt_h, w=dwt_w)
+            x_recov = self.idwt(x_recov, target_size=(orig_h_dwt, orig_w_dwt))
+            x_recov = self.idwt_project[i](x_recov)
+            x_recov = rearrange(x_recov, 'b d h w -> b d (h w)')
+
+        final_h, final_w = img_dims[0] if img_dims else (proj_h, proj_w)
+        x = rearrange(x_recov, 'b d (h w) -> b d h w', h=final_h, w=final_w)
+        x = self.output_proj(x)
+        x = x[:, :, :orig_h, :orig_w]
+
+        if self.meanstd:
+            value, scale = torch.split(x, x.shape[1]//2, dim=1)
+            if self.use_deblock:
+                value = self.deblock(value)
+            x = torch.cat([value, scale], dim=1)
+        else:
+            if self.use_deblock:
+                x = self.deblock(x)
+        x = rearrange(x, 'b c h w -> b h w 1 c')
+        if self.normalize:
+            x = x * sigma  + mu
+        return x
+
+
+class WaveletTransformerHFSKip(nn.Module):
+    """
+    Band-aware variant: LL goes through the transformer; LH/HL/HH are preserved
+    via skip connections and re-injected before each IDWT to keep high-frequency detail.
+    """
+    def __init__(self, wave='haar', in_chans=3, out_chans=3, in_timesteps=1, dim=64,
+                 depth=8, num_levels=4, patch_size=(8,8), patch_stride=4, normalize=False, meanstd=False):
+        super().__init__()
+        self.meanstd = meanstd
+        self.normalize = normalize
+        self.patch_size = patch_size
+        self.dim = dim
+        self.num_levels = num_levels
+        self.out_chans = out_chans
+
+        self.input_proj = nn.Sequential(
+            nn.Conv2d(in_timesteps*in_chans, dim, kernel_size=patch_size, stride=patch_stride, padding=0),
+            nn.BatchNorm2d(dim),
+            nn.GELU(),
+        )
+        self.level_pre = nn.ModuleList([nn.Sequential(
+            nn.Conv2d(dim, dim, kernel_size=3, padding=1),
+            nn.GELU()) for _ in range(num_levels)])
+        self.hf_proj = nn.ModuleList([nn.Conv2d(3*dim, 3*dim, kernel_size=1) for _ in range(num_levels)])
+
+        self.dwt = DWT_2D(wave)
+        self.idwt = IDWT_2D(wave)
+
+        self.scale_embeddings = nn.ParameterList([
+            nn.Parameter(torch.randn(1, 1, dim) * 0.02) for _ in range(num_levels)
+        ])
+        self.relative_position_embeddings = RelativePositionBias(dim=dim)
+        self.transformer = Transformer(dim=dim, depth=depth, heads=8, dim_head=64, mlp_dim=dim*4)
+
+        out_ch = out_chans * (2 if meanstd else 1)
+        self.output_proj = nn.ConvTranspose2d(dim, out_ch,
+                                              kernel_size=patch_size, stride=patch_stride, padding=0)
+        self.deblock = nn.Sequential(
+            nn.Conv2d(out_chans, out_chans, 3, padding=1),
+            nn.GELU(),
+            nn.Conv2d(out_chans, out_chans, 3, padding=1),
+        )
+
+    def forward(self, x):
+        orig_h, orig_w = x.shape[1], x.shape[2]
+        if self.normalize:
+            mu, sigma = x.mean(dim=(1,2,3),keepdim=True), x.std(dim=(1,2,3),keepdim=True) + 1e-6
+            x = (x - mu)/ sigma
+
+        x = x.view(*x.shape[:-2], -1).permute(0, 3, 1, 2).contiguous()
+        pad_h = (self.patch_size[0] - (orig_h % self.patch_size[0])) % self.patch_size[0]
+        pad_w = (self.patch_size[1] - (orig_w % self.patch_size[1])) % self.patch_size[1]
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+        x = self.input_proj(x)
+
+        tokens, hf_skips, level_shapes, pre_shapes, lengths = [], [], [], [], []
+        feat = x
+        for lvl in range(self.num_levels):
+            pre_shapes.append(feat.shape[-2:])  # shape before DWT, used for IDWT target size
+            feat = self.level_pre[lvl](feat)
+            if min(feat.shape[-2:]) <= 1:
+                break
+            bands = self.dwt(feat)  # (B, 4*dim, H/2, W/2)
+            h, w = bands.shape[-2], bands.shape[-1]
+            level_shapes.append((h, w))
+            LL = bands[:, :self.dim, :, :]
+            HF = bands[:, self.dim:, :, :]
+            hf_skips.append(self.hf_proj[lvl](HF)) # mix the high frequency together
+            tok = rearrange(LL, 'b d h w -> b (h w) d')
+            pos = self.relative_position_embeddings(h, w, bands.device)
+            tok = tok + pos + self.scale_embeddings[lvl]
+            tokens.append(tok)
+            lengths.append(tok.shape[1])
+            feat = LL
+            if min(h, w) <= 2:
+                break
+
+        if len(tokens) == 0:
+            raise RuntimeError("Input too small for any DWT level.")
+
+        tokens_cat = torch.cat(tokens, dim=1)
+        tokens_cat = self.transformer(tokens_cat)
+        tokens_split = torch.split(tokens_cat, lengths, dim=1)
+
+        feat = None
+        for lvl in reversed(range(len(tokens_split))):
+            h, w = level_shapes[lvl]
+            LL_hat = rearrange(tokens_split[lvl], 'b (h w) d -> b d h w', h=h, w=w)
+            if feat is not None:
+                feat_up = F.interpolate(feat, size=(h, w), mode='bilinear', align_corners=False)
+                LL_hat = LL_hat + feat_up
+            bands = torch.cat([LL_hat, hf_skips[lvl]], dim=1)
+            bands = rearrange(bands, 'b (p d) h w -> b p d h w', p=4)
+            feat = self.idwt(bands, target_size=pre_shapes[lvl])
+
+        x = self.output_proj(feat)
+        if pad_h > 0 or pad_w > 0:
+            x = x[:, :, :orig_h, :orig_w]
+
+        if self.meanstd:
+            value, scale = torch.split(x, x.shape[1]//2, dim=1)
+            value = self.deblock(value)
+            x = torch.cat([value, scale], dim=1)
+        else:
+            x = self.deblock(x)
+        x = rearrange(x, 'b c h w -> b h w 1 c')
+        if self.normalize:
+            x = x * sigma + mu
+        return x
+
+    def count_parameters(self):
+    # count the parameters  of dwt_project and idwt_project
+        transformer_params = sum(p.numel() for p in self.transformer.parameters() if p.requires_grad)
+        input_proj_params = sum(p.numel() for p in self.input_proj.parameters() if p.requires_grad)
+        output_proj_params = sum(p.numel() for p in self.output_proj.parameters() if p.requires_grad)
+        print("Transformer parameters:", transformer_params)
+        print("Input projection parameters:", input_proj_params)
+        print("Output projection parameters:", output_proj_params)
+        # count the parameters  of dwt_project and idwt_project
+        print("Total parameters:", sum(p.numel() for p in self.parameters() if p.requires_grad))
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
 if __name__ == "__main__":
     x = torch.randn(2, 256, 256, 1, 3)
     # x = torch.randn(2, 96, 192, 7, 3)
@@ -187,8 +410,8 @@ if __name__ == "__main__":
     # x = idwt(x)
     # print("after inverse wavelet transform", x.shape)
 
-    model = WaveletTransformer(in_chans=x.shape[-1],out_chans=x.shape[-1], in_timesteps=x.shape[-2], dim=128, depth=4)
-
+    # model = WaveletTransformer(in_chans=x.shape[-1],out_chans=x.shape[-1], in_timesteps=x.shape[-2], dim=128, depth=4)
+    model = WaveletTransformerHFSKip(in_chans=x.shape[-1],out_chans=x.shape[-1], in_timesteps=x.shape[-2], dim=96, depth=4, num_levels=4)
     model.count_parameters()
     with torch.autograd.set_detect_anomaly(True):
         output = model(x)
@@ -197,5 +420,3 @@ if __name__ == "__main__":
         loss.backward()
         print("backward done")
     
-
-

@@ -25,8 +25,8 @@ from utils.griddataset import MixedTemporalDataset, TemporalDataset2D, LocalTemp
 from utils.make_master_file import DATASET_DICT
 # from models.fno import FNO2d
 from models.fno import FNO2d_Tin1_Tout1 as FNO2d
-from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
-from models.wavelet_transform_exploration import WaveletTransformer
+from models.wavelet_transform import CrossWaveletTransformer
+from models.wavelet_transform_exploration import WaveletTransformer, WaveletTransformerHFSKip
 from models.high_frequency_scaling import ResUNet
 # from models.unet import UNet_with_BottleneckHFS, UNet_withoutHFS
 from models.hano import HANO2d
@@ -265,7 +265,9 @@ elif args.model == 'HFS':
                     target_params='small',
                     device=device).to(device)
 elif args.model == 'wavelet_transformer_skip':
-    model = CrossWaveletTransSkipConnection(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+    model = WaveletTransformerHFSKip(in_timesteps = args.T_in, in_chans=train_dataset.n_channels_in[args.form], out_chans=train_dataset.n_channels_out[args.form], 
+                                dim=96, depth=4, num_levels=4).to(device)
+
 elif args.model == 'WaveletTransV2':
     model = WaveletTransformer(in_timesteps = args.T_in, in_chans=train_dataset.n_channels_in[args.form], out_chans=train_dataset.n_channels_out[args.form],
                               dim=128, depth=4
