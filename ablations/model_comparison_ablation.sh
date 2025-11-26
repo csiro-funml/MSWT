@@ -14,9 +14,9 @@ echo "=========================================="
 MODELS_LIST=("FNO" "HFS")
 
 # Fixed settings (same as model_size ablation with modes=32)
-FIXED_MODES=32
-FIXED_WIDTH=32
-FIXED_N_LAYERS=4
+FIXED_MODES=16
+FIXED_WIDTH=64
+FIXED_N_LAYERS=8
 FIXED_T_OUT=1
 
 # Function to build training command for a specific model
@@ -60,7 +60,7 @@ build_model_test_cmd() {
     cmd="$cmd --batch_size $BATCH_SIZE --epochs $EPOCHS"
     cmd="$cmd --num_workers $NUM_WORKERS --pin_memory --prefetch_factor $PREFETCH_FACTOR"
     cmd="$cmd --warmup_epochs 0"
-    cmd="$cmd --num_steps 30 --dataset_type short --save_type pth"
+    cmd="$cmd --num_steps 30 --dataset_type long --save_type pth"
     
     echo "$cmd"
 }
