@@ -26,7 +26,13 @@ from utils.make_master_file import DATASET_DICT
 # from models.fno import FNO2d
 from models.fno import FNO2d_Tin1_Tout1 as FNO2d
 from models.wavelet_transform import CrossWaveletTransformer
-from models.wavelet_transform_exploration import WaveletTransformer, WaveletTransformerHFSKip
+from models.wavelet_transform_exploration import (
+    WaveletTransformer,
+    WaveletTransformerOverlap,
+    build_wavelet_overlap_small,
+    build_wavelet_overlap_medium,
+    build_wavelet_overlap_big,
+)
 from models.high_frequency_scaling import ResUNet
 # from models.unet import UNet_with_BottleneckHFS, UNet_withoutHFS
 from models.hano import HANO2d
@@ -304,12 +310,19 @@ elif args.model == 'HFS':
     model =ResUNet(in_c=train_dataset.n_channels_in[args.form],out_c=train_dataset.n_channels_out[args.form],
                     target_params=getattr(args, "hfs_target_params", args.model_size),
                     device=device).to(device)
-elif args.model == 'wavelet_transformer_skip':
-    wavelet_dim = getattr(args, "wavelet_dim", 96)
-    wavelet_depth = getattr(args, "wavelet_depth", 4)
-    wavelet_levels = getattr(args, "wavelet_levels", 4)
-    model = WaveletTransformerHFSKip(in_timesteps = args.T_in, in_chans=train_dataset.n_channels_in[args.form], out_chans=train_dataset.n_channels_out[args.form], 
-                                dim=wavelet_dim, depth=wavelet_depth, num_levels=wavelet_levels).to(device)
+elif args.model == 'wavelet_transformer_overlap':
+    size_map = {
+        "small": build_wavelet_overlap_small,
+        "medium": build_wavelet_overlap_medium,
+        "large": build_wavelet_overlap_big,
+    }
+    builder = size_map.get(args.model_size, build_wavelet_overlap_small)
+    model = builder(
+        in_chans=train_dataset.n_channels_in[args.form],
+        out_chans=train_dataset.n_channels_out[args.form],
+        in_timesteps=args.T_in,
+    ).to(device)
+
 
 elif args.model == 'WaveletTransV2':
     wavelet_dim = getattr(args, "wavelet_dim", 128)

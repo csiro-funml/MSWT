@@ -181,7 +181,7 @@ class WaveletTransformerOverlap(WaveletTransformer):
     Variant with overlapping patch embeddings and a light deblocking head to
     mitigate 4x4 blocking artifacts without changing the wavelet/transformer core.
     """
-    def __init__(self, patch_stride=2, use_deblock=True, **kwargs):
+    def __init__(self, patch_stride=2, use_deblock=False, **kwargs):
         super().__init__(**kwargs)
         self.patch_stride = patch_stride
         self.use_deblock = use_deblock
@@ -207,11 +207,7 @@ class WaveletTransformerOverlap(WaveletTransformer):
 
         if use_deblock:
             deblock_channels = self.out_chans
-            self.deblock = nn.Sequential(
-                nn.Conv2d(deblock_channels, deblock_channels, kernel_size=3, padding=1),
-                nn.GELU(),
-                nn.Conv2d(deblock_channels, deblock_channels, kernel_size=3, padding=1),
-            )
+            self.deblock = nn.Identity()
 
     def forward(self, x):
         orig_h, orig_w = x.shape[1], x.shape[2]
@@ -281,7 +277,8 @@ class WaveletTransformerHFSKip(nn.Module):
     via skip connections and re-injected before each IDWT to keep high-frequency detail.
     """
     def __init__(self, wave='haar', in_chans=3, out_chans=3, in_timesteps=1, dim=64,
-                 depth=8, num_levels=4, patch_size=(8,8), patch_stride=4, normalize=False, meanstd=False):
+                 depth=8, num_levels=4, patch_size=(8,8), patch_stride=4, normalize=False, meanstd=False,
+                 use_deblock=False):
         super().__init__()
         self.meanstd = meanstd
         self.normalize = normalize
@@ -289,6 +286,7 @@ class WaveletTransformerHFSKip(nn.Module):
         self.dim = dim
         self.num_levels = num_levels
         self.out_chans = out_chans
+        self.use_deblock = use_deblock
 
         self.input_proj = nn.Sequential(
             nn.Conv2d(in_timesteps*in_chans, dim, kernel_size=patch_size, stride=patch_stride, padding=0),
@@ -312,11 +310,8 @@ class WaveletTransformerHFSKip(nn.Module):
         out_ch = out_chans * (2 if meanstd else 1)
         self.output_proj = nn.ConvTranspose2d(dim, out_ch,
                                               kernel_size=patch_size, stride=patch_stride, padding=0)
-        self.deblock = nn.Sequential(
-            nn.Conv2d(out_chans, out_chans, 3, padding=1),
-            nn.GELU(),
-            nn.Conv2d(out_chans, out_chans, 3, padding=1),
-        )
+        if use_deblock:
+            self.deblock = nn.Identity()
 
     def forward(self, x):
         orig_h, orig_w = x.shape[1], x.shape[2]
@@ -377,14 +372,55 @@ class WaveletTransformerHFSKip(nn.Module):
 
         if self.meanstd:
             value, scale = torch.split(x, x.shape[1]//2, dim=1)
-            value = self.deblock(value)
+            if self.use_deblock:
+                value = self.deblock(value)
             x = torch.cat([value, scale], dim=1)
         else:
-            x = self.deblock(x)
+            if self.use_deblock:
+                x = self.deblock(x)
         x = rearrange(x, 'b c h w -> b h w 1 c')
         if self.normalize:
             x = x * sigma + mu
         return x
+
+
+def build_wavelet_overlap_small(in_chans=3, out_chans=3, in_timesteps=1):
+    """~16M params (reference): dim=128, depth=4, patch 8/stride 4."""
+    return WaveletTransformerOverlap(
+        in_chans=in_chans,
+        out_chans=out_chans,
+        in_timesteps=in_timesteps,
+        patch_size=(8, 8),
+        patch_stride=4,
+        dim=128,
+        depth=4,
+    )
+
+
+def build_wavelet_overlap_medium(in_chans=3, out_chans=3, in_timesteps=1):
+    """Target ~30–40M params: dim=192, depth=6, patch 8/stride 4."""
+    return WaveletTransformerOverlap(
+        in_chans=in_chans,
+        out_chans=out_chans,
+        in_timesteps=in_timesteps,
+        patch_size=(8, 8),
+        patch_stride=4,
+        dim=192,
+        depth=5,
+    )
+
+
+def build_wavelet_overlap_big(in_chans=3, out_chans=3, in_timesteps=1):
+    """Target ~60M params: dim=256, depth=8, patch 8/stride 4."""
+    return WaveletTransformerOverlap(
+        in_chans=in_chans,
+        out_chans=out_chans,
+        in_timesteps=in_timesteps,
+        patch_size=(8, 8),
+        patch_stride=4,
+        dim=256,
+        depth=8,
+    )
 
     def count_parameters(self):
     # count the parameters  of dwt_project and idwt_project
@@ -411,7 +447,8 @@ if __name__ == "__main__":
     # print("after inverse wavelet transform", x.shape)
 
     # model = WaveletTransformer(in_chans=x.shape[-1],out_chans=x.shape[-1], in_timesteps=x.shape[-2], dim=128, depth=4)
-    model = WaveletTransformerHFSKip(in_chans=x.shape[-1],out_chans=x.shape[-1], in_timesteps=x.shape[-2], dim=96, depth=4, num_levels=4)
+    model = WaveletTransformerOverlap(in_chans=x.shape[-1],out_chans=x.shape[-1], patch_size=(8, 8), patch_stride=4, in_timesteps=x.shape[-2], dim=192, depth=5)
+    # model = WaveletTransformerHFSKip(in_chans=x.shape[-1],out_chans=x.shape[-1], in_timesteps=x.shape[-2], dim=96, depth=4, num_levels=4)
     model.count_parameters()
     with torch.autograd.set_detect_anomaly(True):
         output = model(x)
