@@ -42,6 +42,7 @@ from tqdm import tqdm
 parser = argparse.ArgumentParser(description='Training or pretraining on multiple PDE datasets')
 
 parser.add_argument('--model', type=str, default='FNO') # FNO, wavelet_transformer, HFS, UNet, HANO, UNO 
+parser.add_argument('--model_size', type=str, default='small', choices=['small', 'medium', 'large'], help='Model scale preset (affects width/modes for FNO, target_params for HFS, dims for wavelet models)')
 parser.add_argument('--dataset',type=str, default='ns2d_dedalus_big') # ['ns2d_fno_1e-3', 'ns2d_pda', 'ns2d_pdb_M1_eta1e-2_zeta1e-2', 'sw2d_pda'], note: pdb is the pde bench
 parser.add_argument('--resume_path',type=str, default='')
 parser.add_argument('--use_writer', action='store_true',default=False)
@@ -108,6 +109,38 @@ parser.add_argument('--log_path',type=str,default='/scratch3/wan410/operator_lea
 
 args = parser.parse_args()
 args.fourier_logscale = args.fourier_logscale == 'True'
+
+
+def apply_model_size_overrides(args):
+    size = getattr(args, 'model_size', 'small')
+    # FNO presets tuned for ~17M / ~34M / ~64M params (Tin=Tout=1, 3 channels, n_layers=4)
+    if args.model == "FNO":
+        fno_presets = {
+            # Matches FNO2D_T11_SCALES in models/fno.py
+            "small": dict(modes=32, width=32, n_layers=4),
+            "medium": dict(modes=30, width=48, n_layers=4),
+            "large": dict(modes=40, width=48, n_layers=4),
+        }
+        if size in fno_presets:
+            for k, v in fno_presets[size].items():
+                setattr(args, k, v)
+    # HFS ResUNet presets map directly to target_params string
+    elif args.model == "HFS":
+        args.hfs_target_params = size
+    # Wavelet transformer family presets
+    elif args.model in ("wavelet_transformer", "wavelet_transformer_skip", "WaveletTransV2"):
+        wavelet_presets = {
+            "small": dict(dim=96, depth=4, num_levels=4),
+            "medium": dict(dim=128, depth=6, num_levels=4),
+            "large": dict(dim=192, depth=8, num_levels=4),
+        }
+        if size in wavelet_presets:
+            preset = wavelet_presets[size]
+            args.wavelet_dim = preset["dim"]
+            args.wavelet_depth = preset["depth"]
+            args.wavelet_levels = preset["num_levels"]
+
+apply_model_size_overrides(args)
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -204,12 +237,13 @@ ntrain, ntest = len(train_dataset), len(test_dataset)
 #     args.res = train_dataset.res  # use original dataset  resolution to train the model
 testing_mode = 'FNO_testing'
 if testing_mode == 'FNO_testing':
+    size_tag = f'_size{args.model_size}'
     if args.loss_type == 'rel_l2' and args.T_out == 1:
-        comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
+        comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form, size_tag)
     elif args.loss_type == 'rel_l2' and args.T_out > 1:
-        comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}_Tout{args.T_out}'
+        comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}_Tout{args.T_out}{size_tag}'
     else:
-        comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}'
+        comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}{size_tag}'
                     # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
     # comment = args.comment + '{}_{}_mod{}_wid{}_lay{}_ntrain{}_normalizer_{}_form_{}'.format(args.dataset, args.model, args.modes, args.width, args.n_layers, ntrain, args.normalize_strategy, args.form)
     # comment = args.comment + f'{args.dataset}_{args.model}_mod{args.modes}_wid{args.width}_lay{args.n_layers}_ntrain{ntrain}_form{args.form}_loss{args.loss_type}_logscale{args.fourier_logscale}_warmup{args.warmup_epochs}_Tout{args.T_out}'
@@ -217,7 +251,8 @@ if testing_mode == 'FNO_testing':
     # model_path = log_path + '/model.pth'
     model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
 else:
-    comment = args.comment + '{}_{}_ntrain{}'.format(args.model, args.dataset, ntrain)
+    size_tag = f'_size{args.model_size}'
+    comment = args.comment + '{}_{}_ntrain{}{}'.format(args.model, args.dataset, ntrain, size_tag)
     log_path = './logs/' + time.strftime('%m%d_%H_%M_%S') + comment if len(args.log_path)==0  else os.path.join('./logs',args.log_path + comment)
     # model_path = log_path + '/model.pth'
     model_path = log_path + f'/model_epochs_{args.epochs}.pth' # I will test a longer training epoch
@@ -259,18 +294,26 @@ if args.model == "FNO":
                 # normalize=args.normalize, 
                  ).to(device)
 elif args.model == 'wavelet_transformer':
-    model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=512, depth=8).to(device)
+    wavelet_dim = getattr(args, "wavelet_dim", 512)
+    wavelet_depth = getattr(args, "wavelet_depth", 8)
+    model = CrossWaveletTransformer(wave='haar', n_channels=train_dataset.n_channels, in_timesteps = args.T_in, dim=wavelet_dim, depth=wavelet_depth).to(device)
 elif args.model == 'HFS':
+    # args.model_size controls the preset (small/medium/large) for HFS and is reflected in log/model paths
     model =ResUNet(in_c=train_dataset.n_channels_in[args.form],out_c=train_dataset.n_channels_out[args.form],
-                    target_params='small',
+                    target_params=getattr(args, "hfs_target_params", args.model_size),
                     device=device).to(device)
 elif args.model == 'wavelet_transformer_skip':
+    wavelet_dim = getattr(args, "wavelet_dim", 96)
+    wavelet_depth = getattr(args, "wavelet_depth", 4)
+    wavelet_levels = getattr(args, "wavelet_levels", 4)
     model = WaveletTransformerHFSKip(in_timesteps = args.T_in, in_chans=train_dataset.n_channels_in[args.form], out_chans=train_dataset.n_channels_out[args.form], 
-                                dim=96, depth=4, num_levels=4).to(device)
+                                dim=wavelet_dim, depth=wavelet_depth, num_levels=wavelet_levels).to(device)
 
 elif args.model == 'WaveletTransV2':
+    wavelet_dim = getattr(args, "wavelet_dim", 128)
+    wavelet_depth = getattr(args, "wavelet_depth", 4)
     model = WaveletTransformer(in_timesteps = args.T_in, in_chans=train_dataset.n_channels_in[args.form], out_chans=train_dataset.n_channels_out[args.form],
-                              dim=128, depth=4
+                              dim=wavelet_dim, depth=wavelet_depth
                               ).to(device)
 elif args.model == 'HANO':
     model = HANO2d(T_in=args.T_in, T_out=args.T_ar, res_output=train_dataset.res[0],  res_att=train_dataset.res[0],
@@ -780,7 +823,3 @@ for ep in pbar:
             t_train / len(train_loader), t_load / len(train_loader), t_test)
         
         print(log_str)
-
-
-
-

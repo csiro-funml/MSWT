@@ -1,7 +1,7 @@
 #!/bin/bash
 # Model Comparison Ablation Study
 # Tests different model architectures: FNO, HFS, etc.
-# All models use the same base settings: modes=32 (where applicable), width=32, n_layers=4, T_out=1
+# All models use the same base settings: modes/width/n_layers come from --model_size (small/medium/large), T_out=1
 
 source "$(dirname "$0")/common_config.sh"
 
@@ -11,12 +11,16 @@ echo "=========================================="
 
 # Models to test
 # Note: Some models don't use modes/width/n_layers parameters
-MODELS_LIST=("FNO" "HFS")
+MODELS_LIST=("FNO" "HFS" "wavelet_transformer")
 
-# Fixed settings (same as model_size ablation with modes=32)
-FIXED_MODES=16
-FIXED_WIDTH=64
-FIXED_N_LAYERS=8
+# Global size preset for all models (FNO/HFS/Wavelet) -> controls modes/width or target_params.
+# Set to 'medium' to compare the medium HFS (~32-40M) preset the training script provides.
+MODEL_SIZE="small"
+
+# Fixed settings used only when overriding presets (FNO presets will overwrite these via --model_size)
+FIXED_MODES=32
+FIXED_WIDTH=32
+FIXED_N_LAYERS=4
 FIXED_T_OUT=1
 
 # Function to build training command for a specific model
@@ -30,6 +34,7 @@ build_model_train_cmd() {
         cmd="$cmd --modes $FIXED_MODES --width $FIXED_WIDTH --n_layers $FIXED_N_LAYERS"
     fi
     # HFS and other models don't use modes/width/n_layers
+    cmd="$cmd --model_size $MODEL_SIZE"
     
     cmd="$cmd --T_in $T_IN --T_out $FIXED_T_OUT"
     cmd="$cmd --normalize $NORMALIZE --normalize_strategy $NORMALIZE_STRATEGY"
@@ -53,6 +58,7 @@ build_model_test_cmd() {
         cmd="$cmd --modes $FIXED_MODES --width $FIXED_WIDTH --n_layers $FIXED_N_LAYERS"
     fi
     # HFS and other models don't use modes/width/n_layers
+    cmd="$cmd --model_size $MODEL_SIZE"
     
     cmd="$cmd --T_in $T_IN --T_out $FIXED_T_OUT"
     cmd="$cmd --normalize $NORMALIZE --normalize_strategy $NORMALIZE_STRATEGY"
@@ -97,5 +103,3 @@ echo ""
 echo "=========================================="
 echo "To run a specific experiment, uncomment the desired command above"
 echo "=========================================="
-
-

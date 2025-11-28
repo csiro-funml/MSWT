@@ -133,7 +133,7 @@ def get_model_config(target_params='medium', custom_width_multiplier=None):
     Args:
         target_params: Target parameter count. Options:
             - 'small': ~16M parameters (width_multiplier ~0.5)
-            - 'medium': ~32M parameters (width_multiplier ~0.7)
+            - 'medium': ~32-40M parameters (power-of-two preset)
             - 'large': ~64M parameters (width_multiplier ~1.0, default)
             - int: Custom target parameter count in millions
         custom_width_multiplier: Optional custom width multiplier (overrides target_params if provided)
@@ -145,14 +145,21 @@ def get_model_config(target_params='medium', custom_width_multiplier=None):
     base_features = [64, 128, 256, 512, 512]
     base_bottleneck = 1024
     
+    preset_features = None
+    preset_bottleneck = None
+
     if custom_width_multiplier is not None:
         width_multiplier = custom_width_multiplier
     elif isinstance(target_params, str):
-        if target_params.lower() == 'small':
+        target = target_params.lower()
+        if target == 'small':
             width_multiplier = 0.5  # ~16M params
-        elif target_params.lower() == 'medium':
-            width_multiplier = 0.7  # ~32M params
-        elif target_params.lower() in ['large', 'huge']:
+        elif target == 'medium':
+            # Explicit power-of-two preset to land in ~32-40M range
+            preset_features = [32, 64, 128, 256, 512]
+            preset_bottleneck = 1024
+            width_multiplier = None
+        elif target in ['large', 'huge']:
             width_multiplier = 1.0  # ~64M params (original)
         else:
             raise ValueError(f"Unknown target_params string: {target_params}. Use 'small', 'medium', 'large', or a number.")
@@ -161,15 +168,19 @@ def get_model_config(target_params='medium', custom_width_multiplier=None):
         if target_params <= 20:
             width_multiplier = 0.5  # ~16M
         elif target_params <= 40:
-            width_multiplier = 0.7  # ~32M
+            width_multiplier = 0.8  # ~32M
         else:
             width_multiplier = 1.0  # ~64M
     else:
         width_multiplier = 1.0  # Default to large
     
-    # Scale features and bottleneck
-    features = [int(f * width_multiplier) for f in base_features]
-    bottleneck_feature = int(base_bottleneck * width_multiplier)
+    if preset_features is not None:
+        features = preset_features
+        bottleneck_feature = preset_bottleneck
+    else:
+        # Scale features and bottleneck
+        features = [int(f * width_multiplier) for f in base_features]
+        bottleneck_feature = int(base_bottleneck * width_multiplier)
     
     # Ensure minimum channel sizes
     features = [max(f, 16) for f in features]  # At least 16 channels
@@ -372,13 +383,42 @@ class ResUNet(nn.Module):
         x = x.permute(0, 2, 3, 1).unsqueeze(-2) # (B, C, H, W) -> (B, H, W, 1, C) 
         return x
 
-    
+
+
+class featscale2(nn.Module):
+    def __init__(self, patch_size,channels):
+        super(featscale2, self).__init__()
+        self.patch_size = patch_size
+        self.lambda1 = nn.Parameter(torch.ones(1,channels,1,1,1))
+        self.lambda2 = nn.Parameter(torch.ones(1,channels,1,1,1))
+
+    def forward(self, x):
+        batch_size, channels, height, width = x.shape
+        
+        # Reshape into patches of shape (batch_size, channels, num_patches, patch_size, patch_size)
+        X_patches = x.unfold(2, self.patch_size, self.patch_size).unfold(3, self.patch_size, self.patch_size)
+        num_patches = (height//self.patch_size)* (width//self.patch_size)
+        X_patches = X_patches.reshape(batch_size, channels, num_patches, self.patch_size, self.patch_size)
+        X_mean_patch = X_patches.mean(dim=2)
+        X_mean_expanded = X_mean_patch.unsqueeze(2).expand(-1, -1, num_patches, -1, -1)
+        
+        #Generate X_d and X_h
+        X_d = X_mean_expanded
+        X_h = X_patches - X_d
+
+        # #Combine X_d and X_h
+        X = X_patches + self.lambda1*X_d + self.lambda2*X_h
+        X = X.reshape(batch_size, channels, height//self.patch_size, width//self.patch_size, self.patch_size, self.patch_size)
+        X = X.permute(0,1,2,4,3,5).reshape(batch_size, channels, height, width)
+        return X
+
+
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     n_channels = 3
     T_in = 1
     T_ar = 1
-    
+
     # Example 1: Use predefined size ('small', 'medium', 'large')
     print("=" * 60)
     print("Example 1: Small model (~16M parameters)")
@@ -393,7 +433,7 @@ if __name__ == "__main__":
     print(f"Width multiplier: {model_small.width_multiplier}")
     
     print("\n" + "=" * 60)
-    print("Example 2: Medium model (~32M parameters)")
+    print("Example 2: Medium model (~32-40M parameters, power-of-two preset)")
     print("=" * 60)
     model_medium = ResUNet(in_c=n_channels, out_c=n_channels, 
                           target_params='medium',
