@@ -298,11 +298,46 @@ class FNO2d_Tin1_Tout1(nn.Module): # only use one timestep input and one timeste
             x = x.permute(0, 3, 1, 2) # (B, C_out, H, W)
         return x
 
+FNO2D_T11_SCALES = {
+    # ~16.8M params with in/out_channels=3, n_layers=4, T_in=T_out=1, use_ln=True, normalize=True
+    "small": dict(modes1=32, modes2=32, width=32),
+    # ~34.0M params under the same assumptions
+    "medium": dict(modes1=30, modes2=30, width=48),
+    # ~64.1M params under the same assumptions
+    "big": dict(modes1=40, modes2=40, width=48),
+}
+
+
+def build_fno2d_tin1_tout1(scale: str = "small", **kwargs) -> FNO2d_Tin1_Tout1:
+    """
+    Convenience builder that selects preset Fourier mode/width combinations.
+
+    The parameter counts noted in FNO2D_T11_SCALES assume:
+    in_channels=out_channels=3, n_layers=4, in_timesteps=out_timesteps=1,
+    use_ln=True, normalize=True. Counts will scale with different settings.
+    """
+    key = scale.lower()
+    if key not in FNO2D_T11_SCALES:
+        raise ValueError(f"Unknown scale '{scale}'. Valid options: {list(FNO2D_T11_SCALES)}")
+    cfg = {**FNO2D_T11_SCALES[key]}
+    cfg.update(kwargs)
+    return FNO2d_Tin1_Tout1(**cfg)
+
 if __name__ == "__main__":
-    # x = torch.rand(1, 128, 128, 10, 1)
+    x = torch.rand(1, 128, 128, 1, 3)
     # model = FNO2d(12, 12, 32, 128)
 
-    x = torch.rand(2, 96, 192, 10, 1)
-    model = FNO2d(12, 12, 32, img_size=(96, 192), normalize=True)
+    # x = torch.rand(2, 96, 192, 10, 1)
+    # model = FNO2d(12, 12, 32, img_size=(96, 192), normalize=True)
+
+    model = FNO2d_Tin1_Tout1(30, 30, 48,
+                img_size=128,
+                in_channels=3,out_channels=3,
+                in_timesteps = 1, out_timesteps=1, 
+                n_layers = 4,
+                use_ln=True,
+                normalize=True, 
+                 )
+    print("total parameters:", sum(p.numel() for p in model.parameters()))
     y = model(x)
     print(y.shape)
