@@ -52,7 +52,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 #################################################################################################################################
 
 # Current active command (uncomment and modify as needed)
-CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model wavelet_transformer_overlap --model_size medium --T_in 1 --T_out 1 --normalize 1 --normalize_strategy zscore --form velocity --batch_size 64 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 --warmup_epochs 0
+CUDA_VISIBLE_DEVICES=0 python3 -u NSE/train_AR_NO_Dedalus.py --dataset ns2d_dedalus_big --model wavelet_transformer_overlap --model_size medium --T_in 1 --T_out 1 --normalize 1 --normalize_strategy zscore --form velocity --batch_size 64 --gradient_accumulation_steps 4 --epochs 1000 --num_workers 8 --pin_memory --prefetch_factor 1 --warmup_epochs 0 --use_writer
 #   bash ablations/run_specific.sh steps_ahead 5 show    # Show T_out=5 commands
 #   bash ablations/run_specific.sh steps_ahead 5 train   # Show only training command
 #   bash ablations/run_specific.sh steps_ahead 5 test    # Show only testing command
