@@ -17,10 +17,6 @@ MODELS_LIST=("FNO" "HFS" "wavelet_transformer")
 # Set to 'medium' to compare the medium HFS (~32-40M) preset the training script provides.
 MODEL_SIZE="small"
 
-# Fixed settings used only when overriding presets (FNO presets will overwrite these via --model_size)
-FIXED_MODES=32
-FIXED_WIDTH=32
-FIXED_N_LAYERS=4
 FIXED_T_OUT=1
 
 # Function to build training command for a specific model
@@ -30,10 +26,7 @@ build_model_train_cmd() {
     cmd="$cmd --dataset $DATASET --model $model"
     
     # Add model-specific parameters
-    if [ "$model" = "FNO" ]; then
-        cmd="$cmd --modes $FIXED_MODES --width $FIXED_WIDTH --n_layers $FIXED_N_LAYERS"
-    fi
-    # HFS and other models don't use modes/width/n_layers
+    # FNO/Wavelet/HFS pull architecture from --model_size via the training script presets
     cmd="$cmd --model_size $MODEL_SIZE"
     
     cmd="$cmd --T_in $T_IN --T_out $FIXED_T_OUT"
@@ -54,10 +47,7 @@ build_model_test_cmd() {
     cmd="$cmd --dataset $DATASET --model $model"
     
     # Add model-specific parameters
-    if [ "$model" = "FNO" ]; then
-        cmd="$cmd --modes $FIXED_MODES --width $FIXED_WIDTH --n_layers $FIXED_N_LAYERS"
-    fi
-    # HFS and other models don't use modes/width/n_layers
+    # FNO/Wavelet/HFS pull architecture from --model_size via the training script presets
     cmd="$cmd --model_size $MODEL_SIZE"
     
     cmd="$cmd --T_in $T_IN --T_out $FIXED_T_OUT"
@@ -76,11 +66,7 @@ echo ""
 echo "=== TRAINING COMMANDS ==="
 for model in "${MODELS_LIST[@]}"; do
     echo ""
-    if [ "$model" = "FNO" ]; then
-        echo "# Training: model=$model, modes=$FIXED_MODES, width=$FIXED_WIDTH, n_layers=$FIXED_N_LAYERS"
-    else
-        echo "# Training: model=$model (using default architecture settings)"
-    fi
+    echo "# Training: model=$model (size=$MODEL_SIZE preset)"
     cmd=$(build_model_train_cmd $model)
     echo "$cmd"
 done
@@ -90,11 +76,7 @@ echo ""
 echo "=== TESTING COMMANDS ==="
 for model in "${MODELS_LIST[@]}"; do
     echo ""
-    if [ "$model" = "FNO" ]; then
-        echo "# Testing: model=$model, modes=$FIXED_MODES, width=$FIXED_WIDTH, n_layers=$FIXED_N_LAYERS"
-    else
-        echo "# Testing: model=$model (using default architecture settings)"
-    fi
+    echo "# Testing: model=$model (size=$MODEL_SIZE preset)"
     cmd=$(build_model_test_cmd $model)
     echo "$cmd"
 done
