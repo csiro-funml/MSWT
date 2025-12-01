@@ -2098,7 +2098,7 @@ if __name__ == '__main__':
     
     
     #### 2. Plot a pred. target and eror as well as spectral comparison at any time step
-    for time_step in [32, 64, 80, 100, 150, 200, 250]:
+    for time_step in [0, 32, 64, 80, 100, 150, 200, 250]:
     # # for time_step in [32]:
         plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
     
