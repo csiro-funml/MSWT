@@ -24,7 +24,7 @@ from utils.make_master_file import DATASET_DICT
 # from models.fno import FNO2d
 from models.fno import FNO2d_Tin1_Tout1 as FNO2d
 from models.wavelet_transform import CrossWaveletTransformer, CrossWaveletTransSkipConnection
-from models.wavelet_transform_exploration import WaveletTransformer, WaveletTransformerHFSKip
+from models.wavelet_transform_exploration import WaveletTransformer, WaveletTransformerOverlap
 from models.high_frequency_scaling import ResUNet
 import pickle
 from tqdm import tqdm
