@@ -35,7 +35,7 @@ import scipy.stats as stats
 from utils.criterion import RelL2Norm, Rel_Spectral_bias
 from visualizations import plot_enstrophy_spectrum, spectrum_2d
 from utils.compute_physical_statistics import compute_spectra
-from utils.compute_diagnostics import streamfunction_to_velocity
+from utils.compute_diagnostics import streamfunction_to_velocity, velocity_to_vorticity
 warnings.filterwarnings("ignore")
 
 ################################################################
@@ -646,6 +646,49 @@ def compute_energy_comparison(pred, target, rel_l2_loss_fn, save=False):
         
         return save_data
 
+
+def maybe_add_vorticity_channel(pred_np, target_np, dataset_form, Lx, Ly):
+    """
+    For velocity-form data, compute vorticity from velocity_x/y and append as a new channel.
+
+    Args:
+        pred_np (ndarray): Prediction array, shape (N, H, W, C) or (H, W, C)
+        target_np (ndarray): Target array, shape (N, H, W, C) or (H, W, C)
+        dataset_form (str): Data form ('velocity' or 'vorticity')
+        Lx (float): Domain length in x
+        Ly (float): Domain length in y
+
+    Returns:
+        tuple: (pred_with_vorticity, target_with_vorticity)
+    """
+    if dataset_form != 'velocity':
+        return pred_np, target_np
+    if pred_np.shape[-1] < 3 or target_np.shape[-1] < 3:
+        return pred_np, target_np
+
+    single_example = pred_np.ndim == 3
+    pred_batch = pred_np[None, ...] if single_example else pred_np
+    target_batch = target_np[None, ...] if single_example else target_np
+
+    vort_pred = []
+    vort_target = []
+    for idx in range(pred_batch.shape[0]):
+        vort_pred.append(velocity_to_vorticity(pred_batch[idx, :, :, 1], pred_batch[idx, :, :, 2], Lx, Ly))
+        vort_target.append(velocity_to_vorticity(target_batch[idx, :, :, 1], target_batch[idx, :, :, 2], Lx, Ly))
+
+    vort_pred = np.stack(vort_pred, axis=0)[..., None]
+    vort_target = np.stack(vort_target, axis=0)[..., None]
+
+    pred_aug = np.concatenate([pred_batch, vort_pred], axis=-1)
+    target_aug = np.concatenate([target_batch, vort_target], axis=-1)
+
+    if single_example:
+        pred_aug = pred_aug[0]
+        target_aug = target_aug[0]
+
+    return pred_aug, target_aug
+
+
 def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, num_steps=None, num_animation_frames=None):
     """
     Create animation showing target, prediction, and error for each channel.
@@ -661,6 +704,10 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     """
     pred = save_data['pred']  # (N, H, W, T, C)
     target = save_data['output']  # (N, H, W, T, C)
+    dataset_form = save_data.get('dataset_form', 'vorticity')
+    domain_size = save_data.get('domain_size', {'Lx': 2*np.pi, 'Ly': 2*np.pi})
+    Lx = domain_size.get('Lx', 2*np.pi)
+    Ly = domain_size.get('Ly', 2*np.pi)
     
     # Get total available steps
     total_steps = pred.shape[0]
@@ -677,9 +724,6 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
         step_indices = np.arange(num_steps)
         print(f"Using all {num_steps} steps for animation")
     
-    H, W = pred.shape[1], pred.shape[2]
-    num_channels = pred.shape[-1]
-    
     # Select steps based on step_indices
     pred = pred[step_indices]  # (num_steps, H, W, T, C)
     target = target[step_indices]  # (num_steps, H, W, T, C)
@@ -691,9 +735,14 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
     # Convert to numpy
     pred = pred.numpy()
     target = target.numpy()
+
+    # Append vorticity channel for velocity-form data
+    pred, target = maybe_add_vorticity_channel(pred, target, dataset_form, Lx, Ly)
     
     # Compute error
     error = pred - target  # (N, H, W, C)
+
+    num_channels = pred.shape[-1]
     
     # Find min/max per channel for consistent colorbar across all frames
     # Use target's range for both target and prediction (common scale based on target only)
@@ -720,11 +769,10 @@ def animate_predictions(save_data, log_path=None, save_animation=True, fps=10, n
         axes = axes.reshape(-1, 1)
     
     # Channel names based on dataset form
-    dataset_form = save_data.get('dataset_form', 'vorticity')
     if dataset_form == 'vorticity':
-        channel_names = ['Vorticity', 'Streamfunction']
+        channel_names = ['Vorticity', 'Streamfunction'][:num_channels]
     elif dataset_form == 'velocity':
-        channel_names = ['Pressure', 'Velocity X', 'Velocity Y']
+        channel_names = ['Pressure', 'Velocity X', 'Velocity Y', 'Vorticity'][:num_channels]
     else:
         channel_names = [f'Channel {i}' for i in range(num_channels)]
     
@@ -1484,7 +1532,15 @@ def plot_time_step_comparison(log_path, time_step, dataset_type='long', save_pat
     # pred and target shape: (T, H, W, 1, C)
     pred_step = pred[time_step, ..., 0, :].numpy()  # (H, W, C)
     target_step = target[time_step, ..., 0, :].numpy()  # (H, W, C)
-    
+
+    dataset_form = save_data.get('dataset_form', 'velocity')
+    domain_size = save_data.get('domain_size', {'Lx': 2*np.pi, 'Ly': 2*np.pi})
+    Lx = domain_size.get('Lx', 2*np.pi)
+    Ly = domain_size.get('Ly', 2*np.pi)
+
+    # Add derived vorticity channel for velocity-form data
+    pred_step, target_step = maybe_add_vorticity_channel(pred_step, target_step, dataset_form, Lx, Ly)
+
     # Compute error
     error = pred_step - target_step  # (H, W, C)
     
@@ -1492,11 +1548,10 @@ def plot_time_step_comparison(log_path, time_step, dataset_type='long', save_pat
     num_channels = pred_step.shape[-1]
     
     # Get channel names based on dataset form
-    dataset_form = save_data.get('dataset_form', 'velocity')
     if dataset_form == 'vorticity':
-        channel_names = ['Vorticity', 'Streamfunction']
+        channel_names = ['Vorticity', 'Streamfunction'][:num_channels]
     elif dataset_form == 'velocity':
-        channel_names = ['Pressure', 'Velocity X', 'Velocity Y']
+        channel_names = ['Pressure', 'Velocity X', 'Velocity Y', 'Vorticity'][:num_channels]
     else:
         channel_names = [f'Channel {i}' for i in range(num_channels)]
     
@@ -1573,7 +1628,7 @@ def plot_time_step_comparison(log_path, time_step, dataset_type='long', save_pat
     
     # Also create spectral comparison plot
     try:
-        spectral_data = compute_spectral_data_single_step(pred_step, target_step, dataset_form=dataset_form)
+        spectral_data = compute_spectral_data_single_step(pred_step, target_step, dataset_form=dataset_form, Lx=Lx, Ly=Ly)
         if spectral_data is not None:
             # Create spectral plot save path (replace _comparison with _spectral_comparison)
             spectral_filename = comparison_filename.replace('_comparison.png', '_spectral_comparison.png')
@@ -1968,35 +2023,35 @@ if __name__ == '__main__':
     # # for time_step in [32]:
         plot_time_step_comparison(log_path, time_step=time_step, dataset_type='long')
     
-    # #### 3. load the save_data and create animations (prediction and spectral comparison)c
-    anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
+    # # #### 3. load the save_data and create animations (prediction and spectral comparison)c
+    # anim1, anim2, fig1, fig2 = load_and_animate_predictions(log_path, dataset_type=args.dataset_type, save_animation=True, fps=10, k_zoom_threshold=20)
     
     
-    # # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
-    compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
+    # # # #### 3. compute the evaluation metrics over time (300 steps by default, metrics include rel_l2_norm, avg_rel_spectral_bias,  rel_spectral_bias high/mid/low)
+    # compute_evalutation_metrics(log_path=log_path, dataset_type=args.dataset_type)
     
-    # #### 4. Compare metrics across different methods
-    # Create log_paths_dict using the path generator function
-    model_names = ['FNO', 'HFS', 'WaveletTransV2']  # Specify which models to compare
-    log_paths_dict = {}
-    for model_name in model_names:
-        generated_path = get_log_path_for_model(model_name)
-        print(f"Checking path for {model_name}: {generated_path}")
-        print(f"  Path exists: {os.path.exists(generated_path)}")
-        if os.path.exists(generated_path):
-            log_paths_dict[model_name] = generated_path
-            print(f"  Added {model_name} to comparison")
-        else:
-            print(f"  Warning: Path does not exist for {model_name}, skipping")
+    # # #### 4. Compare metrics across different methods
+    # # Create log_paths_dict using the path generator function
+    # model_names = ['FNO', 'HFS', 'WaveletTransV2']  # Specify which models to compare
+    # log_paths_dict = {}
+    # for model_name in model_names:
+    #     generated_path = get_log_path_for_model(model_name)
+    #     print(f"Checking path for {model_name}: {generated_path}")
+    #     print(f"  Path exists: {os.path.exists(generated_path)}")
+    #     if os.path.exists(generated_path):
+    #         log_paths_dict[model_name] = generated_path
+    #         print(f"  Added {model_name} to comparison")
+    #     else:
+    #         print(f"  Warning: Path does not exist for {model_name}, skipping")
     
-    # Create save directory in parent folder with dataset and dataset_type name
-    # e.g., ./logs/ns2d_dedalus_big_long/
-    log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
-    comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
+    # # Create save directory in parent folder with dataset and dataset_type name
+    # # e.g., ./logs/ns2d_dedalus_big_long/
+    # log_path_parent = os.path.dirname(log_path)  # Parent folder (e.g., './logs')
+    # comparison_save_dir = os.path.join(log_path_parent, f'{args.dataset}_{args.dataset_type}')
     
-    combined_df, figures = compare_methods_metrics(
-        log_paths_dict=log_paths_dict,
-        dataset_type=args.dataset_type,
-        save_dir=comparison_save_dir,
-        metrics_to_plot=None  # Plots all metrics if None
-    )
+    # combined_df, figures = compare_methods_metrics(
+    #     log_paths_dict=log_paths_dict,
+    #     dataset_type=args.dataset_type,
+    #     save_dir=comparison_save_dir,
+    #     metrics_to_plot=None  # Plots all metrics if None
+    # )

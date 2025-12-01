@@ -273,6 +273,43 @@ def streamfunction_to_velocity(psi_grid, Lx, Ly):
     return ux_grid, uy_grid
 
 
+def velocity_to_vorticity(ux_grid, uy_grid, Lx, Ly):
+    """
+    Compute vorticity ω = ∂v/∂x - ∂u/∂y from velocity components.
+
+    The calculation is performed in Fourier space to leverage spectral
+    derivatives on the periodic domain.
+
+    Args:
+        ux_grid (ndarray): x-velocity (Nx, Ny)
+        uy_grid (ndarray): y-velocity (Nx, Ny)
+        Lx (float): Domain length in x
+        Ly (float): Domain length in y
+
+    Returns:
+        ndarray: Vorticity field (Nx, Ny)
+    """
+    ux_grid = np.asarray(ux_grid)
+    uy_grid = np.asarray(uy_grid)
+    Nx, Ny = ux_grid.shape
+
+    # Wavenumber grids for rfft2 layout
+    kx = 2 * np.pi * np.fft.fftfreq(Nx, d=Lx / Nx)
+    ky = 2 * np.pi * np.fft.rfftfreq(Ny, d=Ly / Ny)
+    KX, KY = np.meshgrid(kx, ky, indexing='ij')
+
+    # Transform velocity to spectral space
+    uxh = np.fft.rfft2(ux_grid)
+    uyh = np.fft.rfft2(uy_grid)
+
+    # ω̂ = i(k_x v̂ - k_y û)
+    omega_hat = 1j * (KX * uyh - KY * uxh)
+
+    # Back to physical space
+    vorticity_grid = np.fft.irfft2(omega_hat, s=(Nx, Ny))
+    return vorticity_grid
+
+
 def compute_scalar_diagnostics(ux_grid, uy_grid, vorticity_grid, Lx, Ly):
     """
     Compute scalar diagnostics: energy, enstrophy, palinstrophy.
