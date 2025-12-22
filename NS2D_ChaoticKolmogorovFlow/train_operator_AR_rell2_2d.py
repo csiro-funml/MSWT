@@ -291,8 +291,8 @@ def train_2d(args, config):
                     #   pad_ratio=model_cfg.get('pad_ratio', [0., 0.])
                       ).to(device)
     elif model_name == 'hfs':
-        model = ResUNet(in_c=3,
-                        out_c=1,
+        model = ResUNet(in_c=model_cfg.get('in_c', 3),
+                        out_c=model_cfg.get('out_c', 1),
                         target_params=model_cfg.get('target_params', 'medium'),
                         device=device).to(device)
     elif model_name in ['wno', 'wno2d']:

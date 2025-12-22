@@ -299,8 +299,12 @@ class ResUNet(nn.Module):
     
     def forward(self, x):
         # absort the time dimension into the channel dimensionx = x.view(*x.shape[:-2], -1)           #### B, X, Y, T*C
-        B, H, W, T, C = x.shape
-        x = x.view(*x.shape[:-2], -1)           #### B, H, W, T*C
+        if len(x.shape) == 5:
+           B, H, W, T, C = x.shape
+           x = x.view(*x.shape[:-2], -1)           #### B, H, W, T*C
+        else:
+            B, H, W, C, T = *x.shape, None
+       
         # grid = self.get_grid(x)
         # x = torch.cat((x, grid), dim=-1)        #### B, H, W, T*C +2
         x = x.permute(0, 3, 1, 2).contiguous() # (B, T*C+2, H, W)
@@ -329,7 +333,10 @@ class ResUNet(nn.Module):
 
         # reshape back to (B, C_out, H, W) -> (B, H, W, T, C)
         out = out.permute(0, 2, 3, 1).contiguous()
-        out = out.view(B, H, W, -1, self.out_c)
+        if T is not None:
+            out = out.view(B, H, W, -1, self.out_c)
+        else:
+            out = out.view(B, H, W, self.out_c)
         return out
        
     def set_input(self,input_data):
