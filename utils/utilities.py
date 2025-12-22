@@ -15,7 +15,7 @@ import os
 import scipy
 import io
 from PIL import Image
-from utils.compute_diagnostics import streamfunction_to_velocity
+from utils.compute_diagnostics import streamfunction_to_velocity, velocity_from_vorticity
 from utils.compute_physical_statistics import compute_spectra
 
 
@@ -501,8 +501,8 @@ def log_tensorboard_images_and_spectra(
                 ux_target = target_batch[:, :, 1]  # velocity_x
                 uy_target = target_batch[:, :, 2]  # velocity_y
             else:
-                # Cannot compute spectra for this form/channel combination
-                return
+                ux_pred, uy_pred = velocity_from_vorticity(torch.from_numpy(pred_batch[..., 0]))
+                ux_target, uy_target = velocity_from_vorticity(torch.from_numpy(target_batch[..., 0]))
             
             # Compute spectra for prediction and target
             k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
@@ -547,6 +547,27 @@ def log_tensorboard_images_and_spectra(
             print(f"Warning: Failed to compute energy/enstrophy spectra: {e}")
             import traceback
             traceback.print_exc()
+
+
+def save_checkpoint(path, name, model, epoch, optimizer=None, scheduler=None):
+    ckpt_dir = path
+    if not os.path.exists(ckpt_dir):
+        os.makedirs(ckpt_dir)
+    try:
+        model_state_dict = model.module.state_dict()
+    except AttributeError:
+        model_state_dict = model.state_dict()
+
+    optim_dict = optimizer.state_dict() if optimizer is not None else None
+    sched_dict = scheduler.state_dict() if scheduler is not None else None
+
+    torch.save({
+        'model': model_state_dict,
+        'optim': optim_dict,
+        'scheduler': sched_dict,
+        'epoch': epoch
+    }, ckpt_dir + name)
+    print('Checkpoint is saved at %s' % ckpt_dir + name)
 
 
 # -------------------------------------------------------------------------------------------
