@@ -476,77 +476,76 @@ def log_tensorboard_images_and_spectra(
     
     # Compute and plot energy and enstrophy spectra
     # Supports both vorticity and velocity forms
-    if C >= 2:
-        try:            
-            # Extract data for pred and target
-            # Shape: (B, H, W, T, C) -> extract first batch, first time step
-            pred_batch = pred_denorm[0, :, :, 0, :].detach().cpu().numpy()  # (H, W, C)
-            target_batch = target_denorm[0, :, :, 0, :].detach().cpu().numpy()  # (H, W, C)
+    try:            
+        # Extract data for pred and target
+        # Shape: (B, H, W, T, C) -> extract first batch, first time step
+        pred_batch = pred_denorm[0, :, :, 0, :].detach().cpu().numpy()  # (H, W, C)
+        target_batch = target_denorm[0, :, :, 0, :].detach().cpu().numpy()  # (H, W, C)
+        
+        # Get velocity components based on form
+        if form == 'vorticity' and C >= 2:
+            # For vorticity form: compute velocity from streamfunction
+            # Channel 0: vorticity, Channel 1: streamfunction
+            psi_pred = pred_batch[:, :, 1]  # streamfunction
+            psi_target = target_batch[:, :, 1]  # streamfunction
             
-            # Get velocity components based on form
-            if form == 'vorticity' and C >= 2:
-                # For vorticity form: compute velocity from streamfunction
-                # Channel 0: vorticity, Channel 1: streamfunction
-                psi_pred = pred_batch[:, :, 1]  # streamfunction
-                psi_target = target_batch[:, :, 1]  # streamfunction
-                
-                # Compute velocity from streamfunction
-                ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
-                ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
-            elif form == 'velocity' and C >= 3:
-                # For velocity form: use velocity components directly
-                # Channel 1: velocity_x, Channel 2: velocity_y
-                ux_pred = pred_batch[:, :, 1]  # velocity_x
-                uy_pred = pred_batch[:, :, 2]  # velocity_y
-                ux_target = target_batch[:, :, 1]  # velocity_x
-                uy_target = target_batch[:, :, 2]  # velocity_y
-            else:
-                ux_pred, uy_pred = velocity_from_vorticity(torch.from_numpy(pred_batch[..., 0]))
-                ux_target, uy_target = velocity_from_vorticity(torch.from_numpy(target_batch[..., 0]))
-            
-            # Compute spectra for prediction and target
-            k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
-            _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
-            
-            # Create energy spectrum plot
-            fig_energy, ax_energy = plt.subplots(figsize=(10, 6))
-            k_nyquist = int((np.pi * H) // Lx)
-            start_truth = 1
-            ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_target[start_truth:k_nyquist], 
-                          'X--', markersize=1, label='Ground Truth', linewidth=1, color='black')
-            ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_pred[start_truth:k_nyquist], 
-                          'o-', markersize=1, label=f'{model_name} Prediction', linewidth=1, color='blue')
-            ax_energy.set_xlabel('Wavenumber', fontsize=14)
-            ax_energy.set_ylabel('Energy', fontsize=14)
-            ax_energy.set_title('Energy Spectrum', fontsize=14)
-            ax_energy.legend(fontsize=12)
-            ax_energy.grid(True)
-            plt.tight_layout()
-            
-            # Convert to tensor and add to TensorBoard
-            energy_img = fig_to_tensorboard_image(fig_energy)
-            writer.add_image("spectra/energy_spectrum", energy_img, epoch)
-            
-            # Create enstrophy spectrum plot
-            fig_enstrophy, ax_enstrophy = plt.subplots(figsize=(10, 6))
-            ax_enstrophy.loglog(k_bins[start_truth:k_nyquist], Zk_target[start_truth:k_nyquist], 
-                          'X-', markersize=2, label='Ground Truth', linewidth=2, color='black')
-            ax_enstrophy.loglog(k_bins[start_truth:k_nyquist], Zk_pred[start_truth:k_nyquist], 
-                          'o-', markersize=2, label=f'{model_name} Prediction', linewidth=2, color='blue')
-            ax_enstrophy.set_xlabel('Wavenumber', fontsize=14)
-            ax_enstrophy.set_ylabel('Enstrophy', fontsize=14)
-            ax_enstrophy.set_title('Enstrophy Spectrum', fontsize=14)
-            ax_enstrophy.legend(fontsize=12)
-            ax_enstrophy.grid(True)
-            plt.tight_layout()
-            
-            # Convert to tensor and add to TensorBoard
-            enstrophy_img = fig_to_tensorboard_image(fig_enstrophy)
-            writer.add_image("spectra/enstrophy_spectrum", enstrophy_img, epoch)
-        except Exception as e:
-            print(f"Warning: Failed to compute energy/enstrophy spectra: {e}")
-            import traceback
-            traceback.print_exc()
+            # Compute velocity from streamfunction
+            ux_pred, uy_pred = streamfunction_to_velocity(psi_pred, Lx, Ly)
+            ux_target, uy_target = streamfunction_to_velocity(psi_target, Lx, Ly)
+        elif form == 'velocity' and C >= 3:
+            # For velocity form: use velocity components directly
+            # Channel 1: velocity_x, Channel 2: velocity_y
+            ux_pred = pred_batch[:, :, 1]  # velocity_x
+            uy_pred = pred_batch[:, :, 2]  # velocity_y
+            ux_target = target_batch[:, :, 1]  # velocity_x
+            uy_target = target_batch[:, :, 2]  # velocity_y
+        else:
+            ux_pred, uy_pred = velocity_from_vorticity(torch.from_numpy(pred_batch[..., 0]))
+            ux_target, uy_target = velocity_from_vorticity(torch.from_numpy(target_batch[..., 0]))
+        
+        # Compute spectra for prediction and target
+        k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
+        _, Ek_target, Zk_target = compute_spectra(ux_target, uy_target, Lx, Ly)
+        
+        # Create energy spectrum plot
+        fig_energy, ax_energy = plt.subplots(figsize=(10, 6))
+        k_nyquist = int((np.pi * H) // Lx)
+        start_truth = 1
+        ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_target[start_truth:k_nyquist], 
+                        'X--', markersize=1, label='Ground Truth', linewidth=1, color='black')
+        ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_pred[start_truth:k_nyquist], 
+                        'o-', markersize=1, label=f'{model_name} Prediction', linewidth=1, color='blue')
+        ax_energy.set_xlabel('Wavenumber', fontsize=14)
+        ax_energy.set_ylabel('Energy', fontsize=14)
+        ax_energy.set_title('Energy Spectrum', fontsize=14)
+        ax_energy.legend(fontsize=12)
+        ax_energy.grid(True)
+        plt.tight_layout()
+        
+        # Convert to tensor and add to TensorBoard
+        energy_img = fig_to_tensorboard_image(fig_energy)
+        writer.add_image("spectra/energy_spectrum", energy_img, epoch)
+        
+        # Create enstrophy spectrum plot
+        fig_enstrophy, ax_enstrophy = plt.subplots(figsize=(10, 6))
+        ax_enstrophy.loglog(k_bins[start_truth:k_nyquist], Zk_target[start_truth:k_nyquist], 
+                        'X-', markersize=2, label='Ground Truth', linewidth=2, color='black')
+        ax_enstrophy.loglog(k_bins[start_truth:k_nyquist], Zk_pred[start_truth:k_nyquist], 
+                        'o-', markersize=2, label=f'{model_name} Prediction', linewidth=2, color='blue')
+        ax_enstrophy.set_xlabel('Wavenumber', fontsize=14)
+        ax_enstrophy.set_ylabel('Enstrophy', fontsize=14)
+        ax_enstrophy.set_title('Enstrophy Spectrum', fontsize=14)
+        ax_enstrophy.legend(fontsize=12)
+        ax_enstrophy.grid(True)
+        plt.tight_layout()
+        
+        # Convert to tensor and add to TensorBoard
+        enstrophy_img = fig_to_tensorboard_image(fig_enstrophy)
+        writer.add_image("spectra/enstrophy_spectrum", enstrophy_img, epoch)
+    except Exception as e:
+        print(f"Warning: Failed to compute energy/enstrophy spectra: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def save_checkpoint(path, name, model, epoch, optimizer=None, scheduler=None):
