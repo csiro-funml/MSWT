@@ -176,10 +176,11 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             if writer is not None:
                 writer.add_scalar('eval/test_l2', test_l2, ep + 1)
                 fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=0, t_idx=0)
+                print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 if fixed_pred is not None:
                     log_tensorboard_images_and_spectra(writer,
-                                                       fixed_pred.unsqueeze(-1),
-                                                       fixed_target.unsqueeze(-1),
+                                                       fixed_pred[..., None, None],
+                                                       fixed_target[..., None, None],
                                                        ep + 1,
                                                        'vorticity',
                                                        model_name,
