@@ -184,8 +184,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                                        ep + 1,
                                                        'vorticity',
                                                        model_name,
-                                                       Lx=1,
-                                                       Ly=1)
+                                                       )
 
         if ep % save_step == 0 and ep > 0:
             save_checkpoint(config['train']['save_dir'],

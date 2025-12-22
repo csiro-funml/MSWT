@@ -509,7 +509,9 @@ def log_tensorboard_images_and_spectra(
         
         # Create energy spectrum plot
         fig_energy, ax_energy = plt.subplots(figsize=(10, 6))
-        k_nyquist = int((np.pi * H) // Lx)
+        # k_nyquist = int((np.pi * H) // Lx)
+        k_nyquist = 63
+
         start_truth = 1
         ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_target[start_truth:k_nyquist], 
                         'X--', markersize=1, label='Ground Truth', linewidth=1, color='black')
