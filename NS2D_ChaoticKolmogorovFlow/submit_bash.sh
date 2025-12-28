@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=30:40:00           # Increased time for longer training with larger batches
+#SBATCH --time=2:40:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1

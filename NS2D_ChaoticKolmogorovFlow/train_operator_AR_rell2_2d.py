@@ -13,6 +13,7 @@ from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
+from models.wavelet_transform import MultiscaleWaveletTransformer2D
 from tqdm import tqdm
 from utils.criterion import RelL2Norm
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint
@@ -325,8 +326,8 @@ def train_2d(args, config):
             wave=model_cfg.get('wave', 'haar'),
             input_dim=model_cfg.get('in_chans', 3),
             output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', 128),
-            n_layers=model_cfg.get('n_layers', 5),
+            dim=model_cfg.get('dim', None),
+            dims=model_cfg.get('dims', []),
             patch_size= model_cfg.get('patch_size', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
