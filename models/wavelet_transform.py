@@ -302,7 +302,7 @@ class MultiscaleWaveletTransformer2D(nn.Module):
         self.patch_size = patch_size
 
         if len(dims) == 0 and dim is not None:
-            dims = np.array([dim, 2*dim, 4*dim, 4*dim])
+            dims = np.array([dim//2, 2*dim, 4*dim, 4*dim])
         else:
             dims = np.array(dims)
         self.n_layers = len(dims)
@@ -427,7 +427,7 @@ class MultiscaleWaveletTransformer2D(nn.Module):
 
 if __name__ == "__main__":
     x = torch.randn(2, 64, 64, 3)
-    model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=3, dim=72, use_efficient_attention=True)
+    model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=3, dim=64, use_efficient_attention=True)
     print("number of parameters:", model.count_parameters())
     with torch.autograd.set_detect_anomaly(True):
         output = model(x)

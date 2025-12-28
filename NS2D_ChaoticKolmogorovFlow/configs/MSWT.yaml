@@ -17,7 +17,7 @@ data:
 model:
   name: multiscale_wavelet2d
   wave: haar
-  dim: 72
+  dim: 64
   in_chans: 3    # u plus (x,y) grid concatenated in train loop
   out_chans: 1
   use_efficient_attention: True
@@ -33,7 +33,7 @@ train:
   f_loss: 0.0
   xy_loss: 1.0
   save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/MSWT2d/
-  save_name: MultiscaleWavelet2d-dim72-nlayers4.pt
+  save_name: MultiscaleWavelet2d-dim64-nlayers4.pt
   data_iter: 1
   eqn_iter: 0
 
