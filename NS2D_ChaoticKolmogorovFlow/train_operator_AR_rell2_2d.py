@@ -127,6 +127,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
         pbar = tqdm(range(start_ep, epochs), dynamic_ncols=True, smoothing=0.1)
     else:
         pbar = range(start_ep, epochs)
+    best_loss = torch.inf
     for ep in pbar:
         model.train()
         running = 0.0
@@ -186,12 +187,14 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                                        model_name,
                                                        )
 
-        if ep % save_step == 0 and ep > 0:
-            save_checkpoint(config['train']['save_dir'],
-                            config['train']['save_name'],
-                            model, 
-                            ep,
-                            optimizer, scheduler)
+            if test_l2 < best_loss :
+                best_loss = test_l2
+                print(f'Best loss updated to {best_loss:.6f} at epoch {ep + 1}')
+                save_checkpoint(config['train']['save_dir'],
+                                config['train']['save_name'],
+                                model, 
+                                ep,
+                                optimizer, scheduler)
 
 
 def build_synthetic_dataset(data_config, n_samples, step_ahead=False):

@@ -766,9 +766,11 @@ class SAOTModel(nn.Module):
 
 
 if __name__ == '__main__':
+    n_layers = 5
+    n_hidden = 384
     model = SAOTModel(space_dim=2,
-                    n_layers=3,
-                    n_hidden=64,
+                    n_layers=n_layers,
+                    n_hidden=n_hidden,
                     dropout=0.0,
                     n_head=4,
                     Time_Input=False,
@@ -781,7 +783,7 @@ if __name__ == '__main__':
                     H=64, W=64,
                     is_filter=True)
 
-
+    print("total parameters:", sum(p.numel() for p in model.parameters()))
     x = torch.randn(1, 64, 64, 3)
     out = model(x)
     print(out.shape)
