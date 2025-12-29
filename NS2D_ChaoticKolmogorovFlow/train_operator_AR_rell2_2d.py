@@ -7,6 +7,7 @@ import math
 from torch.utils.data import DataLoader, random_split, TensorDataset, Dataset, Subset
 from torch.utils.tensorboard import SummaryWriter
 from data_utils.datasets import NSLoader2D
+from einops import rearrange
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from models.fno import FNO2d
@@ -14,6 +15,7 @@ from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
+from models.pderefiner import PDERefiner
 from tqdm import tqdm
 from utils.criterion import RelL2Norm
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint
@@ -54,7 +56,13 @@ def evaluate_step_ahead(model, test_loader, device, grid):
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
-            pred = model(x_in)
+            if isinstance(model, PDERefiner):
+                if len(x.shape) == 3:
+                    x = rearrange(x, 'b h w -> b 1 1 h w')
+                pred = model.validation_step(x)
+                pred = rearrange(pred, 'b 1 c h w -> b h w c')
+            else:
+                pred = model(x_in)
             total += lploss(pred, y).item()
             if pred_plot is None:
                 pred_plot = pred.clone()
@@ -96,7 +104,13 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     grid_b = grid.to(device)
     x_in = torch.cat((x.unsqueeze(0).unsqueeze(-1), grid_b), dim=-1)
     with torch.no_grad():
-        pred = model(x_in)
+        if isinstance(model, PDERefiner):
+            if len(x.shape) == 3:
+                x = rearrange(x, 'b h w -> b 1 1 h w')
+            pred = model.validation_step(x)
+            pred = rearrange(pred, 'b 1 c h w -> b h w c')
+        else:
+            pred = model(x_in)
         if pred.dim() == 5:
             pred = pred.squeeze(-2)
         if pred.dim() == 4:
@@ -145,19 +159,20 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
-            pred = model(x_in)
-            if isinstance(pred, tuple):
-                pred, x_reg = pred
-                # print("pred shape:", pred.shape, "x_reg shape:", x_reg.shape)
+            if isinstance(model, PDERefiner): # for PDERefiner, the loss function is a denoising loss
+                loss = model.training_step((x.unsqueeze(-1), y.unsqueeze(-1)))
             else:
-                x_reg = None
-        
-
-            data_loss = lploss(pred, y)
-            if x_reg is not None:
-                loss = data_loss + lambda_amp * x_reg
-            else:
-                loss = data_loss
+                pred = model(x_in)
+                if isinstance(pred, tuple):
+                    pred, x_reg = pred
+                    # print("pred shape:", pred.shape, "x_reg shape:", x_reg.shape)
+                else:
+                    x_reg = None
+                data_loss = lploss(pred, y)
+                if x_reg is not None:
+                    loss = data_loss + lambda_amp * x_reg
+                else:
+                    loss = data_loss
 
             optimizer.zero_grad()
             loss.backward()
@@ -298,6 +313,22 @@ def train_2d(args, config):
                         out_c=model_cfg.get('out_c', 1),
                         target_params=model_cfg.get('target_params', 'medium'),
                         device=device).to(device)
+    elif model_name == 'pderefiner':
+        model = PDERefiner(
+                name=model_cfg.get('basemodel_name', 'Unetmod-64'),
+                time_history=model_cfg.get('time_history', 1), # T_in
+                time_future=model_cfg.get('time_future', 1), # T_ar
+                time_gap=0,
+                max_num_steps=model_cfg.get('max_num_steps', 1),  # T_ar, just one step ahead
+                n_spatial_dim=model_cfg.get('n_spatial_dim', 2),
+                in_channels=model_cfg.get('in_channels', 3), # input channels
+                out_channels=model_cfg.get('out_channels', 1)   , # output channels
+                trajlen=model_cfg.get('trajlen', 64), # T_max
+                activation=model_cfg.get('activation', 'gelu'),
+                criterion=model_cfg.get('criterion', 'mse'),
+                hidden_channels=model_cfg.get('hidden_channels', 16),
+                n_blocks=model_cfg.get('n_blocks', 3),
+    ).to(device)
     elif model_name in ['wno', 'wno2d']:
         dummy = torch.zeros(1, 1, S_data, S_data, device=device)
         model = WNO2d(in_channels=model_cfg.get('in_chans', 3),

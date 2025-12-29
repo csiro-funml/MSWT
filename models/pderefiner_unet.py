@@ -445,6 +445,7 @@ class Unet(nn.Module):
     def __init__(
         self,
         input_channels: int,
+        output_channels: int,
         time_history: int,
         time_future: int,
         hidden_channels: int,
@@ -458,6 +459,7 @@ class Unet(nn.Module):
     ) -> None:
         super().__init__()
         self.input_channels = input_channels
+        self.output_channels = output_channels
         self.time_history = time_history
         self.time_future = time_future
         self.hidden_channels = hidden_channels
@@ -549,7 +551,7 @@ class Unet(nn.Module):
             self.norm = nn.GroupNorm(8, n_channels)
         else:
             self.norm = nn.Identity()
-        out_channels = time_future * self.input_channels
+        out_channels = time_future * self.output_channels
         #
         if use1x1:
             self.final = nn.Conv2d(in_channels, out_channels, kernel_size=1)

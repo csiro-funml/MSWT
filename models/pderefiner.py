@@ -10,7 +10,11 @@ import torch.nn.functional as F
 import torch
 import torch.nn as nn
 from diffusers.schedulers import DDPMScheduler
-from .pderefiner_unet import Unet
+from einops import rearrange
+import os
+import sys
+sys.path.append(os.path.dirname(__file__))
+from pderefiner_unet import Unet
 
 
 def custommse_loss(input: torch.Tensor, target: torch.Tensor, reduction: str = "mean"):
@@ -174,17 +178,19 @@ class SimpleModel(nn.Module):
         )
 
 
-def get_model(time_history, time_future, n_channels):
+def get_model(time_history, time_future, in_channels, out_channels, hidden_channels, n_blocks):
     """Simplified model creation function"""
     
     model = Unet(
-        input_channels=n_channels,
+        input_channels=in_channels,
+        output_channels=out_channels,
         time_history=time_history,
         time_future=time_future,
         # hidden_channels=64,
-        hidden_channels=32,
+        hidden_channels=hidden_channels,
         activation='gelu',
         norm=True,
+        n_blocks=n_blocks,
     )
     return model
 
@@ -198,11 +204,14 @@ class PDERefiner(nn.Module):
         time_gap: int,
         max_num_steps: int,
         n_spatial_dim: int,
-        n_channels: int,
+        in_channels: int,
+        out_channels: int,
         trajlen: int,
+        hidden_channels: int,
+        n_blocks: int,
         activation: str,
         criterion: str,
-        model: Optional[Dict] = None,
+        model: Optional[Dict] = None, 
         param_conditioning: Optional[str] = None,
         padding_mode: str = "zeros",
         predict_difference: bool = False,
@@ -230,7 +239,7 @@ class PDERefiner(nn.Module):
         else:
             raise NotImplementedError(f"{self.n_spatial_dim}")
 
-        self.model = get_model(time_history, time_future, n_channels)
+        self.model = get_model(time_history, time_future, in_channels, out_channels, hidden_channels, n_blocks)
         self.train_criterion = CustomMSELoss()
         # For Diffusion models and models in general working on small errors,
         # it is better to evaluate the exponential average of the model weights
@@ -266,6 +275,9 @@ class PDERefiner(nn.Module):
 
     def train_step(self, batch):
         u_prev, u_t = batch
+        if len(u_prev.shape) == 4: # (B, H, W, C) -> (B, T_in, C, H, W)
+            u_prev = rearrange(u_prev, 'b h w c -> b 1 c h w')
+            u_t = rearrange(u_t, 'b h w c -> b 1 c h w')
         if self.predict_difference:
             # Predict difference to next step instead of next step directly.
             u_t = (u_t - u_prev[:, -1:]) / self.difference_weight
@@ -536,12 +548,13 @@ if __name__ == "__main__":
     # Example of how to use the PDERefiner class
     model = PDERefiner(
         name="Unetmod-64",
-        time_history=4, # T_in
+        time_history=1, # T_in
         time_future=1, # T_ar
         time_gap=0,
         max_num_steps=1,  # T_ar, just one step ahead
         n_spatial_dim=2,
-        n_channels=3,
+        in_channels=1,
+        out_channels=1,
         trajlen=14, # T_max
         activation='gelu',
         criterion='mse',
@@ -555,8 +568,8 @@ if __name__ == "__main__":
     
 
     # Example input: batch_size=2, time_steps=4, channels=1, height=64, width=64
-    x = torch.randn(2, 4, 3, 64, 64)
-    y_true = torch.randn(2, 1, 3, 64, 64)  # Ground truth next timestep
+    x = torch.randn(2, 1, 1, 64, 64)
+    y_true = torch.randn(2, 1, 1, 64, 64)  # Ground truth next timestep
     
 
     # Training step
