@@ -766,8 +766,8 @@ class SAOTModel(nn.Module):
 
 
 if __name__ == '__main__':
-    n_layers = 5
-    n_hidden = 384
+    n_layers = 9
+    n_hidden =  256
     model = SAOTModel(space_dim=2,
                     n_layers=n_layers,
                     n_hidden=n_hidden,
