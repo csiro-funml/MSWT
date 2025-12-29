@@ -17,8 +17,8 @@ data:
 model:
   name: saot
   space_dim: 2
-  n_layers: 9
-  n_hidden: 256
+  n_layers: 5
+  n_hidden: 384
   dropout: 0.0
   n_head: 4
   Time_Input: False
@@ -41,7 +41,7 @@ train:
   f_loss: 0.0
   xy_loss: 1.0
   save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/SAOT2d/
-  save_name: SAOT2d-nlayers9-nhidden256.pt
+  save_name: SAOT2d-nlayers5-nhidden384.pt
   data_iter: 1
   eqn_iter: 0
 
