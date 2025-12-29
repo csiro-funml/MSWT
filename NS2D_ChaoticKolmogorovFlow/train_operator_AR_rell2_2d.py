@@ -105,6 +105,7 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     x_in = torch.cat((x.unsqueeze(0).unsqueeze(-1), grid_b), dim=-1)
     with torch.no_grad():
         if isinstance(model, PDERefiner):
+            print("x shape:", x.shape)
             if len(x.shape) == 3:
                 x = rearrange(x, 'b h w -> b 1 1 h w')
             pred = model.validation_step(x)
