@@ -732,47 +732,54 @@ class NLLLoss(_WeightedLoss):
         return nll_loss.mean()
        
 
-class LpLoss(_WeightedLoss):
-    def __init__(self, d=2, p=2, component=0, regularizer=False, normalizer=None):
+class LpLoss(object):
+    '''
+    loss function with rel/abs Lp loss
+    '''
+    def __init__(self, d=2, p=2, size_average=True, reduction=True):
         super(LpLoss, self).__init__()
+
+        #Dimension and Lp-norm type are postive
+        assert d > 0 and p > 0
 
         self.d = d
         self.p = p
-        self.component = component if component in ['all' , 'all-reduce'] else int(component)
+        self.reduction = reduction
+        self.size_average = size_average
 
-        self.regularizer = regularizer
-        self.normalizer = normalizer
+    def abs(self, x, y):
+        num_examples = x.size()[0]
 
-    def _lp_losses(self, pred, target):
-        if self.component == 'all':
-            losses = ((pred - target).view(pred.shape[0],-1,pred.shape[-1]).abs() ** self.p).mean(dim=1) ** (1 / self.p)
-            metrics = losses.mean(dim=0).clone().detach().cpu().numpy()
+        #Assume uniform mesh
+        h = 1.0 / (x.size()[1] - 1.0)
 
-        else:
-            assert self.component <= target.shape[1]
-            losses = ((pred - target).view(pred.shape[0],-1,pred.shape[-1]).abs() ** self.p).mean(dim=1) ** (1 / self.p)
-            metrics = losses.mean().clone().detach().cpu().numpy()
+        all_norms = (h**(self.d/self.p))*torch.norm(x.view(num_examples,-1) - y.view(num_examples,-1), self.p, 1)
 
-        loss = losses.mean()
+        if self.reduction:
+            if self.size_average:
+                return torch.mean(all_norms)
+            else:
+                return torch.sum(all_norms)
 
-        return loss, metrics
+        return all_norms
 
-    def forward(self, pred, target):
+    def rel(self, x, y):
+        num_examples = x.size()[0]
 
-        #### only for computing metrics
+        diff_norms = torch.norm(x.reshape(num_examples,-1) - y.reshape(num_examples,-1), self.p, 1)
+        y_norms = torch.norm(y.reshape(num_examples,-1), self.p, 1)
 
-        loss, metrics = self._lp_losses(pred, target)
+        if self.reduction:
+            if self.size_average:
+                return torch.mean(diff_norms/y_norms)
+            else:
+                return torch.sum(diff_norms/y_norms)
 
-        if self.normalizer is not None:
-            ori_pred, ori_target = self.normalizer.transform(pred,component=self.component, inverse=True), self.normalizer.transform(target, inverse=True)
-            _, metrics = self._lp_losses(ori_pred, ori_target)
+        return diff_norms/y_norms
 
-        if self.regularizer:
-            raise NotImplementedError
-        else:
-            reg = torch.zeros_like(loss)
+    def __call__(self, x, y):
+        return self.rel(x, y)
 
-        return loss, reg, metrics
 
 class RelLpLoss(_WeightedLoss):
     def __init__(self, d=2, p=2, component=0, regularizer=False, normalizer=None):

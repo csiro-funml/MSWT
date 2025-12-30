@@ -17,7 +17,7 @@ from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D, MultiscaleWaveletTransformer2DDecoderNoAttention
 from models.pderefiner import PDERefiner
 from tqdm import tqdm
-from utils.criterion import RelL2Norm
+from utils.criterion import LpLoss
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint
 
 
@@ -44,7 +44,7 @@ def evaluate_3d(model, test_loader, device):
 
 def evaluate_step_ahead(model, test_loader, device, grid):
     """Evaluate one-step prediction u_t -> u_{t+1}."""
-    lploss = RelL2Norm(size_average=True)
+    lploss = LpLoss(size_average=True)
 
     model.eval()
     total = 0.0
@@ -129,7 +129,7 @@ def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
 
 def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True, writer=None, model_name='fno2d', start_ep=0):
     """Train on one-step pairs (u_t, u_{t+1})."""
-    lploss = RelL2Norm(size_average=True)
+    lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
     grid = grid.to(device).unsqueeze(0)
 
@@ -194,6 +194,12 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                 writer.add_scalar('eval/test_l2', test_l2, ep + 1)
                 fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=0, t_idx=0)
                 # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
+                
+                save_checkpoint(config['train']['save_dir'],
+                                config['train']['save_name'],
+                                model, 
+                                ep,
+                                optimizer, scheduler)
                 if fixed_pred is not None:
                     log_tensorboard_images_and_spectra(writer,
                                                        fixed_pred[..., None, None],
@@ -201,16 +207,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                                        ep + 1,
                                                        'vorticity',
                                                        model_name,
-                                                       )
-
-            if test_l2 < best_loss :
-                best_loss = test_l2
-                print(f'Best loss updated to {best_loss:.6f} at epoch {ep + 1}')
-                save_checkpoint(config['train']['save_dir'],
-                                config['train']['save_name'],
-                                model, 
-                                ep,
-                                optimizer, scheduler)
+                                                       ) 
 
 
 def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
