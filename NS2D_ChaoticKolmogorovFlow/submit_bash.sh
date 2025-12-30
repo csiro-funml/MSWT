@@ -42,8 +42,8 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 
 # Testing
-python3 test_operator_AR_rell2_2d.py --config_path configs/FNO.yaml
-# python3 train_operator_AR_rell2_2d.py --config_path configs/HFS.yaml --test_ratio 0.25
+# python3 test_operator_AR_rell2_2d.py --config_path configs/FNO.yaml
+python3 test_operator_AR_rell2_2d.py --config_path configs/HFS.yaml
 # python3 train_operator_AR_rell2_2d.py --config_path configs/WNO.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefiner.yaml --test_ratio 0.25
