@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=03:10:00           # Increased time for longer training with larger batches
+#SBATCH --time=01:00:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -31,8 +31,8 @@ echo "=========================================="
 # Training
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# python3 train_operator_AR_rell2_2d.py --config_path configs/FNO.yaml --test_ratio 0.25
-python3 train_operator_AR_rell2_2d.py --config_path configs/HFS.yaml --test_ratio 0.25
+python3 train_operator_AR_rell2_2d.py --config_path configs/FNO.yaml --test_ratio 0.25
+# python3 train_operator_AR_rell2_2d.py --config_path configs/HFS.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/WNO.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefiner.yaml --test_ratio 0.25
