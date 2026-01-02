@@ -14,7 +14,7 @@ from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D, MultiscaleWaveletTransformer2DDecoderNoAttention
 from models.pderefiner import PDERefiner
-
+from einops import rearrange
 from utils.criterion import LpLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
 
@@ -82,7 +82,13 @@ def autoregressive_eval(model, sequences, device):
             prev = seq[..., 0]  # initial condition
             for t in range(T - 1):
                 x_in = torch.cat((prev.unsqueeze(-1), grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
-                pred = model(x_in)
+                if isinstance(model, PDERefiner):
+                    if len(prev.shape) == 3:
+                        prev = rearrange(prev, 'b h w -> b 1 1 h w')
+                    pred = model.validation_step(prev)
+                    pred = rearrange(pred, 'b 1 c h w -> b h w c')
+                else:
+                    pred = model(x_in)
                 if pred.dim() == 5:
                     pred = pred.squeeze(-2)
                 if pred.dim() == 4:
