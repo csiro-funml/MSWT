@@ -29,6 +29,20 @@ class LiteDecoderAttentionBlock(nn.Module):
         return x
 
 
+class Adapter(nn.Module):
+    """Low-rank adapter to add capacity with minimal params."""
+    def __init__(self, dim, bottleneck=16, dropout=0.0):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+        self.down = nn.Linear(dim, bottleneck)
+        self.act = nn.GELU()
+        self.up = nn.Linear(bottleneck, dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        return self.dropout(self.up(self.act(self.down(self.norm(x)))))
+
+
 class MultiscaleWaveletTransformer2DDecoderNoAttention(nn.Module):
     def __init__(self, wave='haar', input_dim=3, output_dim=3, dim=None, dims=[], use_efficient_attention=False,
                        efficient_layers=[0, 1], add_grid=False, patch_size=None, **kwargs):
@@ -159,6 +173,12 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
     Default hyper-params land around ~14M params (dim=128, ff_mult=3.0,
     stage_depths=2 for each scale).
 
+    Extras for memory/perf:
+    - Activation checkpointing on attention/adapter blocks (use_checkpoint).
+    - Low-rank adapters to add capacity with minimal params (adapter_rank).
+    - More attention where it is cheap: extra depth on the lowest-resolution
+      decoder stages (lowres_extra_depth/lowres_levels).
+
     Key ideas:
     - Multiple passes per scale using the same attention + FFN weights
       (stage_depths) to add depth without adding parameters.
@@ -183,9 +203,11 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
         decoder_attn=True,
         decoder_heads=4,
         decoder_dim_head=32,
-        use_checkpoint=False,
+        use_checkpoint=True,
         lowres_extra_depth=0,
         lowres_levels=1,
+        adapter_rank=16,
+        adapter_dropout=0.0,
     ):
         super().__init__()
         self.add_grid = add_grid
@@ -193,6 +215,8 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
         self.use_checkpoint = use_checkpoint
         self.lowres_extra_depth = lowres_extra_depth
         self.lowres_levels = lowres_levels
+        self.adapter_rank = adapter_rank
+        self.adapter_dropout = adapter_dropout
 
         if len(dims) == 0 and dim is not None:
             # Cap the width so the default stays around ~15M params.
@@ -217,6 +241,7 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
         self.decoder_depths = decoder_depths
         self.decoder_attn_enabled = decoder_attn
 
+        self.enc_adapters = nn.ModuleList([])
         self.enc_layers = nn.ModuleList([])
         for i in range(self.n_layers):
             dim_i = dims[i]
@@ -247,9 +272,14 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
             )
 
             self.enc_layers.append(nn.ModuleList([attn_layer, down_layer]))
+            if adapter_rank > 0:
+                self.enc_adapters.append(Adapter(dim_i, bottleneck=adapter_rank, dropout=adapter_dropout))
+            else:
+                self.enc_adapters.append(None)
 
         self.dec_layers = nn.ModuleList([])
         self.dec_attn_layers = nn.ModuleList([])
+        self.dec_adapters = nn.ModuleList([])
         for i in range(self.n_layers):
             dim_i = dims[self.n_layers - i - 1]
             new_dim = dims[self.n_layers - i - 2] if self.n_layers - i - 2 >= 0 else dim_i
@@ -272,6 +302,10 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
                 )
             else:
                 self.dec_attn_layers.append(None)
+            if adapter_rank > 0:
+                self.dec_adapters.append(Adapter(new_dim, bottleneck=adapter_rank, dropout=adapter_dropout))
+            else:
+                self.dec_adapters.append(None)
 
     def get_grid(self, x):
         b, h, w, _ = x.shape
@@ -311,19 +345,18 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
         x = rearrange(x, 'b c h w -> b (h w) c')
         return x, h, w
 
-    def _checkpoint_attn_block(self, x, layer, h, w):
+    def _maybe_checkpoint(self, fn, x):
         if self.use_checkpoint and torch.is_grad_enabled():
-            def fn(t):
-                return self.attention_block(t, layer, h, w)
             return checkpoint(fn, x)
-        return self.attention_block(x, layer, h, w)
+        return fn(x)
 
-    def _checkpoint_decoder_attn(self, block, x):
-        if self.use_checkpoint and torch.is_grad_enabled():
-            def fn(t):
-                return block(t)
-            return checkpoint(fn, x)
-        return block(x)
+    def _checkpoint_attn_block(self, x, layer, h, w):
+        return self._maybe_checkpoint(lambda t: self.attention_block(t, layer, h, w), x)
+
+    def _checkpoint_module(self, module, x):
+        if module is None:
+            return x
+        return self._maybe_checkpoint(lambda t: module(t), x)
 
     def forward(self, x):
         if self.add_grid:
@@ -336,21 +369,26 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
 
         x_list = []
 
-        for (attn_layer, down_layer), depth in zip(self.enc_layers, self.stage_depths):
+        for (attn_layer, down_layer), adapter, depth in zip(self.enc_layers, self.enc_adapters, self.stage_depths):
             x_list.append(rearrange(x, 'b (h w) c -> b c h w', h=h, w=w))
             for _ in range(depth):
                 x = self._checkpoint_attn_block(x, attn_layer, h, w)
+                if adapter is not None:
+                    x = x + self._checkpoint_module(adapter, x)
             x, h, w = self.down_block(x, down_layer, h, w)
 
         for up_layer_idx, up_layer in enumerate(self.dec_layers):
             x, h, w = self.up_block(x, x_list.pop(), up_layer, h, w)
             if self.decoder_attn_enabled:
                 attn_block = self.dec_attn_layers[up_layer_idx]
+                adapter = self.dec_adapters[up_layer_idx]
                 depth = self.decoder_depths[up_layer_idx]
                 if up_layer_idx < self.lowres_levels:
                     depth += self.lowres_extra_depth
                 for _ in range(depth):
-                    x = self._checkpoint_decoder_attn(attn_block, x)
+                    x = self._checkpoint_module(attn_block, x)
+                    if adapter is not None:
+                        x = x + self._checkpoint_module(adapter, x)
 
         x = self.output_proj(x)
         x = rearrange(x, 'b (h w) c-> b h w c', h=h, w=w)
