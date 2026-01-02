@@ -14,7 +14,8 @@ from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
-from models.wavelet_transform import MultiscaleWaveletTransformer2D, MultiscaleWaveletTransformer2DDecoderNoAttention
+from models.wavelet_transform import MultiscaleWaveletTransformer2D
+from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention
 from models.pderefiner import PDERefiner
 from tqdm import tqdm
 from utils.criterion import LpLoss
