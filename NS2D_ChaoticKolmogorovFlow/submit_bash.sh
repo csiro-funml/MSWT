@@ -38,7 +38,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefiner.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_NodecoderAttn.yaml --test_ratio 0.25
-python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_ReuseAttn.yaml --test_ratio 0.25
+python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_dim128_attn05124_group4.yaml --test_ratio 0.25
 #################################################################################################################################
 
 

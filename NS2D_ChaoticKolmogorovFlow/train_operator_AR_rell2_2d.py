@@ -15,7 +15,7 @@ from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
-from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DDecoderPE
+from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient
 from models.pderefiner import PDERefiner
 from tqdm import tqdm
 from utils.criterion import LpLoss
@@ -372,8 +372,8 @@ def train_2d(args, config):
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
         ).to(device)
-    elif model_name in ['multiscale_wavelet2d_reuseattn']:
-        model = MultiscaleWaveletTransformer2DDecoderPE(
+    elif model_name in ['multiscale_wavelet2d_attn05124_group4']:
+        model = MultiscaleWaveletTransformer2DEfficient(
             wave=model_cfg.get('wave', 'haar'),
             input_dim=model_cfg.get('in_chans', 3),
             output_dim=model_cfg.get('out_chans', 1),
@@ -382,8 +382,6 @@ def train_2d(args, config):
             patch_size= model_cfg.get('patch_size', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            use_checkpoint=model_cfg.get('use_checkpoint', False),
-            lowres_levels=model_cfg.get('lowres_levels', 1),
         ).to(device)
     else:
         raise ValueError(f'Model {model_name} not supported')
