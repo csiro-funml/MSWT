@@ -22,6 +22,8 @@ model:
   out_chans: 1
   use_efficient_attention: True
   efficient_layers: [0, 1, 2]
+  use_checkpoint: True
+  lowres_levels: 2
 
 train:
   batchsize: 100

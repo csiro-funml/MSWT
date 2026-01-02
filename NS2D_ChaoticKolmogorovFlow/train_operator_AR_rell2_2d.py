@@ -382,6 +382,8 @@ def train_2d(args, config):
             patch_size= model_cfg.get('patch_size', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            use_checkpoint=model_cfg.get('use_checkpoint', False),
+            lowres_levels=model_cfg.get('lowres_levels', 1),
         ).to(device)
     else:
         raise ValueError(f'Model {model_name} not supported')

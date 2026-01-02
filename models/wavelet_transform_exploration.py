@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Function
+from torch.utils.checkpoint import checkpoint
 from einops import rearrange
 import os
 import sys
@@ -182,10 +183,16 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
         decoder_attn=True,
         decoder_heads=4,
         decoder_dim_head=32,
+        use_checkpoint=False,
+        lowres_extra_depth=0,
+        lowres_levels=1,
     ):
         super().__init__()
         self.add_grid = add_grid
         self.patch_size = patch_size
+        self.use_checkpoint = use_checkpoint
+        self.lowres_extra_depth = lowres_extra_depth
+        self.lowres_levels = lowres_levels
 
         if len(dims) == 0 and dim is not None:
             # Cap the width so the default stays around ~15M params.
@@ -263,6 +270,8 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
                         new_dim, heads=decoder_heads, dim_head=decoder_dim_head, ff_mult=ff_mult
                     )
                 )
+            else:
+                self.dec_attn_layers.append(None)
 
     def get_grid(self, x):
         b, h, w, _ = x.shape
@@ -302,6 +311,20 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
         x = rearrange(x, 'b c h w -> b (h w) c')
         return x, h, w
 
+    def _checkpoint_attn_block(self, x, layer, h, w):
+        if self.use_checkpoint and torch.is_grad_enabled():
+            def fn(t):
+                return self.attention_block(t, layer, h, w)
+            return checkpoint(fn, x)
+        return self.attention_block(x, layer, h, w)
+
+    def _checkpoint_decoder_attn(self, block, x):
+        if self.use_checkpoint and torch.is_grad_enabled():
+            def fn(t):
+                return block(t)
+            return checkpoint(fn, x)
+        return block(x)
+
     def forward(self, x):
         if self.add_grid:
             x_grid = self.get_grid(x)
@@ -316,15 +339,18 @@ class MultiscaleWaveletTransformer2DDecoderPE(nn.Module):
         for (attn_layer, down_layer), depth in zip(self.enc_layers, self.stage_depths):
             x_list.append(rearrange(x, 'b (h w) c -> b c h w', h=h, w=w))
             for _ in range(depth):
-                x = self.attention_block(x, attn_layer, h, w)
+                x = self._checkpoint_attn_block(x, attn_layer, h, w)
             x, h, w = self.down_block(x, down_layer, h, w)
 
         for up_layer_idx, up_layer in enumerate(self.dec_layers):
             x, h, w = self.up_block(x, x_list.pop(), up_layer, h, w)
             if self.decoder_attn_enabled:
                 attn_block = self.dec_attn_layers[up_layer_idx]
-                for _ in range(self.decoder_depths[up_layer_idx]):
-                    x = attn_block(x)
+                depth = self.decoder_depths[up_layer_idx]
+                if up_layer_idx < self.lowres_levels:
+                    depth += self.lowres_extra_depth
+                for _ in range(depth):
+                    x = self._checkpoint_decoder_attn(attn_block, x)
 
         x = self.output_proj(x)
         x = rearrange(x, 'b (h w) c-> b h w c', h=h, w=w)
@@ -342,7 +368,7 @@ if __name__ == "__main__":
     # Baseline decoder-only attention-free variant
     # model = MultiscaleWaveletTransformer2DDecoderNoAttention(input_dim=3, output_dim=3, dim=96, use_efficient_attention=True)
     # Parameter-efficient deep variant (~14M params with defaults)
-    model = MultiscaleWaveletTransformer2DDecoderPE(input_dim=3, output_dim=3)
+    model = MultiscaleWaveletTransformer2DDecoderPE(input_dim=3, output_dim=3, use_checkpoint=True, lowres_levels=2)
     
     print("number of parameters:", model.count_parameters())
     with torch.autograd.set_detect_anomaly(True):
