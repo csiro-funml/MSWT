@@ -549,7 +549,8 @@ class MultiscaleWaveletTransformer2DDecoderNoAttention(nn.Module):
 
 
 if __name__ == "__main__":
-    x = torch.randn(2, 64, 64, 3)
+    # x = torch.randn(2, 64, 64, 3)
+    x = torch.rand(2, 96, 192, 3)
     # model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=3, dim=64, use_efficient_attention=True)
     
     model = MultiscaleWaveletTransformer2DDecoderNoAttention(input_dim=3, output_dim=3, dim=96, use_efficient_attention=True)

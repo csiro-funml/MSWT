@@ -439,56 +439,7 @@ if __name__ == "__main__":
     print(f"Bottleneck: {model_small.bottleneck_feature}")
     print(f"Width multiplier: {model_small.width_multiplier}")
     
-    print("\n" + "=" * 60)
-    print("Example 2: Medium model (~32-40M parameters, power-of-two preset)")
-    print("=" * 60)
-    model_medium = ResUNet(in_c=n_channels, out_c=n_channels, 
-                          target_params='medium',
-                          device=device).to(device)
-    n_params_medium = sum(p.numel() for p in model_medium.parameters())
-    print(f"Medium model parameters: {n_params_medium:,} ({n_params_medium/1e6:.2f}M)")
-    print(f"Features: {model_medium.features}")
-    print(f"Bottleneck: {model_medium.bottleneck_feature}")
-    print(f"Width multiplier: {model_medium.width_multiplier}")
     
-    print("\n" + "=" * 60)
-    print("Example 3: Large model (~64M parameters, default)")
-    print("=" * 60)
-    model_large = ResUNet(in_c=n_channels, out_c=n_channels, 
-                         target_params='large',
-                         device=device).to(device)
-    n_params_large = sum(p.numel() for p in model_large.parameters())
-    print(f"Large model parameters: {n_params_large:,} ({n_params_large/1e6:.2f}M)")
-    print(f"Features: {model_large.features}")
-    print(f"Bottleneck: {model_large.bottleneck_feature}")
-    print(f"Width multiplier: {model_large.width_multiplier}")
-    
-    print("\n" + "=" * 60)
-    print("Example 4: Custom width multiplier")
-    print("=" * 60)
-    model_custom = ResUNet(in_c=n_channels, out_c=n_channels, 
-                          width_multiplier=0.6,  # Custom size
-                          device=device).to(device)
-    n_params_custom = sum(p.numel() for p in model_custom.parameters())
-    print(f"Custom model parameters: {n_params_custom:,} ({n_params_custom/1e6:.2f}M)")
-    print(f"Features: {model_custom.features}")
-    print(f"Bottleneck: {model_custom.bottleneck_feature}")
-    print(f"Width multiplier: {model_custom.width_multiplier}")
-    
-    # Test forward pass
-    print("\n" + "=" * 60)
-    print("Testing forward pass...")
-    print("=" * 60)
-    x = torch.rand(2, 256, 256, T_in, n_channels)
-    y = model_small(x)
-    print(f"Input shape: {x.shape}")
-    print(f"Output shape: {y.shape}")
-    
-    # Summary
-    print("\n" + "=" * 60)
-    print("Parameter Count Summary")
-    print("=" * 60)
-    print(f"Small  (target_params='small'):     {n_params_small/1e6:6.2f}M")
-    print(f"Medium (target_params='medium'):    {n_params_medium/1e6:6.2f}M")
-    print(f"Large  (target_params='large'):     {n_params_large/1e6:6.2f}M")
-    print(f"Custom (width_multiplier=0.6):      {n_params_custom/1e6:6.2f}M")
+    # x = torch.rand(2, 96, 192, 3)
+    x = torch.rand(1, 128, 128, 3)
+    print("output shape:", model_small(x).shape)

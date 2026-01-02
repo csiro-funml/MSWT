@@ -340,7 +340,8 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     level = 3
     width = 96
-    train_a = torch.randn(1, 64, 64, 3).to(device)
+    # train_a = torch.randn(1, 64, 64, 3).to(device)
+    train_a = torch.rand(1, 96, 192, 3)
     model = WNO2d(in_channels=3, out_channels=1, width=width, level=level, dummy_data=train_a.permute(0,3,1,2)).to(device)
     print(model)
     print("total parameters:", sum(p.numel() for p in model.parameters()))

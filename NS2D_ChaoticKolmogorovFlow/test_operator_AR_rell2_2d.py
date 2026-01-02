@@ -15,7 +15,7 @@ from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D, MultiscaleWaveletTransformer2DDecoderNoAttention
 from models.pderefiner import PDERefiner
 
-from utils.criterion import RelL2Norm
+from utils.criterion import LpLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
 
 
@@ -65,7 +65,7 @@ def load_ns_sequences(data_config):
 
 def autoregressive_eval(model, sequences, device):
     """Run autoregressive rollout on full sequences."""
-    lploss = RelL2Norm(size_average=True)
+    lploss = LpLoss(size_average=True)
     model.eval()
     S = sequences.shape[1]
     T = sequences.shape[-1]

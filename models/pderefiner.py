@@ -558,6 +558,8 @@ if __name__ == "__main__":
         trajlen=14, # T_max
         activation='gelu',
         criterion='mse',
+        hidden_channels=16,
+        n_blocks=3,
     )
     
     # count the number of parameters
@@ -568,10 +570,11 @@ if __name__ == "__main__":
     
 
     # Example input: batch_size=2, time_steps=4, channels=1, height=64, width=64
-    x = torch.randn(2, 1, 1, 64, 64)
-    y_true = torch.randn(2, 1, 1, 64, 64)  # Ground truth next timestep
+    # x = torch.randn(2, 1, 1, 64, 64)
+    # y_true = torch.randn(2, 1, 1, 64, 64)  # Ground truth next timestep
     
-
+    x = torch.rand(2, 1, 1, 96, 192)
+    y_true = torch.rand(2, 1, 1, 96, 192)
     # Training step
     model.train()
     loss = model.training_step((x, y_true))

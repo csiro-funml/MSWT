@@ -346,20 +346,14 @@ def build_fno2d_tin1_tout1(scale: str = "small", **kwargs):
     return FNO2d_Tin1_Tout1(**cfg)
 
 if __name__ == "__main__":
-    x = torch.rand(1, 128, 128, 1, 3)
+    # x = torch.rand(1, 128, 128, 3)
     # model = FNO2d(12, 12, 32, 128)
 
-    # x = torch.rand(2, 96, 192, 10, 1)
+    x = torch.rand(2, 96, 192, 3)
     # model = FNO2d(12, 12, 32, img_size=(96, 192), normalize=True)
 
-    model = FNO2d_Tin1_Tout1(30, 30, 48,
-                img_size=128,
-                in_channels=3,out_channels=3,
-                in_timesteps = 1, out_timesteps=1, 
-                n_layers = 4,
-                use_ln=True,
-                normalize=True, 
-                 )
+    model = FNO2d(modes1=[16, 16, 16, 16], modes2=[16, 16, 16, 16], fc_dim=128, layers=[64, 64, 64, 64, 64, 64], act='gelu',
+    in_dim=3, out_dim=1)
     print("total parameters:", sum(p.numel() for p in model.parameters()))
     y = model(x)
     print(y.shape)
