@@ -599,22 +599,93 @@ class Unet(nn.Module):
         return x
 
 
+class UNetRefiner(Unet):
+    def __init__(self, input_channels: int,
+        output_channels: int,
+        time_history: int,
+        time_future: int,
+        hidden_channels: int,
+        activation: str,
+        norm: bool = False,
+        ch_mults: Union[Tuple[int, ...], List[int]] = (1, 2, 2, 4),
+        is_attn: Union[Tuple[bool, ...], List[bool]] = (False, False, False, False),
+        mid_attn: bool = False,
+        n_blocks: int = 2,
+        use1x1: bool = False):
+
+        super().__init__(input_channels, output_channels, time_history, time_future, hidden_channels, activation, norm, ch_mults, is_attn, mid_attn, n_blocks, use1x1)
+
+
+    def forward(self, x: torch.Tensor,  time: torch.Tensor = torch.tensor([1]), z: torch.Tensor = None):
+        
+        # X (B, H, W, C) -> (B, C, H, W)
+        B, H, W, C = x.shape
+        x = x.permute(0, 3, 1, 2).contiguous() # (B, T*C+2, H, W)
+
+        emb = 0
+        if time is not None:
+            emb = emb + self.time_embed(fourier_embedding(time, self.hidden_channels))
+            self.param_use_time = True
+        else:
+            assert not self.param_use_time, "Cannot pass time=None after using it in a previous forward pass"
+
+        x = self.image_proj(x)
+    
+        h = [x]
+        for m in self.down:
+            if isinstance(m, Downsample):
+                x = m(x)
+            else:
+                x = m(x, emb)
+            h.append(x)
+
+        x = self.middle(x, emb)
+
+        for m in self.up:
+            if isinstance(m, Upsample):
+                x = m(x)
+            else:
+                # Get the skip connection from first half of U-Net and concatenate
+                s = h.pop()
+                x = torch.cat((x, s), dim=1)        #
+                x = m(x, emb)
+
+        x = self.final(self.activation(self.norm(x)))
+        
+        x = x.permute(0, 2, 3, 1).contiguous()
+        x = x.view(B, H, W, self.output_channels)
+        return x
+
 if __name__ == "__main__":
     # Test Unet with SimpleConvNet
-    print("Testing Unet with SimpleConvNet...")
-    model = Unet(
-        input_channels=3,
-        time_history=7,
-        time_future=1,
-        hidden_channels=64,
-        activation='gelu',
-        norm=True,
-    )
-    print(model)
+    # print("Testing Unet with SimpleConvNet...")
+    # model = Unet(
+    #     input_channels=3,
+    #     time_history=7,
+    #     time_future=1,
+    #     hidden_channels=64,
+    #     activation='gelu',
+    #     norm=True,
+    # )
+    # print(model)
     
-    u_t = torch.randn(4, 1, 3, 64, 64)
-    u_prev = torch.randn(4, 7, 3, 64, 64)
-    time = torch.randn(4)
-    y = model(u_prev, time=time, z=u_t)
-    print(f"Unet output shape: {y.shape}")
-    print("Unet test passed!")
+    # u_t = torch.randn(4, 1, 3, 64, 64)
+    # u_prev = torch.randn(4, 7, 3, 64, 64)
+    # time = torch.randn(4)
+    # y = model(u_prev, time=time, z=u_t)
+    # print(f"Unet output shape: {y.shape}")
+    # print("Unet test passed!")
+
+    x = torch.randn(4, 64, 64, 3)
+    model = UNetRefiner(
+        input_channels=3,
+        output_channels=1,
+        time_history=0,
+        time_future=1,
+        n_blocks=3,
+        hidden_channels=16,
+        activation='gelu',
+    )
+    print("number of parameters: ", sum(p.numel() for p in model.parameters()))
+    out = model(x)
+    print("output shape: ", out.shape)
