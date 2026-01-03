@@ -686,6 +686,7 @@ if __name__ == "__main__":
         hidden_channels=16,
         activation='gelu',
     )
+    print(model)
     print("number of parameters: ", sum(p.numel() for p in model.parameters()))
     out = model(x)
     print("output shape: ", out.shape)
