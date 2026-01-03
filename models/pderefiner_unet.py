@@ -624,7 +624,7 @@ class UNetRefiner(Unet):
 
         emb = 0
         if time is not None:
-            emb = emb + self.time_embed(fourier_embedding(time, self.hidden_channels))
+            emb = emb + self.time_embed(fourier_embedding(time.to(x.device), self.hidden_channels))
             self.param_use_time = True
         else:
             assert not self.param_use_time, "Cannot pass time=None after using it in a previous forward pass"
