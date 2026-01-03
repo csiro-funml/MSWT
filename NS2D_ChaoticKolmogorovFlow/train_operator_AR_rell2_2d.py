@@ -362,7 +362,7 @@ def train_2d(args, config):
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
         ).to(device)
-    elif model_name in ['multiscale_wavelet2d_nodecoderattn']:
+    elif model_name in ['multiscale_wavelet2d_nodecoderattn', 'multiscale_wavelet2d_nodecoderattn_group4']:
         model = MultiscaleWaveletTransformer2DDecoderNoAttention(
             wave=model_cfg.get('wave', 'haar'),
             input_dim=model_cfg.get('in_chans', 3),
@@ -372,6 +372,7 @@ def train_2d(args, config):
             patch_size= model_cfg.get('patch_size', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            groups=model_cfg.get('groups', 1),
         ).to(device)
     elif model_name in ['multiscale_wavelet2d_attn05124_group4']:
         model = MultiscaleWaveletTransformer2DEfficient(
