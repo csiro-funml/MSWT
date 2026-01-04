@@ -15,6 +15,7 @@ from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
 from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention
 from models.pderefiner import PDERefiner
+from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
 from utils.criterion import LpLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
@@ -177,6 +178,16 @@ def main():
                         ref=model_cfg.get('ref', 8),
                         unified_pos=model_cfg.get('unified_pos', 0),
                         is_filter=model_cfg.get('is_filter', True)).to(device)
+    elif model_name in ['refiner_unet']:
+        model = UNetRefiner(
+            input_channels=model_cfg.get('in_channels', 3),
+            output_channels=model_cfg.get('out_channels', 1),
+            time_history=model_cfg.get('time_history', 0),
+            time_future=model_cfg.get('time_future', 0),
+            hidden_channels=model_cfg.get('hidden_channels', 16),
+            activation=model_cfg.get('activation', 'gelu'),
+            n_blocks=model_cfg.get('n_blocks', 3),
+        ).to(device)
     elif model_name in ['multiscale_wavelet', 'multiscale_wavelet2d', 'multiscale_wavelet_transformer2d']:
         model = MultiscaleWaveletTransformer2D(
             wave=model_cfg.get('wave', 'haar'),

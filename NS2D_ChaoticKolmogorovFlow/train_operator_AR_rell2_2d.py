@@ -328,6 +328,16 @@ def train_2d(args, config):
                 hidden_channels=model_cfg.get('hidden_channels', 16),
                 n_blocks=model_cfg.get('n_blocks', 3),
     ).to(device)
+    elif model_name in ['refiner_unet']:
+        model = UNetRefiner(
+            input_channels=model_cfg.get('in_channels', 3),
+            output_channels=model_cfg.get('out_channels', 1),
+            time_history=model_cfg.get('time_history', 0),
+            time_future=model_cfg.get('time_future', 0),
+            hidden_channels=model_cfg.get('hidden_channels', 16),
+            activation=model_cfg.get('activation', 'gelu'),
+            n_blocks=model_cfg.get('n_blocks', 3),
+        ).to(device)
     elif model_name in ['wno', 'wno2d']:
         dummy = torch.zeros(1, 1, S_data, S_data, device=device)
         model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
@@ -402,16 +412,7 @@ def train_2d(args, config):
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
         ).to(device)
-    elif model_name in ['refiner_unet']:
-        model = UNetRefiner(
-            input_channels=model_cfg.get('in_channels', 3),
-            output_channels=model_cfg.get('out_channels', 1),
-            time_history=model_cfg.get('time_history', 0),
-            time_future=model_cfg.get('time_future', 0),
-            hidden_channels=model_cfg.get('hidden_channels', 16),
-            activation=model_cfg.get('activation', 'gelu'),
-            n_blocks=model_cfg.get('n_blocks', 3),
-        ).to(device)
+    
     else:
         raise ValueError(f'Model {model_name} not supported')
     print('model structure: ', model)
