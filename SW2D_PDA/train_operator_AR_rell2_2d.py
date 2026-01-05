@@ -221,12 +221,13 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
     nt = data_config.get('nt', 87)
     nc = data_config.get('nc', 2)
     time_scale = data_config.get('time_interval', 1.0)
-    S = nx // sub
+    S1 = nx // sub
+    S2 = ny // sub
     T = ny // sub
     T = int(nt * time_scale) // sub_t + 1
 
     if step_ahead:
-        data = torch.rand(n_samples, S, S, T, nc)
+        data = torch.rand(n_samples, S1, S2, T, nc)
 
         class SyntheticStepDataset(Dataset):
             def __init__(self, arr):
@@ -241,18 +242,18 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
                 t = torch.randint(0, self.max_t, ()).item()
                 return sample[..., t, :], sample[..., t + 1, :]
 
-        return SyntheticStepDataset(data), S, 1
+        return SyntheticStepDataset(data), (S1, S2), 1
 
-    a0 = torch.rand(n_samples, S, S, 1, 1)
+    a0 = torch.rand(n_samples, S1, S2, 1, 1)
     a_data = a0.repeat(1, 1, 1, T, 1)
-    gridx, gridy, gridt = get_grid3d(S, T, time_scale=time_scale)
+    gridx, gridy, gridt = get_grid3d(S1, S2, T, time_scale=time_scale)
     a_data = torch.cat((
         gridx.repeat([n_samples, 1, 1, 1, 1]),
         gridy.repeat([n_samples, 1, 1, 1, 1]),
         gridt.repeat([n_samples, 1, 1, 1, 1]),
         a_data
     ), dim=-1)
-    u_data = torch.rand(n_samples, S, S, T)
+    u_data = torch.rand(n_samples, S1, S2, T)
     return TensorDataset(a_data, u_data), S, T
 
 
@@ -461,7 +462,7 @@ def train_2d(args, config):
     os.makedirs(tensorboard_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
-    grid = torch2dgrid(S_data, S_data)
+    grid = torch2dgrid(S_data[0], S_data[1])
     train_step_ahead(model,
                         train_loader,
                         optimizer,

@@ -55,8 +55,10 @@ class SWLoader2D(Dataset):
             n_samples: number of trajectories to keep (defaults to N)
             offset: starting index for slicing
         '''
-        self.S = nx // sub
-        self.T = int(nt * t_interval) // sub_t + 1
+        S1 = nx // sub
+        S2 = ny // sub
+        self.S = (S1, S2)
+        self.T = (int(nt * t_interval) // sub_t + 1, 1)
         self.time_scale = t_interval
         self.train = train
         data1 = np.load(datapath1)
