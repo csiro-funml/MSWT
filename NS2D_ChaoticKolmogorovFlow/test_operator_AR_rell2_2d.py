@@ -17,7 +17,7 @@ from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DD
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
-from utils.criterion import LpLoss
+from utils.criterion import LpLoss, LogEnstropyEnergyLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
 
 
@@ -68,12 +68,15 @@ def load_ns_sequences(data_config):
 def autoregressive_eval(model, sequences, device):
     """Run autoregressive rollout on full sequences."""
     lploss = LpLoss(size_average=True)
+    log_en_err = LogEnstropyEnergyLoss()
     model.eval()
     S = sequences.shape[1]
     T = sequences.shape[-1]
     grid = torch2dgrid(S, S).to(device).unsqueeze(0)  # 1 x S x S x 2
     total_l2 = 0.0
     step_l2 = 0.0
+    total_log_en_err = 0.0
+    step_log_en_err = 0.0
     batches = 0
     example = {'truth': None, 'pred': None}
     loader = DataLoader(TensorDataset(sequences), batch_size=1, shuffle=False)
@@ -103,11 +106,16 @@ def autoregressive_eval(model, sequences, device):
                             truth_seq[..., :1].view(1, S, S, 1)).item() # first step loss
             total_l2 += lploss(pred_seq.view(1, S, S, T - 1),
                             truth_seq.view(1, S, S, T - 1)).item() # overall step loss
+            
+            step_log_en_err += log_en_err(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
+            reshape_pred_seq = rearrange(pred_seq, 'b h w t -> (b t) h w') # (B*T, H, W) 
+            reshape_truth_seq = rearrange(truth_seq, 'b h w t -> (b t) h w')
+            total_log_en_err += log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
             batches += 1
             if example['truth'] is None:
                 example['truth'] = truth_seq.detach().cpu()
                 example['pred'] = pred_seq.detach().cpu()
-    return total_l2 / max(1, batches), step_l2 / max(1, batches), example
+    return total_l2 / max(1, batches), step_l2 / max(1, batches), total_log_en_err / max(1, batches), step_log_en_err / max(1, batches), example
 
 
 
@@ -245,10 +253,11 @@ def main():
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
 
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
-    total_l2, step_l2, example = autoregressive_eval(model, sequences, device)
+    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device)
     print(f'Relative L2  rollout avg: {total_l2:.6f}')
     print(f'Relative L2 over first step: {step_l2:.6f}')
-
+    print(f'Log energy error rollout avg: {total_log_en_err:.6f}')
+    print(f'Log energy error over first step: {step_log_en_err:.6f}')
 
     
     # Save prediction and energy plots for the first example
