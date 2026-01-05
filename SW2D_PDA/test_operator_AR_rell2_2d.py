@@ -36,7 +36,7 @@ def load_sw_sequences(data_config):
     dataset = np.load(data_config['test_data']['datapath'])
     sequences = torch.tensor(dataset, dtype=torch.float)
     # normalize the data
-    normalizer_path = torch.load(data_config['test_data']['normalizer_path'])
+    normalizer_path = data_config['data']['normalizer_path']
     normalizer = torch.load(normalizer_path)
     vars = ['vor', 'pres']
     mean = []
