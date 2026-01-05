@@ -50,7 +50,7 @@ def load_sw_sequences(data_config):
     std = std.permute(1, 2, 0)[None, :, :, None, :] # (C, H, W) -> (1, H, W, 1, C)
     
     sequences = (sequences - mean) / std
-    
+
     S1, S2 = data_config['test_data']['nx'], data_config['test_data']['ny']
     T = data_config['test_data']['nt']
     print("final data shape: ", sequences.shape)  # (N, H, W, T, C)
@@ -117,9 +117,8 @@ def main():
         config = yaml.load(stream, yaml.FullLoader)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    data_config = config.get('test_data', config['data'])
     model_cfg = config['model']
-    sequences, S_data, T_data = load_sw_sequences(data_config)
+    sequences, S_data, T_data = load_sw_sequences(config)
 
     model_name = model_cfg.get('name', 'fno2d').lower()
     
