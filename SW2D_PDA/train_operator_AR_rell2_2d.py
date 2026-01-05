@@ -348,7 +348,7 @@ def train_2d(args, config):
             n_blocks=model_cfg.get('n_blocks', 3),
         ).to(device)
     elif model_name in ['wno', 'wno2d']:
-        dummy = torch.zeros(1, 1, S_data, S_data, device=device)
+        dummy = torch.zeros(1, 1, S_data[0], S_data[1], device=device)
         model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
                       out_channels=model_cfg.get('out_chans', 1),
                       width=model_cfg.get('width', 64),
