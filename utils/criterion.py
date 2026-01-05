@@ -431,23 +431,26 @@ class LogEnstropyEnergyLoss(_WeightedLoss):
         super(LogEnstropyEnergyLoss, self).__init__()
     
     def forward(self, pred, target):
-        # pred: (B, H, W, T, C)
-        # target: (B, H, W, T, C)
+        # pred: (B, H, W)
+        # target: (B, H, W)
         
-        Nx, Ny = ux_grid.shape
+        Nx, Ny = pred.shape[1], pred.shape[2]
         N = Nx * Ny
-        assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly"
-        k0 = 2 * torch.tensor(np.pi, device=device, dtype=dtype) / Lx
-
+        
         # Transform to spectral space
-        uxh = torch.fft.rfft2(ux_grid)
-        uyh = torch.fft.rfft2(uy_grid)
+        e_pred = torch.fft.rfft2(pred)
+        e_target = torch.fft.rfft2(target)
 
         # Energy per mode (normalised)
-        E_mode = 0.5 * (torch.abs(uxh)**2 + torch.abs(uyh)**2) / (N * N)
-        
+        e_pred = 0.5 * (torch.abs(e_pred)**2) / (N * N)
+        e_target = 0.5 * (torch.abs(e_target)**2) / (N * N)
 
-        return torch.mean(torch.log(torch.abs(pred - target)))
+        # Log energy per mode (normalised)
+        log_e_pred = torch.log(e_pred)
+        log_e_target = torch.log(e_target)
+
+        err = torch.abs(log_e_pred - log_e_target)
+        return torch.mean(err) # average over frequency bins and over the samples
 
 
 class EnergySpectrumBias1D(_WeightedLoss):

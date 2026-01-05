@@ -107,9 +107,11 @@ def autoregressive_eval(model, sequences, device):
             step_l2 += lploss(pred_seq[..., :1, :], truth_seq[..., :1, :]).item() # first step loss
             total_l2 += lploss(pred_seq, truth_seq).item() # overall step loss
             
+            step_log_en_err += log_en_err(pred_seq[..., 0, 1], truth_seq[..., 0, 1]).item() # first step loss
+            reshape_pred_seq = rearrange(pred_seq[..., 1], 'b h w t -> (b t) h w') # (B*T, H, W) 
+            reshape_truth_seq = rearrange(truth_seq[..., 1], 'b h w t -> (b t) h w')
+            total_log_en_err += log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
             
-            # total_log_en_err += log_en_err(pred_seq, truth_seq).item() # overall step loss
-            # step_log_en_err += log_en_err(preds[0], truth_seq[..., 0, :]).item() # first step loss
             batches += 1
             if example['truth'] is None:
                 example['truth'] = truth_seq.detach().cpu()
