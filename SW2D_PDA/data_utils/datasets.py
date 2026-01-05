@@ -18,7 +18,7 @@ def load_save_sw_data(folder_path, max_files= 4000):
     """
     data_list = []
     print("path exists: ", os.path.exists(folder_path))
-    for i, file in enumerate(os.listdir(folder_path)):
+    for i, file in enumerate(sorted(os.listdir(folder_path))):
         print("file: ", file)
         if file.endswith('.hdf5') and i < max_files:
             data = h5py.File(os.path.join(folder_path, file), 'r')['data'][..., -2:] # we only want vorticity and pressure 
