@@ -9,7 +9,7 @@ import h5py
 from tqdm import tqdm
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
-def load_save_sw_data(folder_path, max_files= 4000):
+def load_save_sw_data(folder_path, max_files= 4000, state='train'):
     """
     Preprocess the Shallow Water dataset from PDEArena
 
@@ -26,8 +26,8 @@ def load_save_sw_data(folder_path, max_files= 4000):
         data_list.append(data)
     data = np.stack(data_list)
     print("data shape: ", data.shape)
-    np.save(os.path.join(folder_path, 'sw2d_pda_data_train.npy'), data)
-    print("data saved to: ", os.path.join(folder_path, 'sw2d_pda_data_train.npy'))
+    np.save(os.path.join(folder_path, f'sw2d_pda_data_{state}.npy'), data)
+    print("data saved to: ", os.path.join(os.path.dirname(folder_path), f'sw2d_pda_data_{state}.npy'))
     return data
 
 
@@ -113,8 +113,10 @@ class SWLoader2D(Dataset):
 
 if __name__ == '__main__':
     if torch.cuda.is_available():
-        folder = '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/train'
+        # state = 'train'
+        state = 'val'
+        folder = '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/' + state
     else:
         folder = 'pdearena/sw2d_pda/train'
-    data = load_save_sw_data(folder,max_files=4000)
+    data = load_save_sw_data(folder,max_files=4000, state=state)
     print(data.shape)
