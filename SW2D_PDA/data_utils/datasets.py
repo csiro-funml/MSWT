@@ -33,7 +33,7 @@ def load_save_sw_data(folder_path, max_files= 4000, state='train'):
 
 class SWLoader2D(Dataset):
     def __init__(self, datapath1,
-                 nx, ny, nt, nc,
+                 nx, ny, nt,
                  datapath2=None, sub=1, sub_t=1,
                  N=None, t_interval=1.0,
                  n_samples=None, offset=0,
