@@ -111,5 +111,9 @@ class SWLoader2D(Dataset):
 
 
 if __name__ == '__main__':
-    data = load_save_sw_data('pdearena/sw2d_pda/train',max_files=4000)
+    if torch.cuda.is_available():
+        folder = '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/train'
+    else:
+        folder = 'pdearena/sw2d_pda/train'
+    data = load_save_sw_data(folder,max_files=4000)
     print(data.shape)
