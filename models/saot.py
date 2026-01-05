@@ -769,7 +769,7 @@ if __name__ == '__main__':
     n_layers = 5
     n_hidden =  384
     # x = torch.randn(1, 256, 256, 3)
-    x = torch.rand(1, 96, 192, 3)
+    x = torch.rand(1, 96, 192, 4)
     model = SAOTModel(space_dim=2,
                     n_layers=n_layers,
                     n_hidden=n_hidden,
@@ -777,8 +777,8 @@ if __name__ == '__main__':
                     n_head=4,
                     Time_Input=False,
                     mlp_ratio=1,
-                    fun_dim=1,
-                    out_dim=1,
+                    fun_dim=2,
+                    out_dim=2,
                     slice_num=32,
                     ref=8,
                     unified_pos=0,

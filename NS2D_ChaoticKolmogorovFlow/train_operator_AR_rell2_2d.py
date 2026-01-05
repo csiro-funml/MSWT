@@ -197,11 +197,11 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                 fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=0, t_idx=0)
                 # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 
-                # save_checkpoint(config['train']['save_dir'],
-                #                 config['train']['save_name'],
-                #                 model, 
-                #                 ep,
-                #                 optimizer, scheduler)
+                save_checkpoint(config['train']['save_dir'],
+                                config['train']['save_name'],
+                                model, 
+                                ep,
+                                optimizer, scheduler)
                 if fixed_pred is not None:
                     log_tensorboard_images_and_spectra(writer,
                                                        fixed_pred[..., None, None],
