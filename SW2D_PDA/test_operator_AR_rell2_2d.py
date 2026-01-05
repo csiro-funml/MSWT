@@ -18,7 +18,7 @@ from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DD
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
-from utils.criterion import LpLoss
+from utils.criterion import LpLoss, LogEnstropyEnergyLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
 
 
@@ -60,12 +60,15 @@ def load_sw_sequences(data_config):
 def autoregressive_eval(model, sequences, device):
     """Run autoregressive rollout on full sequences."""
     lploss = LpLoss(size_average=True)
+    log_en_err = LogEnstropyEnergyLoss()
     model.eval()
     S1, S2 = sequences.shape[1], sequences.shape[2]
     T = sequences.shape[-2]
     grid = torch2dgrid(S1, S2).to(device).unsqueeze(0)  # 1 x S1 x S2 x 2
     total_l2 = 0.0
     step_l2 = 0.0
+    total_log_en_err = 0.0
+    step_log_en_err = 0.0
     batches = 0
     example = {'truth': None, 'pred': None}
     loader = DataLoader(TensorDataset(sequences), batch_size=1, shuffle=False)
@@ -98,13 +101,20 @@ def autoregressive_eval(model, sequences, device):
                 prev = pred
             pred_seq = torch.stack(preds, dim=-2)       # (1, S1, S2, T-1, C)
             truth_seq = seq[..., 1:, :]                 # align with predictions
-            step_l2 += lploss(preds[0], truth_seq[..., 0, :]).item() # first step loss
+            print("pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
+            
+            
+            step_l2 += lploss(pred_seq[..., :1, :], truth_seq[..., :1, :]).item() # first step loss
             total_l2 += lploss(pred_seq, truth_seq).item() # overall step loss
+            
+            
+            # total_log_en_err += log_en_err(pred_seq, truth_seq).item() # overall step loss
+            # step_log_en_err += log_en_err(preds[0], truth_seq[..., 0, :]).item() # first step loss
             batches += 1
             if example['truth'] is None:
                 example['truth'] = truth_seq.detach().cpu()
                 example['pred'] = pred_seq.detach().cpu()
-    return total_l2 / max(1, batches), step_l2 / max(1, batches), example
+    return total_l2 / max(1, batches), step_l2 / max(1, batches), total_log_en_err / max(1, batches), step_log_en_err / max(1, batches), example
 
 
 
@@ -242,9 +252,11 @@ def main():
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
 
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data[0]}x{S_data[1]} for {T_data} steps.')
-    total_l2, step_l2, example = autoregressive_eval(model, sequences, device)
+    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device)
     print(f'Relative L2  rollout avg: {total_l2:.6f}')
     print(f'Relative L2 over first step: {step_l2:.6f}')
+    print(f'Log energy error rollout avg: {total_log_en_err:.6f}')
+    print(f'Log energy error over first step: {step_log_en_err:.6f}')
 
 
     
