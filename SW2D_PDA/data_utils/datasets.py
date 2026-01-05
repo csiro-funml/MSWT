@@ -19,11 +19,11 @@ def load_save_sw_data(folder_path, max_files= 4000):
     """
     data_list = []
     print("path exists: ", os.path.exists(folder_path))
-    for i, file in tqdm(enumerate(sorted(os.listdir(folder_path)))):
-        print("file: ", file)
-        if file.endswith('.hdf5') and i < max_files:
-            data = h5py.File(os.path.join(folder_path, file), 'r')['data'][..., -2:] # we only want vorticity and pressure 
-            data_list.append(data)
+    # Filter hdf5 files first
+    hdf5_files = [f for f in sorted(os.listdir(folder_path)) if f.endswith('.hdf5')][:max_files]
+    for file in tqdm(hdf5_files, desc="Loading HDF5 files"):
+        data = h5py.File(os.path.join(folder_path, file), 'r')['data'][..., -2:] # we only want vorticity and pressure 
+        data_list.append(data)
     data = np.stack(data_list)
     print("data shape: ", data.shape)
     np.save(os.path.join(folder_path, 'sw2d_pda_data_train.npy'), data)
