@@ -36,3 +36,12 @@ train:
   eqn_iter: 0
 
 
+test_data:
+  datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'
+  total_num: 100
+  nx: 96
+  ny: 192
+  nt: 87
+  sub: 1
+  sub_t: 1
+  shuffle: False
