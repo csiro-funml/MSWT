@@ -202,14 +202,14 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                 model, 
                                 ep,
                                 optimizer, scheduler)
-                # if fixed_pred is not None:
-                #     log_tensorboard_images_and_spectra(writer,
-                #                                        fixed_pred[..., None, None],
-                #                                        fixed_target[..., None, None],
-                #                                        ep + 1,
-                #                                        'vorticity',
-                #                                        model_name,
-                #                                        ) 
+                if fixed_pred is not None:
+                    log_tensorboard_images_and_spectra(writer,
+                                                       fixed_pred[..., None, [0]],  # the first channel is vorticity
+                                                       fixed_target[..., None, [0]],  # the first channel is vorticity
+                                                       ep + 1,
+                                                       'vorticity',
+                                                       model_name,
+                                                       ) 
 
 
 def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
