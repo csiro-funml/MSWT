@@ -18,7 +18,8 @@ data:
 model:
   name: hfs
   target_params: small
-  
+  in_c: 4
+  out_c: 2
 
 train:
   batchsize: 100
