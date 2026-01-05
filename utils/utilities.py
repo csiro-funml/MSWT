@@ -448,8 +448,7 @@ def log_tensorboard_images_and_spectra(
         Ly: Domain size in y direction (default: 2*pi)
     """
     B, H, W, T, C = pred_denorm.shape
-    print("pred_denorm shape:", pred_denorm.shape, "target_denorm shape:", target_denorm.shape)
-    exit(-1)
+    # print("pred_denorm shape:", pred_denorm.shape, "target_denorm shape:", target_denorm.shape)
     # Define channel names based on form
     if form == 'vorticity':
         channel_names = ['vorticity', 'streamfunction']
