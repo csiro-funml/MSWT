@@ -255,13 +255,38 @@ class WaveletAttentionBlock(nn.Module):
         if self.use_efficient_attention:
             self.local_attention_size = local_attention_size
 
-    def local_attention(self, x, h, w):
+    def old_local_attention(self, x, h, w):
         # input: (B, C, H, W) output : (B, C, H, W)
         b, c, h, w = x.shape
         new_h, new_w = h//self.local_attention_size, w//self.local_attention_size
         x = rearrange(x, 'b c (h_patch new_h) (w_patch new_w)-> (b new_h new_w) (h_patch w_patch) c', new_h=new_h, new_w=new_w)
         x = self.attention(x) # -> (B, H/2 x W/2, C)
         x = rearrange(x, '(b new_h new_w) (h_patch w_patch) c -> b c (h_patch new_h) (w_patch new_w)', b=b, new_h=new_h, new_w=new_w, h_patch=self.local_attention_size, w_patch=self.local_attention_size)
+        return x
+    
+    def local_attention(self, x, h, w):
+        # input: (B, C, H, W) output : (B, C, H, W)
+        b, c, h, w = x.shape
+        patch = self.local_attention_size
+        pad_h = (patch - h % patch) % patch
+        pad_w = (patch - w % patch) % patch
+        if pad_h or pad_w:
+            x = F.pad(x, (0, pad_w, 0, pad_h))
+
+        new_h, new_w = (h + pad_h)//patch, (w + pad_w)//patch
+        x = rearrange(
+            x,
+            'b c (h_patch new_h) (w_patch new_w)-> (b new_h new_w) (h_patch w_patch) c',
+            h_patch=patch, w_patch=patch, new_h=new_h, new_w=new_w,
+        )
+        x = self.attention(x) # -> (B, H/2 x W/2, C)
+        x = rearrange(
+            x,
+            '(b new_h new_w) (h_patch w_patch) c -> b c (h_patch new_h) (w_patch new_w)',
+            b=b, new_h=new_h, new_w=new_w, h_patch=patch, w_patch=patch,
+        )
+        if pad_h or pad_w:
+            x = x[:, :, :h, :w]
         return x
     
     def global_attention(self, x, h, w):
@@ -430,9 +455,11 @@ class MultiscaleWaveletTransformer2D(nn.Module):
 
 
 if __name__ == "__main__":
-    x = torch.randn(2, 64, 64, 3)
+    # x = torch.randn(2, 64, 64, 3)
+    x = torch.rand(2, 96, 192, 3)
     # model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dim=64, use_efficient_attention=True)
-    model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dims=[64, 128, 256, 512], use_efficient_attention=True,   efficient_layers=[0, 1, 2])
+    # model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dims=[64, 128, 256, 512], use_efficient_attention=True,   efficient_layers=[0, 1, 2])
+    model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dims=[32, 64, 128, 256, 512], use_efficient_attention=True,   efficient_layers=[0, 1, 2, 3])
     # model = MultiscaleWaveletTransformer2DDecoderNoAttention(input_dim=3, output_dim=1, dim=96, use_efficient_attention=True)
     
     print("number of parameters:", model.count_parameters())

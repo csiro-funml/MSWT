@@ -1020,11 +1020,11 @@ def analyse_parater_counts(model):
             
 
 if __name__ == "__main__":
-    x = torch.randn(2, 64, 64, 3)
-    # x = torch.rand(2, 96, 192, 3)
-    # model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=3, dim=64, use_efficient_attention=True)
+    # x = torch.randn(2, 64, 64, 3)
+    x = torch.rand(2, 96, 192, 3)
+    model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=3, dims=[64, 128, 256, 512], use_efficient_attention=True,   efficient_layers=[0, 1, 2])
 
-    model = MultiscaleWaveletTransformer2DDecoderNoAttention(input_dim=3, output_dim=1, dims=[64, 128, 256, 512], use_efficient_attention=True,   efficient_layers=[0, 1, 2])
+    # model = MultiscaleWaveletTransformer2DDecoderNoAttention(input_dim=3, output_dim=1, dims=[64, 128, 256, 512], use_efficient_attention=True,   efficient_layers=[0, 1, 2])
     # model = MSWT_DeNoAtten_MidAttn(input_dim=3, output_dim=1, dim=96, use_efficient_attention=True,   efficient_layers=[0, 1, 2], groups=1)
     # model = MultiscaleWaveletTransformer2DEfficient(input_dim=3, output_dim=3, dim=128, use_efficient_attention=True)
     # model = MultiscaleWaveletDoubleAttention(input_dim=3, output_dim=3, dim=32, use_efficient_attention=True)
