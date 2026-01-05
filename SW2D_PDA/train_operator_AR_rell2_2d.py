@@ -95,14 +95,14 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     data = base_ds.data
     if sample_idx >= data.shape[0]:
         sample_idx = data.shape[0] - 1
-    max_t = data.shape[-1] - 1
+    max_t = data.shape[-2] - 1
     if max_t <= 0:
         return None, None
     t_idx = min(t_idx, max_t - 1)
 
     sample = data[sample_idx]
-    x = sample[..., t_idx].to(device)
-    y = sample[..., t_idx + 1].to(device)
+    x = sample[..., t_idx, :].to(device)
+    y = sample[..., t_idx + 1, :].to(device)
     grid_b = grid.to(device)
     x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1)
     with torch.no_grad():
