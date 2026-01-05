@@ -101,7 +101,7 @@ def autoregressive_eval(model, sequences, device):
                 prev = pred
             pred_seq = torch.stack(preds, dim=-2)       # (1, S1, S2, T-1, C)
             truth_seq = seq[..., 1:, :]                 # align with predictions
-            print("pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
+            # print("pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
             
             
             step_l2 += lploss(pred_seq[..., :1, :], truth_seq[..., :1, :]).item() # first step loss
