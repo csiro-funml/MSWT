@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 import h5py
+from tqdm import tqdm
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
 def load_save_sw_data(folder_path, max_files= 4000):
@@ -18,7 +19,7 @@ def load_save_sw_data(folder_path, max_files= 4000):
     """
     data_list = []
     print("path exists: ", os.path.exists(folder_path))
-    for i, file in enumerate(sorted(os.listdir(folder_path))):
+    for i, file in tqdm(enumerate(sorted(os.listdir(folder_path)))):
         print("file: ", file)
         if file.endswith('.hdf5') and i < max_files:
             data = h5py.File(os.path.join(folder_path, file), 'r')['data'][..., -2:] # we only want vorticity and pressure 
