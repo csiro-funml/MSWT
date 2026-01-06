@@ -148,7 +148,7 @@ class NS_Dedalus_Loader2D(Dataset):
         return self.num_samples
 
     def __getitem__(self, idx):
-        print("y shape", self.data[id+1, :, :, :1].shape)
+        print("y shape", self.data[idx+1, :, :, :1].shape)
         return self.data[idx], self.data[idx + 1, :, :  [0]] # the output is the vorticity at the next time step (no need to predict the forcing)
 
 
