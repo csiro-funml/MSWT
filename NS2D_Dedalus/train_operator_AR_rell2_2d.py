@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import math
 from torch.utils.data import DataLoader, random_split, TensorDataset, Dataset, Subset
 from torch.utils.tensorboard import SummaryWriter
-from data_utils.datasets import NSLoader2D
+from data_utils.datasets import NS_Dedalus_Loader2D
 from einops import rearrange
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -218,17 +218,18 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
     sub_t = data_config.get('sub_t', 1)
     nx = data_config.get('nx', 64)
     nt = data_config.get('nt', 64)
+    nc = data_config.get('nc', 5)
     time_scale = data_config.get('time_interval', 1.0)
     S = nx // sub
     T = int(nt * time_scale) // sub_t + 1
 
     if step_ahead:
-        data = torch.rand(n_samples, S, S, T)
+        data = torch.rand(n_samples, S, S, T, nc)
 
         class SyntheticStepDataset(Dataset):
             def __init__(self, arr):
                 self.arr = arr
-                self.max_t = arr.shape[-1] - 1
+                self.max_t = arr.shape[-2] - 1
 
             def __len__(self):
                 return self.arr.shape[0]
@@ -236,7 +237,7 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
             def __getitem__(self, idx):
                 sample = self.arr[idx]
                 t = torch.randint(0, self.max_t, ()).item()
-                return sample[..., t], sample[..., t + 1]
+                return sample[..., t, :], sample[..., t + 1, :1]
 
         return SyntheticStepDataset(data), S, 1
 
@@ -262,7 +263,7 @@ def train_2d(args, config):
         full_dataset, S_data, _ = build_synthetic_dataset(
             data_config, args.synthetic_samples, step_ahead=True)
     else:
-        full_dataset = NSLoader2D(datapath1=data_config['datapath'],
+        full_dataset = NS_Dedalus_Loader2D(datapath1=data_config['datapath'],
                                     nx=data_config['nx'], nt=data_config['nt'],
                                     sub=data_config['sub'], sub_t=data_config['sub_t'],
                                     N=data_config['total_num'],
@@ -305,6 +306,8 @@ def train_2d(args, config):
                       fc_dim=model_cfg['fc_dim'],
                       layers=model_cfg['layers'],
                       act=model_cfg['act'],
+                      in_dim=model_cfg['in_dim'],
+                      out_dim=model_cfg['out_dim'],
                     #   pad_ratio=model_cfg.get('pad_ratio', [0., 0.])
                       ).to(device)
     elif model_name == 'hfs':
