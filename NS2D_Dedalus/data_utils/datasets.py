@@ -155,4 +155,4 @@ class NSLoader2D(Dataset):
 
 
 if __name__ == '__main__':
-    load_save_dedalus_data()
+    load_save_dedalus_data(chunk_size=128)
