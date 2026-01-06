@@ -1,0 +1,52 @@
+data:
+  datapath: '/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy/dedalus_data_train.npy'
+  name: NS2D_Dedalus
+  total_num: 10000
+  offset: 1000 # skip the first 1000 steps (200s)
+  time_interval: 1
+  nx: 256
+  nt: 1
+  nc: 3 # forcing + vorticity
+  sub: 1
+  sub_t: 1
+  shuffle: True
+  S2: 256
+  T2: 1
+
+model:
+  name: refiner_unet
+  time_history: 0
+  time_future: 1
+  in_channels: 5
+  out_channels: 1
+  activation: 'gelu'
+  hidden_channels: 16
+  n_blocks: 3
+  
+
+train:
+  batchsize: 100
+  epochs: 100000
+  milestones: [20000, 40000, 60000, 80000]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 0.0
+  f_loss: 0.0
+  xy_loss: 1.0
+  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/PDERefinerUNet2d/
+  save_name: PDERefinerUNet2d-dim16-nblocks3.pt
+  data_iter: 1
+  eqn_iter: 0
+
+test_data:
+  datapath: '/scratch3/wan410/operator_learning_data/pino_ns2d/NS_Re500_s256_T100_test.npy'
+  Re: 500
+  total_num: 100
+  offset: 0
+  n_sample: 100
+  time_interval: 0.5
+  nx: 256
+  nt: 128
+  sub: 4
+  sub_t: 1
+  shuffle: False
