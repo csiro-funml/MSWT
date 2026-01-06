@@ -1,0 +1,51 @@
+data:
+  datapath: '/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy/dedalus_data_train.npy'
+  name: NS2D_Dedalus
+  total_num: 10000
+  offset: 1000 # skip the first 1000 steps (200s)
+  n_sample: 100
+  time_interval: 1
+  nx: 256
+  nt: 1
+  nc: 3 # forcing + vorticity
+  sub: 1
+  sub_t: 1
+  shuffle: True
+  S2: 256
+  T2: 1
+
+model:
+  layers: [64, 64, 64, 64, 64, 64]
+  modes1: [16, 16, 16, 16]
+  modes2: [16, 16, 16, 16]
+  fc_dim: 128
+  act: gelu
+  in_dim: 5
+  out_dim: 1
+
+train:
+  batchsize: 100
+  epochs: 100_001
+  milestones: [20_000, 40_000, 60_000, 80_000]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 0.0
+  f_loss: 0.0
+  xy_loss: 1.0
+  save_dir: /scratch3/wan410/operator_learning_model/NS2D_Dedalus/FNO2d/
+  save_name: FNO2d-mode16-dim64-layer4.pt
+  data_iter: 1
+  eqn_iter: 0
+
+test_data:
+  datapath: '/scratch3/wan410/operator_learning_data/pino_ns2d/NS_Re500_s256_T100_test.npy'
+  Re: 500
+  total_num: 100
+  offset: 0
+  n_sample: 100
+  time_interval: 0.5
+  nx: 256
+  nt: 128
+  sub: 4
+  sub_t: 1
+  shuffle: False

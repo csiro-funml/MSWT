@@ -57,7 +57,7 @@ def evaluate_step_ahead(model, test_loader, device, grid):
         for x, y in test_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
+            x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
             if isinstance(model, PDERefiner):
                 if len(x.shape) == 3:
                     x = rearrange(x, 'b h w -> b 1 1 h w')
@@ -95,16 +95,16 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     data = base_ds.data
     if sample_idx >= data.shape[0]:
         sample_idx = data.shape[0] - 1
-    max_t = data.shape[-1] - 1
+    max_t = data.shape[-2] - 1
     if max_t <= 0:
         return None, None
     t_idx = min(t_idx, max_t - 1)
 
     sample = data[sample_idx]
-    x = sample[..., t_idx].to(device)
-    y = sample[..., t_idx + 1].to(device)
+    x = sample[..., t_idx, :].to(device)
+    y = sample[..., t_idx + 1, :].to(device)
     grid_b = grid.to(device)
-    x_in = torch.cat((x.unsqueeze(0).unsqueeze(-1), grid_b), dim=-1)
+    x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1)
     with torch.no_grad():
         if isinstance(model, PDERefiner):
             if len(x.shape) == 2:
@@ -160,9 +160,9 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
+            x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
             if isinstance(model, PDERefiner): # for PDERefiner, the loss function is a denoising loss
-                loss = model.training_step((x.unsqueeze(-1), y.unsqueeze(-1)))
+                loss = model.training_step((x, y))
             else:
                 pred = model(x_in)
                 if isinstance(pred, tuple):
@@ -204,13 +204,12 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                 optimizer, scheduler)
                 if fixed_pred is not None:
                     log_tensorboard_images_and_spectra(writer,
-                                                       fixed_pred[..., None, None],
-                                                       fixed_target[..., None, None],
+                                                       fixed_pred.unsqueeze(-2)[...,[0]],  # the first channel is vorticity
+                                                       fixed_target.unsqueeze(-2)[..., [0]],  # the first channel is vorticity
                                                        ep + 1,
                                                        'vorticity',
                                                        model_name,
                                                        ) 
-
 
 def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
     """Create a random dataset that mimics NSLoader/NSLoader2D output."""
