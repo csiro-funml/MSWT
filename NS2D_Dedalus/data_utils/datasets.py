@@ -5,20 +5,80 @@ from torch.utils.data import Dataset
 # from .utils import get_grid3d, convert_ic, torch2dgrid
 import h5py
 import os
+import glob
+from numpy.lib.format import open_memmap
 
-def load_save_dedalus_data(datapath='/datasets/work/oa-tcch/work/forXuesong/realisation_0000/snapshots', save_path='/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy'):
-    file  = h5py.File(os.path.join(datapath, 'snapshots_s1.h5'), 'r')
-    print("file loaded")
-    pressure = np.expand_dims(np.array(file['tasks/pressure']), axis=1) # (N, 1, H, W)
-    velocity = np.array(file['tasks/velocity']) # (N, 2, H, W)
-    forcing = np.array(file['tasks/forcing']) # (N, 2, H, W)
-    vorticity = np.expand_dims(np.array(file['tasks/vorticity']), axis=1) # (N, 1, H, W)
-    
-    data = np.concatenate((pressure, velocity, forcing, vorticity), axis=1) # (N, 5, H, W)
-    print("data shape: ", data.shape)
-    np.save(os.path.join(save_path, 'dedalus_data_train.npy'), data)
-    print("data saved to: ", os.path.join(save_path, 'dedalus_data_train.npy'))
-    return data
+def load_save_dedalus_data(datapath='/datasets/work/oa-tcch/work/forXuesong/realisation_0000/snapshots/snapshots_s1',
+                           save_path='/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy',
+                           out_name='dedalus_data_train.npy',
+                           chunk_size=64):
+    """
+    Reconstruct Dedalus virtual dataset slices (snapshots_s1_p*.h5) into a single
+    NumPy file using streaming writes to avoid loading everything into memory.
+
+    Args:
+        datapath: Path to snapshots_s1 (either directory containing p* files or
+                  base path without the _p*.h5 suffix).
+        save_path: Directory to write the .npy file.
+        out_name: File name for the saved array.
+        chunk_size: Number of timesteps processed per write chunk.
+    Returns:
+        Path to the saved npy file.
+    """
+    # Resolve slice files (p0, p1, ...) similar to preprocess_dedalus_to_shards
+    if os.path.isdir(datapath):
+        pattern = os.path.join(datapath, 'snapshots_s1_p*.h5')
+    else:
+        pattern = datapath.rstrip('.h5') + '_p*.h5'
+    slice_files = sorted(glob.glob(pattern))
+    if not slice_files:
+        raise FileNotFoundError(f'No slice files found with pattern: {pattern}')
+
+    os.makedirs(save_path, exist_ok=True)
+    out_path = os.path.join(save_path, out_name)
+
+    # Probe shape from the first slice
+    with h5py.File(slice_files[0], 'r') as f0:
+        T, H, W_partial = f0['tasks/vorticity'].shape
+        has_forcing = 'tasks/forcing' in f0
+    W_full = W_partial * len(slice_files)
+    if not has_forcing:
+        raise KeyError('tasks/forcing not found in slice files; expected forcing + vorticity.')
+
+    # Preallocate .npy with header so it stays compatible with np.load memmap
+    data_mem = open_memmap(out_path, mode='w+', dtype=np.float32, shape=(T, 3, H, W_full))
+    print(f'Writing reconstructed data to {out_path}')
+    print(f'Total timesteps: {T}, slices: {len(slice_files)}, shape: (T= {T}, C=3, H={H}, W={W_full})')
+
+    # Keep file handles open for speed
+    handles = [h5py.File(fp, 'r') for fp in slice_files]
+    try:
+        for start in range(0, T, chunk_size):
+            end = min(start + chunk_size, T)
+            # Collect slices for this chunk
+            vort_chunks = []
+            forc_chunks = []
+            for h in handles:
+                vort_chunks.append(h['tasks/vorticity'][start:end])              # (chunk, H, W_part)
+                forc_chunks.append(h['tasks/forcing'][start:end])               # (chunk, 2, H, W_part)
+            # Concatenate along width
+            vorticity_full = np.concatenate(vort_chunks, axis=2)                 # (chunk, H, W)
+            forcing_full = np.concatenate(forc_chunks, axis=3)                   # (chunk, 2, H, W)
+            # Stack channels: forcing_x, forcing_y, vorticity
+            chunk = np.concatenate(
+                (forcing_full, np.expand_dims(vorticity_full, axis=1)),
+                axis=1
+            ).astype(np.float32, copy=False)                                     # (chunk, 3, H, W)
+            data_mem[start:end] = chunk
+            if (start // chunk_size) % 50 == 0:
+                print(f'Processed {end}/{T} timesteps')
+    finally:
+        for h in handles:
+            h.close()
+    # Ensure data is flushed to disk
+    data_mem.flush()
+    print(f'Data saved to: {out_path}')
+    return out_path
 
 
 
