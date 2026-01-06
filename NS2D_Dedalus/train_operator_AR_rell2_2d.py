@@ -129,7 +129,7 @@ def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
     return mesh
 
 
-def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True, writer=None, model_name='fno2d', start_ep=0):
+def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=10,save_step=100, use_tqdm=True, writer=None, model_name='fno2d', start_ep=0):
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
