@@ -33,9 +33,9 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path configs/FNO.yaml --test_ratio 0.25 --resume_training
 # python3 train_operator_AR_rell2_2d.py --config_path configs/HFS.yaml --test_ratio 0.25 --resume_training
 # python3 train_operator_AR_rell2_2d.py --config_path configs/WNO.yaml --test_ratio 0.25 --resume_training
-python3 train_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml --test_ratio 0.25 --resume_training
+# python3 train_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml --test_ratio 0.25 --resume_training
 # python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefiner.yaml --test_ratio 0.25 
-# python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml --test_ratio 0.25 --resume_training
+python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml --test_ratio 0.25 --resume_training
 # python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefinerUNet.yaml --test_ratio 0.25 --resume_training
 # python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_NodecoderAttn.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_double_attn.yaml --test_ratio 0.25
