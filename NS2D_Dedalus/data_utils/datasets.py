@@ -15,7 +15,9 @@ def load_save_dedalus_data(datapath='/datasets/work/oa-tcch/work/forXuesong/real
     vorticity = np.expand_dims(np.array(file['tasks/vorticity']), axis=1) # (N, 1, H, W)
     
     data = np.concatenate((pressure, velocity, forcing, vorticity), axis=1) # (N, 5, H, W)
+    print("data shape: ", data.shape)
     np.save(os.path.join(save_path, 'dedalus_data_train.npy'), data)
+    print("data saved to: ", os.path.join(save_path, 'dedalus_data_train.npy'))
     return data
 
 
