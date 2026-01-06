@@ -7,6 +7,7 @@ import h5py
 import os
 import glob
 from numpy.lib.format import open_memmap
+from tqdm import tqdm
 
 def load_save_dedalus_data(datapath='/datasets/work/oa-tcch/work/forXuesong/realisation_0000/snapshots/snapshots_s1',
                            save_path='/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy',
@@ -53,7 +54,7 @@ def load_save_dedalus_data(datapath='/datasets/work/oa-tcch/work/forXuesong/real
     # Keep file handles open for speed
     handles = [h5py.File(fp, 'r') for fp in slice_files]
     try:
-        for start in range(0, T, chunk_size):
+        for start in tqdm(range(0, T, chunk_size), ascii=True):
             end = min(start + chunk_size, T)
             # Collect slices for this chunk
             vort_chunks = []
@@ -83,7 +84,7 @@ def load_save_dedalus_data(datapath='/datasets/work/oa-tcch/work/forXuesong/real
 
 
 
-class NSLoader2D(Dataset):
+class NS_Dedalus_Loader2D(Dataset):
     def __init__(self, datapath1,
                  nx, nt,
                  datapath2=None, sub=1, sub_t=1,
@@ -91,7 +92,7 @@ class NSLoader2D(Dataset):
                  n_samples=None, offset=0,
                  train=True):
         '''
-        Load data from npy and reshape to (N, X, Y, T)
+        Load data from npy and reshape to (T, X, Y, C)
         Args:
             datapath1: path to data
             nx:
@@ -109,23 +110,19 @@ class NSLoader2D(Dataset):
         self.time_scale = t_interval
         self.train = train
         data1 = np.load(datapath1)
-        data1 = torch.tensor(data1, dtype=torch.float)[..., ::sub_t, ::sub, ::sub]
+        data1 = torch.tensor(data1, dtype=torch.float)[::sub_t,::sub, ::sub, :]
 
         if datapath2 is not None:
             data2 = np.load(datapath2)
-            data2 = torch.tensor(data2, dtype=torch.float)[..., ::sub_t, ::sub, ::sub]
+            data2 = torch.tensor(data2, dtype=torch.float)[::sub_t,::sub, ::sub, :]
         if t_interval == 0.5:
             data1 = self.extract(data1)
             if datapath2 is not None:
                 data2 = self.extract(data2)
-        part1 = data1.permute(0, 2, 3, 1)
-        if datapath2 is not None:
-            part2 = data2.permute(0, 2, 3, 1)
-            self.data = torch.cat((part1, part2), dim=0)
-        else:
-            self.data = part1
+       
+        self.data = data1
         total = self.data.shape[0]
-        if offset >= total:
+        if offset >= total: # we need to skip the first 1000 steps 
             raise ValueError(f'Offset {offset} exceeds dataset size {total}.')
         if n_samples is None:
             if N is None:
@@ -134,13 +131,14 @@ class NSLoader2D(Dataset):
                 n_samples = N
         start = max(0, offset)
         end = total if n_samples is None else min(total, start + n_samples)
-        self.data = self.data[start:end] # (N, X, Y, T)
-        self.num_samples = self.data.shape[0]
-        self.max_time_index = self.data.shape[-1] - 1
+        self.data = self.data[start:end] # (T, X, Y, C)
+        self.num_samples = self.data.shape[0] -1
+        self.max_time_index = 1
+        self.normalize()
 
     def normalize(self):
-        self.mean = self.data.mean()
-        self.std = self.data.std()
+        self.mean = self.data.mean(axis=(0, 1, 2)) # average over spatial and temporal dimensions
+        self.std = self.data.std(axis=(0, 1, 2)) # average over spatial and temporal dimensions  
         self.data = (self.data - self.mean) / self.std # average over spatial and temporal dimensions
         return self.data
 
@@ -149,10 +147,11 @@ class NSLoader2D(Dataset):
 
     def __getitem__(self, idx):
         sample = self.data[idx]
-        t = np.random.randint(0, self.max_time_index) if self.train else  0
-        return sample[..., t], sample[..., t + 1]
+        return sample[idx], sample[idx + 1, :, : :1] # the output is the vorticity at the next time step (no need to predict the forcing)
 
 
 
 if __name__ == '__main__':
-    load_save_dedalus_data(chunk_size=128)
+    # load_save_dedalus_data(chunk_size=128)
+
+    dataset = NS_Dedalus_Loader2D(datapath1='/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy/dedalus_data_train.npy', nx=256, offset=1000, train=True)
