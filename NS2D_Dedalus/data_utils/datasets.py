@@ -7,7 +7,7 @@ import h5py
 import os
 
 def load_save_dedalus_data(datapath='/datasets/work/oa-tcch/work/forXuesong/realisation_0000/snapshots', save_path='/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy'):
-    file  = h5py.File(os.path.join(os.path.dirname(datapath), 'snapshots_s1.h5'), 'r')
+    file  = h5py.File(os.path.join(datapath, 'snapshots_s1.h5'), 'r')
     print("file loaded")
     pressure = np.expand_dims(np.array(file['tasks/pressure']), axis=1) # (N, 1, H, W)
     velocity = np.array(file['tasks/velocity']) # (N, 2, H, W)
