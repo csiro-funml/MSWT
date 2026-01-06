@@ -135,6 +135,7 @@ class NS_Dedalus_Loader2D(Dataset):
         self.num_samples = self.data.shape[0] -1
         self.max_time_index = 1
         self.normalize()
+        print("data shape: ", self.data.shape)
 
     def normalize(self):
         self.mean = self.data.mean(axis=(0, 1, 2)) # average over spatial and temporal dimensions
