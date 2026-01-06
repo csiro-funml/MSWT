@@ -12,5 +12,7 @@ def print_dimension(file_path):
             print(f"  Shape: {shape}")
 
 if __name__ == "__main__":
-    file_path = '/datasets/work/oa-tcch/work/forXuesong/with-forcing/long/realisation_0000/snapshots/snapshots_s1.h5'
+    # file_path = '/datasets/work/oa-tcch/work/forXuesong/with-forcing/long/realisation_0000/snapshots/snapshots_s1.h5'
+
+    file_path = '/datasets/work/oa-tcch/work/forXuesong/realisation_0000/snapshots/snapshots_s1.h5'
     print_dimension(file_path)
