@@ -100,10 +100,10 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
         return None, None
     t_idx = min(t_idx, max_t - 1)
 
-    sample = data[sample_idx]
-    x = sample[..., t_idx, :].to(device)
-    y = sample[..., t_idx + 1, :].to(device)
+    x = data[sample_idx] # (X, Y, C)
+    y = data[sample_idx + 1, :1] # (X, Y, C)
     grid_b = grid.to(device)
+    print("x shape:", x.shape, "y shape:", y.shape, "grid_b shape:", grid_b.shape)
     x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1)
     with torch.no_grad():
         if isinstance(model, PDERefiner):
