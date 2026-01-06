@@ -152,6 +152,6 @@ class NS_Dedalus_Loader2D(Dataset):
 
 
 if __name__ == '__main__':
-    load_save_dedalus_data(chunk_size=128, outname='dedalus_data_train_temp.npy')
+    load_save_dedalus_data(chunk_size=128, out_name='dedalus_data_train_temp.npy')
 
     # dataset = NS_Dedalus_Loader2D(datapath1='/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy/dedalus_data_train.npy', nx=256, offset=1000, train=True)
