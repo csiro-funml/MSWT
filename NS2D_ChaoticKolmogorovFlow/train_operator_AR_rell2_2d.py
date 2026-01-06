@@ -429,7 +429,7 @@ def train_2d(args, config):
     
     
     if args.resume_training:
-        ckpt_path = os.path.join(config['train']['save_dir'], args.resume_ckpt)
+        ckpt_path = os.path.join(config['train']['save_dir'], config['train']['save_name'])
         if ckpt_path is not None and os.path.exists(ckpt_path):
             ckpt = torch.load(ckpt_path, map_location=device)
             parsed_ep = ckpt['epoch'] 
