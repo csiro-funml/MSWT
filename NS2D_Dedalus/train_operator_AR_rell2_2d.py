@@ -103,8 +103,8 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     x = data[sample_idx].to(device) # (X, Y, C)
     y = data[sample_idx + 1, ..., :1].to(device) # (X, Y, C)
     grid_b = grid.to(device)
-    print("x shape:", x.shape, "y shape:", y.shape, "grid_b shape:", grid_b.shape)
-    x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1)
+    # print("x shape:", x.shape, "y shape:", y.shape, "grid_b shape:", grid_b.shape)
+    x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1) # (1, X, Y, 2)
     with torch.no_grad():
         if isinstance(model, PDERefiner):
             if len(x.shape) == 2:
@@ -204,8 +204,8 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                 optimizer, scheduler)
                 if fixed_pred is not None:
                     log_tensorboard_images_and_spectra(writer,
-                                                       fixed_pred.unsqueeze(-2)[...,[0]],  # the first channel is vorticity
-                                                       fixed_target.unsqueeze(-2)[..., [0]],  # the first channel is vorticity
+                                                       fixed_pred[..., None, None],
+                                                       fixed_target[..., None, None],
                                                        ep + 1,
                                                        'vorticity',
                                                        model_name,
