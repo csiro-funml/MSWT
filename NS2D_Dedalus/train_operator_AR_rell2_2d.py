@@ -101,7 +101,7 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     t_idx = min(t_idx, max_t - 1)
 
     x = data[sample_idx].to(device) # (X, Y, C)
-    y = data[sample_idx + 1, ..., :1].to(device) # (X, Y, C)
+    y = data[sample_idx + 1, ..., 0].to(device) # (X, Y, C)
     grid_b = grid.to(device)
     # print("x shape:", x.shape, "y shape:", y.shape, "grid_b shape:", grid_b.shape)
     x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1) # (1, X, Y, 2)
@@ -195,7 +195,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             if writer is not None:
                 writer.add_scalar('eval/test_l2', test_l2, ep + 1)
                 fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=0, t_idx=0)
-                # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
+                print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 
                 save_checkpoint(config['train']['save_dir'],
                                 config['train']['save_name'],
