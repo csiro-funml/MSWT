@@ -3,7 +3,6 @@ data:
   name: NS2D_Dedalus
   total_num: 10000
   offset: 1000 # skip the first 1000 steps (200s)
-  n_sample: 100
   time_interval: 1
   nx: 256
   nt: 1

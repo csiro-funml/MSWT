@@ -110,7 +110,7 @@ class NS_Dedalus_Loader2D(Dataset):
         self.time_scale = t_interval
         self.train = train
         data1 = np.load(datapath1)
-        data1 = torch.tensor(data1, dtype=torch.float)[::sub_t,::sub, ::sub, :]
+        data1 = torch.tensor(data1, dtype=torch.float)[::sub_t,:, ::sub, ::sub]
 
         if datapath2 is not None:
             data2 = np.load(datapath2)
@@ -120,7 +120,8 @@ class NS_Dedalus_Loader2D(Dataset):
             if datapath2 is not None:
                 data2 = self.extract(data2)
        
-        self.data = data1
+        self.data = data1.permute(0, 2, 3, 1) # (T, C, X, Y) -> (T, X, Y, C)
+        
         total = self.data.shape[0]
         if offset >= total: # we need to skip the first 1000 steps 
             raise ValueError(f'Offset {offset} exceeds dataset size {total}.')
