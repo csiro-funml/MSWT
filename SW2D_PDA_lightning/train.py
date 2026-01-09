@@ -7,9 +7,11 @@ import yaml
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
+import sys
 
-from SW2D_PDA_lightning.data import SW2DPDALightningDataModule
-from SW2D_PDA_lightning.model import SW2DPDALightningModule
+sys.path.append(os.path.dirname(__file__))
+from data import SW2DPDALightningDataModule
+from model import SW2DPDALightningModule
 
 
 def parse_args():
