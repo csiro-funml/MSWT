@@ -550,6 +550,8 @@ def log_tensorboard_images_and_spectra(
 
 
 def save_checkpoint(path, name, model, epoch, optimizer=None, scheduler=None):
+    if not torch.cuda.is_available():
+        return
     ckpt_dir = path
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)

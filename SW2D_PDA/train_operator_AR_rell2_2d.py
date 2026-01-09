@@ -277,6 +277,10 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
 def train_2d(args, config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data_config = config['data']
+    if args.max_epochs is not None:
+        if args.max_epochs <= 0:
+            raise ValueError('max_epochs must be positive when provided.')
+        config['train']['epochs'] = args.max_epochs
 
     # prepare dataloader for training with data (real or synthetic)
     if args.synthetic_samples > 0:
@@ -532,6 +536,8 @@ if __name__ == '__main__':
                         help='Seed for the random test split')
     parser.add_argument('--synthetic_samples', type=int, default=0,
                         help='Use random synthetic data with this many samples to sanity-check the 3D pipeline')
+    parser.add_argument('--max_epochs', type=int, default=None,
+                        help='Override config train.epochs for quick runs')
     parser.add_argument('--resume_training', action='store_true', help='Resume training from the last checkpoint')
     parser.add_argument('--resume_ckpt', type=str, default=None, help='Specific checkpoint filename to resume from (in save_dir)')
     args = parser.parse_args()
