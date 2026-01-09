@@ -5,7 +5,7 @@
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=4
 #SBATCH --account=OD-230881
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=32        # Increased CPUs for DataLoader workers (H100 can handle more)
