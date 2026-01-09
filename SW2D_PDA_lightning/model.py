@@ -9,8 +9,6 @@ from einops import rearrange
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from utils.criterion import LpLoss
-from SW2D_PDA.train_operator_AR_rell2_2d import torch2dgrid
-
 from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
@@ -25,6 +23,15 @@ from models.wavelet_transform_exploration import (
 from models.periodic_mswt import PeriodicMultiscaleWaveletTransformer2D
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
+
+def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
+    x_bot, y_bot = bot
+    x_top, y_top = top
+    x_arr = torch.linspace(x_bot, x_top, steps=num_x)
+    y_arr = torch.linspace(y_bot, y_top, steps=num_y)
+    xx, yy = torch.meshgrid(x_arr, y_arr, indexing='ij')
+    mesh = torch.stack([xx, yy], dim=2)
+    return mesh
 
 
 def build_model(model_cfg, s_data, device):
