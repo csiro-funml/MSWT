@@ -31,7 +31,7 @@ echo "=========================================="
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 
-python3 SW2D_PDA_lightning/train.py --config_path SW2D_PDA/configs/MSWT_periodic.yaml --test_ratio 0.25 --devices 0 --accelerator gpu
+python3 SW2D_PDA_lightning/train.py --config_path SW2D_PDA/configs/MSWT_periodic.yaml --test_ratio 0.25 --devices 1 --accelerator gpu
 #################################################################################################################################
 
 

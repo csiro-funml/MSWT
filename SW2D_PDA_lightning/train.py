@@ -8,6 +8,7 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import TQDMProgressBar
 import sys
 
 sys.path.append(os.path.dirname(__file__))
@@ -85,8 +86,9 @@ def main():
         strategy=args.strategy,
         precision=args.precision,
         logger=logger,
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, TQDMProgressBar(refresh_rate=10)],
         log_every_n_steps=10,
+        enable_progress_bar=True,
     )
 
     trainer.fit(lightning_module, datamodule=data_module)
