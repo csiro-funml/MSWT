@@ -309,8 +309,8 @@ class WaveletAttentionBlock(nn.Module):
         new_h, new_w = x.shape[-2], x.shape[-1]
         x = self.conv_post(x) # -> (B, 4C//4, H/2, W/2)
         if self.use_efficient_attention:
-            # x = self.local_attention(x, new_h, new_w)
-            x = self.old_local_attention(x, new_h, new_w)
+            x = self.local_attention(x, new_h, new_w)
+            # x = self.old_local_attention(x, new_h, new_w)
         else:
             x = self.global_attention(x, new_h, new_w)
         x = torch.reshape(x, (b, 4, c//4, new_h, new_w))

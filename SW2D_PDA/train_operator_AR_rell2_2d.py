@@ -186,7 +186,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                     # print("pred shape:", pred.shape, "x_reg shape:", x_reg.shape)
                 else:
                     x_reg = None
-                print("pred shape:", pred.shape, "y shape:", y.shape)
+                # print("pred shape:", pred.shape, "y shape:", y.shape)
                 data_loss = lploss(pred, y)
                 if x_reg is not None:
                     loss = data_loss + lambda_amp * x_reg
