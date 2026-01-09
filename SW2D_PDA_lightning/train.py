@@ -4,6 +4,7 @@ import argparse
 import os
 import yaml
 
+import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -64,7 +65,7 @@ def main():
 
     lightning_module = SW2DPDALightningModule(config, s_data=data_module.S_data)
 
-    save_dir = train_cfg['save_dir'] if pl.utilities.device_parser.num_cuda_devices() > 0 else 'saved_models'
+    save_dir = train_cfg['save_dir'] if torch.cuda.is_available() else 'saved_models'
     tb_dir = train_cfg.get('tensorboard_dir') or os.path.join(save_dir, 'tensorboard')
     logger = TensorBoardLogger(save_dir=tb_dir, name='sw2d_pda_lightning')
 
