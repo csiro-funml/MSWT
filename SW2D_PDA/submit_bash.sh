@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=01:10:00           # Increased time for longer training with larger batches
+#SBATCH --time=00:40:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -41,6 +41,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_double_attn.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_NodecoderAttn_Group4.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_DeNoAttn_StackLayers.yaml --test_ratio 0.25
+python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic.yaml --test_ratio 0.25
 #################################################################################################################################
 
 
@@ -51,7 +52,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 test_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/PDERefiner.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/PDERefinerUNet.yaml
-python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml
+# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_NodecoderAttn.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_double_attn.yaml
 #################################################################################################################################
