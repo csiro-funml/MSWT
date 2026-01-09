@@ -314,14 +314,16 @@ def train_2d(args, config):
         test_set.train = False # set test set to not train
         test_loader = DataLoader(test_set,
                                  batch_size=config['train']['batchsize'],
-                                 shuffle=False)
+                                 shuffle=False,
+                                 num_workers=config['train'].get('num_workers', 1))
     else:
         train_set = full_dataset
         test_loader = None
 
     train_loader = DataLoader(train_set,
                               batch_size=config['train']['batchsize'],
-                              shuffle=data_config['shuffle'])
+                              shuffle=data_config['shuffle'],
+                              num_workers=config['train'].get('num_workers', 1))
     # create model
     print("device: ", device)
     model_cfg = config['model']
