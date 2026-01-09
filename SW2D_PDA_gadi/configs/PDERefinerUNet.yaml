@@ -1,0 +1,52 @@
+data:
+  datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_train.npy'
+  normalizer_path: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/normstats.pt'
+  name: SW2D
+  total_num: 4000
+  offset: 0
+  n_sample: 100
+  time_interval: 1
+  nx: 96
+  ny: 192
+  nt: 87
+  sub: 1
+  sub_t: 1
+  shuffle: True
+  S2: 96
+  T2: 88
+
+model:
+  name: refiner_unet
+  time_history: 0
+  time_future: 1
+  in_channels: 4
+  out_channels: 2
+  activation: 'gelu'
+  hidden_channels: 16
+  n_blocks: 3
+  
+
+train:
+  batchsize: 100
+  epochs: 10_000
+  milestones: [2_000, 4_000, 6_000, 8_000]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 0.0
+  f_loss: 0.0
+  xy_loss: 1.0
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/PDERefinerUNet2d/
+  save_name: PDERefinerUNet2d-dim16-nblocks3.pt
+  data_iter: 1
+  eqn_iter: 0
+
+
+test_data:
+  datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'
+  total_num: 100
+  nx: 96
+  ny: 192
+  nt: 87
+  sub: 1
+  sub_t: 1
+  shuffle: False
