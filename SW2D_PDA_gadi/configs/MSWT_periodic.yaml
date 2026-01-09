@@ -24,7 +24,6 @@ model:
   use_efficient_attention: True
   efficient_layers: [0, 1, 2, 3]
   add_periodic_grid: true
-  
   local_attention_size: 6
   external_grid: false
 
