@@ -156,6 +156,7 @@ def build_model(model_cfg, s_data, device):
             dims=model_cfg.get('dims', []),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            local_attention_size=model_cfg.get('local_attention_size', None),
             add_grid=model_cfg.get('add_grid', False),
             add_periodic_grid=model_cfg.get('add_periodic_grid', False),
             patch_size=model_cfg.get('patch_size', None),
