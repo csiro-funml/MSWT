@@ -10,9 +10,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-
-from models.wavelet_transform import Attention, FeedForward
-from models.periodic_ops import (
+import os
+import sys
+sys.path.append(os.path.dirname(__file__))
+from wavelet_transform import Attention, FeedForward
+from periodic_ops import (
     AddPeriodicGrid,
     CircularConv2d,
     PeriodicDWT2D,
@@ -113,12 +115,14 @@ class PeriodicMultiscaleWaveletTransformer2D(nn.Module):
         add_grid=False,
         add_periodic_grid=False,
         patch_size=None,
+        local_attention_size=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.add_grid = add_grid
         self.add_periodic_grid = add_periodic_grid
         self.patch_size = patch_size
+        self.local_attention_size = local_attention_size
         self.use_efficient_attention = use_efficient_attention
         self.add_periodic = AddPeriodicGrid() if add_periodic_grid else None
 
@@ -158,6 +162,7 @@ class PeriodicMultiscaleWaveletTransformer2D(nn.Module):
                         wave=wave,
                         dim=dim,
                         use_efficient_attention=efficient_flag,
+                        local_attention_size=local_attention_size,
                     ),
                     nn.LayerNorm(dim),
                     FeedForward(dim, dim * 4),
@@ -208,6 +213,7 @@ class PeriodicMultiscaleWaveletTransformer2D(nn.Module):
                         wave=wave,
                         dim=new_dim,
                         use_efficient_attention=efficient_flag,
+                        local_attention_size=local_attention_size,
                     ),
                     nn.LayerNorm(new_dim),
                     FeedForward(new_dim, new_dim * 4),
@@ -269,7 +275,7 @@ class PeriodicMultiscaleWaveletTransformer2D(nn.Module):
         for up_layer, attn_layer in self.dec_layers:
             x, h, w = self.up_block(x, x_list.pop(), up_layer, h, w)
             x = self.attention_block(x, attn_layer, h, w)
-
+        
         x = self.output_proj(x)
         x = rearrange(x, "b (h w) c -> b h w c", h=h, w=w)
         return x
@@ -277,3 +283,24 @@ class PeriodicMultiscaleWaveletTransformer2D(nn.Module):
     def count_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+
+
+
+
+if __name__ == "__main__":
+    # x = torch.randn(2, 64, 64, 3)
+    x = torch.rand(2, 96, 192, 3)
+    # model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dim=64, use_efficient_attention=True)
+    # model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dims=[64, 128, 256, 512], use_efficient_attention=True,   efficient_layers=[0, 1, 2])
+    model = PeriodicMultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dims=[32, 64, 128, 256, 512], 
+    use_efficient_attention=True,   efficient_layers=[0, 1, 2, 3], add_periodic_grid=True, local_attention_size=6)
+    # model = MultiscaleWaveletTransformer2DDecoderNoAttention(input_dim=3, output_dim=1, dim=96, use_efficient_attention=True)
+    
+    print("number of parameters:", model.count_parameters())
+    with torch.autograd.set_detect_anomaly(True):
+        output = model(x)
+        output = output[0] if isinstance(output, tuple) else output
+        print("output shape:", output.shape)
+        loss = output.mean()
+        loss.backward()
+        print("backward done")

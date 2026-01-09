@@ -58,7 +58,13 @@ def evaluate_step_ahead(model, test_loader, device, grid):
         for x, y in test_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
+            if grid is not None:
+                grid = grid.to(device)
+                if grid.dim() == 3:
+                    grid = grid.unsqueeze(0)
+                x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
+            else:
+                x_in = x
             if isinstance(model, PDERefiner):
                 if len(x.shape) == 3:
                     x = rearrange(x, 'b h w -> b 1 1 h w')
@@ -104,8 +110,13 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     sample = data[sample_idx]
     x = sample[..., t_idx, :].to(device)
     y = sample[..., t_idx + 1, :].to(device)
-    grid_b = grid.to(device)
-    x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1)
+    if grid is not None:
+        grid_b = grid.to(device)
+        if grid_b.dim() == 3:
+            grid_b = grid_b.unsqueeze(0)
+        x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1)
+    else:
+        x_in = x.unsqueeze(0)
     with torch.no_grad():
         if isinstance(model, PDERefiner):
             if len(x.shape) == 2:
@@ -134,7 +145,8 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
-    grid = grid.to(device).unsqueeze(0)
+    if grid is not None:
+        grid = grid.to(device).unsqueeze(0)
 
     lambda_amp_final = 1e-2    # good starting point
     warmup_frac = 0.2          # first 20% epochs
@@ -161,7 +173,10 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
+            if grid is not None:
+                x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
+            else:
+                x_in = x
             if isinstance(model, PDERefiner): # for PDERefiner, the loss function is a denoising loss
                 loss = model.training_step((x, y))
             else:
@@ -426,6 +441,7 @@ def train_2d(args, config):
             add_grid=model_cfg.get('add_grid', False),
             add_periodic_grid=model_cfg.get('add_periodic_grid', False),
             patch_size=model_cfg.get('patch_size', None),
+            local_attention_size=model_cfg.get('local_attention_size', None),
         ).to(device)
     elif model_name in ['multiscale_wavelet2d_denoattn_stacklayers3']:
         model = MSWT_DeNoAttn_StackLayers(
@@ -478,6 +494,8 @@ def train_2d(args, config):
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
     grid = torch2dgrid(S_data[0], S_data[1])
+    if not model_cfg.get('external_grid', True):
+        grid = None
     train_step_ahead(model,
                         train_loader,
                         optimizer,
@@ -491,7 +509,8 @@ def train_2d(args, config):
                         start_ep=start_ep)
     
     if test_loader is not None:
-        test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid.to(device).unsqueeze(0))
+        eval_grid = None if grid is None else grid.to(device).unsqueeze(0)
+        test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, eval_grid)
         print(f'Random test split relative L2: {test_l2:.6f}')
         if writer is not None:
             writer.add_scalar('eval/test_l2', test_l2, config['train']['epochs'])

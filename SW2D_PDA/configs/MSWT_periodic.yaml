@@ -1,0 +1,53 @@
+data:
+  datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_train.npy'
+  normalizer_path: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/normstats.pt'
+  name: SW2D
+  total_num: 4000
+  offset: 0
+  n_sample: 100
+  time_interval: 1
+  nx: 96
+  ny: 192
+  nt: 87
+  sub: 1
+  sub_t: 1
+  shuffle: True
+  S2: 96
+  T2: 88
+
+model:
+  name: multiscale_wavelet2d_periodic
+  wave: haar
+  dims: [32, 64, 128, 256, 512]
+  in_chans: 2
+  out_chans: 2
+  use_efficient_attention: True
+  efficient_layers: [0, 1, 2, 3]
+  add_periodic_grid: true
+  local_attention_size: 6
+  external_grid: false
+
+train:
+  batchsize: 100
+  epochs: 10_000
+  milestones: [2_000, 4_000, 6_000, 8_000]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 0.0
+  f_loss: 0.0
+  xy_loss: 1.0
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/MSWT2d/
+  save_name: MultiscaleWavelet2d-dim64-nlayers4.pt
+  data_iter: 1
+  eqn_iter: 0
+
+
+test_data:
+  datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'
+  total_num: 100
+  nx: 96
+  ny: 192
+  nt: 87
+  sub: 1
+  sub_t: 1
+  shuffle: False

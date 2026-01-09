@@ -123,7 +123,11 @@ class PeriodicIDWT2D(nn.Module):
         w_hl = rec_hi.unsqueeze(0) * rec_lo.unsqueeze(1)
         w_hh = rec_hi.unsqueeze(0) * rec_hi.unsqueeze(1)
 
-        filters = torch.stack([w_ll, w_lh, w_hl, w_hh], dim=0)
+        w_ll = w_ll.unsqueeze(0).unsqueeze(1)
+        w_lh = w_lh.unsqueeze(0).unsqueeze(1)
+        w_hl = w_hl.unsqueeze(0).unsqueeze(1)
+        w_hh = w_hh.unsqueeze(0).unsqueeze(1)
+        filters = torch.cat([w_ll, w_lh, w_hl, w_hh], dim=0)
         self.register_buffer("filters", filters)
 
     def forward(self, x, target_size=None):
@@ -174,4 +178,3 @@ class AddPeriodicGrid(nn.Module):
         grid = periodic_grid_2d(h, w, device=x.device, dtype=x.dtype)
         grid = grid.unsqueeze(0).expand(b, -1, -1, -1)
         return torch.cat([x, grid], dim=-1)
-

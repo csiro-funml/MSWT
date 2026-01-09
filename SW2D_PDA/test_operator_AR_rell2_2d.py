@@ -58,14 +58,16 @@ def load_sw_sequences(data_config):
     return sequences, (S1, S2), T
 
 
-def autoregressive_eval(model, sequences, device):
+def autoregressive_eval(model, sequences, device, use_external_grid=True):
     """Run autoregressive rollout on full sequences."""
     lploss = LpLoss(size_average=True)
     log_en_err = LogEnstropyEnergyLoss()
     model.eval()
     S1, S2 = sequences.shape[1], sequences.shape[2]
     T = sequences.shape[-2]
-    grid = torch2dgrid(S1, S2).to(device).unsqueeze(0)  # 1 x S1 x S2 x 2
+    grid = None
+    if use_external_grid:
+        grid = torch2dgrid(S1, S2).to(device).unsqueeze(0)  # 1 x S1 x S2 x 2
     total_l2 = 0.0
     step_l2 = 0.0
     total_log_en_err = 0.0
@@ -79,7 +81,10 @@ def autoregressive_eval(model, sequences, device):
             preds = []  # predicted rollout
             prev = seq[..., 0, :]  # initial condition (B, S1, S2, C)
             for _ in range(T - 1):
-                x_in = torch.cat((prev, grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
+                if grid is not None:
+                    x_in = torch.cat((prev, grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
+                else:
+                    x_in = prev
                 if isinstance(model, PDERefiner):
                     prev_in = prev
                     if prev_in.dim() == 3:
@@ -251,6 +256,7 @@ def main():
             add_grid=model_cfg.get('add_grid', False),
             add_periodic_grid=model_cfg.get('add_periodic_grid', False),
             patch_size=model_cfg.get('patch_size', None),
+            local_attention_size=model_cfg.get('local_attention_size', None),
         ).to(device)
     else:
         raise ValueError(f'Model {model_name} not supported')
@@ -268,7 +274,13 @@ def main():
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
 
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data[0]}x{S_data[1]} for {T_data} steps.')
-    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device)
+    use_external_grid = model_cfg.get('external_grid', True)
+    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(
+        model,
+        sequences,
+        device,
+        use_external_grid=use_external_grid,
+    )
     print(f'Relative L2  rollout avg: {total_l2:.6f}')
     print(f'Relative L2 over first step: {step_l2:.6f}')
     print(f'Log energy error rollout avg: {total_log_en_err:.6f}')
