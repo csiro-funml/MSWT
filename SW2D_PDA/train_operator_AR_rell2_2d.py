@@ -506,7 +506,6 @@ def train_2d(args, config):
             add_grid=model_cfg.get('add_grid', False),
             add_periodic_grid=model_cfg.get('add_periodic_grid', False),
             patch_size=model_cfg.get('patch_size', None),
-            external_grid=model_cfg.get('external_grid', False),
             local_attention_size=model_cfg.get('local_attention_size', None),
         ).to(device)
     elif model_name in ['multiscale_wavelet2d_denoattn_stacklayers3']:
