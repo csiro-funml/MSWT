@@ -20,6 +20,7 @@ from wavelet_transform import Attention, FeedForward
 #     PeriodicDWT2D,
 #     PeriodicIDWT2D,
 # )
+
 from periodic_ops_strictly_periodic import (
     AddPeriodicGrid,
     CircularConv2d,
