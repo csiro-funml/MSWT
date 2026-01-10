@@ -56,6 +56,9 @@ class CircularConv2d(nn.Module):
         return self.conv(x)
 
 
+DEFAULT_WAVE = "db4"
+
+
 class PeriodicDWT2D(nn.Module):
     """
     Periodic discrete wavelet transform with circular padding.
@@ -63,7 +66,7 @@ class PeriodicDWT2D(nn.Module):
     Returns (B, 4C, H/2, W/2) if format='cat', or (B, 4, C, H/2, W/2) if stack.
     """
 
-    def __init__(self, wave="haar", format="cat"):
+    def __init__(self, wave=DEFAULT_WAVE, format="cat"):
         super().__init__()
         w = pywt.Wavelet(wave)
         dec_hi = torch.tensor(w.dec_hi[::-1], dtype=torch.float32)
@@ -113,7 +116,7 @@ class PeriodicIDWT2D(nn.Module):
     stacked format (B, 4, C, H, W). Use target_size to crop after odd padding.
     """
 
-    def __init__(self, wave="haar"):
+    def __init__(self, wave=DEFAULT_WAVE):
         super().__init__()
         w = pywt.Wavelet(wave)
         rec_hi = torch.tensor(w.rec_hi, dtype=torch.float32)
@@ -175,4 +178,3 @@ class AddPeriodicGrid(nn.Module):
         grid = periodic_grid_2d(h, w, device=x.device, dtype=x.dtype)
         grid = grid.unsqueeze(0).expand(b, -1, -1, -1)
         return torch.cat([x, grid], dim=-1)
-
