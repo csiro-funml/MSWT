@@ -35,8 +35,8 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/MSWT_periodic/
-  save_name: MultiscaleWavelet2d_periodic-dim64-nlayers4.pt
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/MSWT_periodic_wave_db2/
+  save_name: MultiscaleWavelet2d_periodic-wave_db2-dim64-nlayers4.pt
   data_iter: 1
   eqn_iter: 0
   num_workers: 16
