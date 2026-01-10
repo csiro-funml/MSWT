@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=20:10:00           # Increased time for longer training with larger batches
+#SBATCH --time=00:30:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -44,7 +44,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic.yaml --test_ratio 0.25 --resume_training
 # python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_nlayers4.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_wave_db2.yaml --test_ratio 0.25
-python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_patching.yaml --test_ratio 0.25
+# python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_patching.yaml --test_ratio 0.25
 #################################################################################################################################
 
 
@@ -58,5 +58,7 @@ python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_patchi
 # python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_NodecoderAttn.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_double_attn.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic.yaml
+python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic.yaml
+# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_nlayers4.yaml
+# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_patching.yaml
 #################################################################################################################################
