@@ -253,7 +253,7 @@ class PeriodicMultiscaleWaveletTransformer2DBase(nn.Module):
         linear, ln, idwt, conv = layer
         x = ln(linear(x))
         x = rearrange(x, "b (h w) c -> b c h w", h=h, w=w)
-        x = idwt(x)
+        x = idwt(x, target_size=(x_prev.shape[-2], x_prev.shape[-1]))
         x = torch.cat((x, x_prev), dim=1)
         x = conv(x)
         h, w = x.shape[-2], x.shape[-1]

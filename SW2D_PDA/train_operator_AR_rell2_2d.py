@@ -29,6 +29,20 @@ from utils.criterion import LpLoss
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint
 
 
+class SyntheticStepDataset(Dataset):
+    def __init__(self, arr):
+        self.arr = arr
+        self.max_t = arr.shape[-2] - 1
+
+    def __len__(self):
+        return self.arr.shape[0]
+
+    def __getitem__(self, idx):
+        sample = self.arr[idx]
+        t = torch.randint(0, self.max_t, ()).item()
+        return sample[..., t, :], sample[..., t + 1, :]
+
+
 
 def evaluate_3d(model, test_loader, device):
     """Run a quick L2 evaluation on a held-out set."""
@@ -250,19 +264,6 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
 
     if step_ahead:
         data = torch.rand(n_samples, S1, S2, T, nc)
-
-        class SyntheticStepDataset(Dataset):
-            def __init__(self, arr):
-                self.arr = arr
-                self.max_t = arr.shape[-2] - 1
-
-            def __len__(self):
-                return self.arr.shape[0]
-
-            def __getitem__(self, idx):
-                sample = self.arr[idx]
-                t = torch.randint(0, self.max_t, ()).item()
-                return sample[..., t, :], sample[..., t + 1, :]
 
         return SyntheticStepDataset(data), (S1, S2), 1
 
