@@ -47,16 +47,12 @@ class CircularConv2d(nn.Module):
             dilation=dilation,
             groups=groups,
             bias=bias,
-            padding_mode='circular',
         )
 
     def forward(self, x):
         if self.pad_h or self.pad_w:
             x = F.pad(x, (self.pad_w, self.pad_w, self.pad_h, self.pad_h), mode="circular")
         return self.conv(x)
-
-
-DEFAULT_WAVE = "db4"
 
 
 class PeriodicDWT2D(nn.Module):
@@ -66,7 +62,7 @@ class PeriodicDWT2D(nn.Module):
     Returns (B, 4C, H/2, W/2) if format='cat', or (B, 4, C, H/2, W/2) if stack.
     """
 
-    def __init__(self, wave=DEFAULT_WAVE, format="cat"):
+    def __init__(self, wave="haar", format="cat"):
         super().__init__()
         w = pywt.Wavelet(wave)
         dec_hi = torch.tensor(w.dec_hi[::-1], dtype=torch.float32)
@@ -95,10 +91,10 @@ class PeriodicDWT2D(nn.Module):
         w_hl = self.w_hl.to(dtype=x.dtype).expand(c, -1, -1, -1)
         w_hh = self.w_hh.to(dtype=x.dtype).expand(c, -1, -1, -1)
 
-        x_ll = F.conv2d(x, w_ll, stride=2, groups=c, padding_mode='circular')
-        x_lh = F.conv2d(x, w_lh, stride=2, groups=c, padding_mode='circular')
-        x_hl = F.conv2d(x, w_hl, stride=2, groups=c, padding_mode='circular')
-        x_hh = F.conv2d(x, w_hh, stride=2, groups=c, padding_mode='circular')
+        x_ll = F.conv2d(x, w_ll, stride=2, groups=c)
+        x_lh = F.conv2d(x, w_lh, stride=2, groups=c)
+        x_hl = F.conv2d(x, w_hl, stride=2, groups=c)
+        x_hh = F.conv2d(x, w_hh, stride=2, groups=c)
 
         if self.format == "cat":
             out = torch.cat([x_ll, x_lh, x_hl, x_hh], dim=1)
@@ -116,7 +112,7 @@ class PeriodicIDWT2D(nn.Module):
     stacked format (B, 4, C, H, W). Use target_size to crop after odd padding.
     """
 
-    def __init__(self, wave=DEFAULT_WAVE):
+    def __init__(self, wave="haar"):
         super().__init__()
         w = pywt.Wavelet(wave)
         rec_hi = torch.tensor(w.rec_hi, dtype=torch.float32)
@@ -144,7 +140,7 @@ class PeriodicIDWT2D(nn.Module):
             raise ValueError(f"Expected 4D or 5D input, got {x.dim()}D")
 
         filters = self.filters.to(dtype=x.dtype).repeat(c, 1, 1, 1)
-        out = F.conv_transpose2d(x, filters, stride=2, groups=c, padding_mode='circular')
+        out = F.conv_transpose2d(x, filters, stride=2, groups=c)
 
         if target_size is not None:
             target_h, target_w = target_size
@@ -178,3 +174,4 @@ class AddPeriodicGrid(nn.Module):
         grid = periodic_grid_2d(h, w, device=x.device, dtype=x.dtype)
         grid = grid.unsqueeze(0).expand(b, -1, -1, -1)
         return torch.cat([x, grid], dim=-1)
+
