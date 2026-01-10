@@ -47,6 +47,7 @@ class CircularConv2d(nn.Module):
             dilation=dilation,
             groups=groups,
             bias=bias,
+            padding_mode='circular',
         )
 
     def forward(self, x):
