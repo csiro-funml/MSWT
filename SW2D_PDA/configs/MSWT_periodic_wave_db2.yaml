@@ -19,12 +19,12 @@ model:
   name: multiscale_wavelet2d_periodic_db2
   in_chans: 2
   out_chans: 2
-  dims: [32, 64, 128, 256, 512]
+  dims: [32, 64, 128, 512]
   add_periodic_grid: true
   external_grid: false
   use_efficient_attention: true
   local_attention_size: 6
-  efficient_layers: [0, 1, 2, 3]
+  efficient_layers: [0, 1, 2]
 
 train:
   batchsize: 100
