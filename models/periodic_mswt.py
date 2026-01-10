@@ -14,7 +14,13 @@ import os
 import sys
 sys.path.append(os.path.dirname(__file__))
 from wavelet_transform import Attention, FeedForward
-from periodic_ops import (
+# from periodic_ops import (
+#     AddPeriodicGrid,
+#     CircularConv2d,
+#     PeriodicDWT2D,
+#     PeriodicIDWT2D,
+# )
+from periodic_ops_strictly_periodic import (
     AddPeriodicGrid,
     CircularConv2d,
     PeriodicDWT2D,
