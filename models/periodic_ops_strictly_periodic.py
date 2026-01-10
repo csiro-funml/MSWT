@@ -47,6 +47,7 @@ class CircularConv2d(nn.Module):
             dilation=dilation,
             groups=groups,
             bias=bias,
+            padding_mode='circular',
         )
 
     def forward(self, x):
@@ -91,10 +92,10 @@ class PeriodicDWT2D(nn.Module):
         w_hl = self.w_hl.to(dtype=x.dtype).expand(c, -1, -1, -1)
         w_hh = self.w_hh.to(dtype=x.dtype).expand(c, -1, -1, -1)
 
-        x_ll = F.conv2d(x, w_ll, stride=2, groups=c)
-        x_lh = F.conv2d(x, w_lh, stride=2, groups=c)
-        x_hl = F.conv2d(x, w_hl, stride=2, groups=c)
-        x_hh = F.conv2d(x, w_hh, stride=2, groups=c)
+        x_ll = F.conv2d(x, w_ll, stride=2, groups=c, padding_mode='circular')
+        x_lh = F.conv2d(x, w_lh, stride=2, groups=c, padding_mode='circular')
+        x_hl = F.conv2d(x, w_hl, stride=2, groups=c, padding_mode='circular')
+        x_hh = F.conv2d(x, w_hh, stride=2, groups=c, padding_mode='circular')
 
         if self.format == "cat":
             out = torch.cat([x_ll, x_lh, x_hl, x_hh], dim=1)
@@ -140,7 +141,7 @@ class PeriodicIDWT2D(nn.Module):
             raise ValueError(f"Expected 4D or 5D input, got {x.dim()}D")
 
         filters = self.filters.to(dtype=x.dtype).repeat(c, 1, 1, 1)
-        out = F.conv_transpose2d(x, filters, stride=2, groups=c)
+        out = F.conv_transpose2d(x, filters, stride=2, groups=c, padding_mode='circular')
 
         if target_size is not None:
             target_h, target_w = target_size

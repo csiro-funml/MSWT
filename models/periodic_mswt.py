@@ -20,7 +20,12 @@ from periodic_ops import (
     PeriodicDWT2D,
     PeriodicIDWT2D,
 )
-
+# from periodic_ops_strictly_periodic import (
+#     AddPeriodicGrid,
+#     CircularConv2d,
+#     PeriodicDWT2D,
+#     PeriodicIDWT2D,
+# )
 
 class PeriodicWaveletAttentionBlock(nn.Module):
     def __init__(
