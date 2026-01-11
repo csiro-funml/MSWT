@@ -16,6 +16,7 @@ from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
 from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention, MSWT_DeNoAttn_StackLayers
+from models.periodic_mswt import PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
@@ -57,7 +58,10 @@ def evaluate_step_ahead(model, test_loader, device, grid):
         for x, y in test_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
+            if grid is not None:
+                x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
+            else:
+                x_in = x.unsqueeze(-1)
             if isinstance(model, PDERefiner):
                 if len(x.shape) == 3:
                     x = rearrange(x, 'b h w -> b 1 1 h w')
@@ -103,8 +107,11 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     sample = data[sample_idx]
     x = sample[..., t_idx].to(device)
     y = sample[..., t_idx + 1].to(device)
-    grid_b = grid.to(device)
-    x_in = torch.cat((x.unsqueeze(0).unsqueeze(-1), grid_b), dim=-1)
+    if grid is not None:
+        grid_b = grid.to(device)
+        x_in = torch.cat((x.unsqueeze(0).unsqueeze(-1), grid_b), dim=-1)
+    else:
+        x_in = x.unsqueeze(0).unsqueeze(-1)
     with torch.no_grad():
         if isinstance(model, PDERefiner):
             if len(x.shape) == 2:
@@ -133,7 +140,9 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
-    grid = grid.to(device).unsqueeze(0)
+    
+    if grid is not None:
+        grid = grid.to(device).unsqueeze(0)
 
     lambda_amp_final = 1e-2    # good starting point
     warmup_frac = 0.2          # first 20% epochs
@@ -160,7 +169,10 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
+            if grid is not None:
+                x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
+            else:
+                x_in = x.unsqueeze(-1)
             if isinstance(model, PDERefiner): # for PDERefiner, the loss function is a denoising loss
                 loss = model.training_step((x.unsqueeze(-1), y.unsqueeze(-1)))
             else:
@@ -412,7 +424,20 @@ def train_2d(args, config):
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
         ).to(device)
-    
+    elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
+        model = PeriodicMSWT2D_Patching(
+            wave=model_cfg.get('wave', 'haar'),
+            input_dim=model_cfg.get('in_chans', 3),
+            output_dim=model_cfg.get('out_chans', 1),
+            dim=model_cfg.get('dim', None),
+            dims=model_cfg.get('dims', []),
+            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
+            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            add_grid=model_cfg.get('add_grid', False),
+            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
+            patch_size=model_cfg.get('patch_size', None),
+            local_attention_size=model_cfg.get('local_attention_size', None),
+        ).to(device)
     else:
         raise ValueError(f'Model {model_name} not supported')
     print('model structure: ', model)
@@ -454,6 +479,8 @@ def train_2d(args, config):
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
     grid = torch2dgrid(S_data, S_data)
+    if not model_cfg.get('external_grid', True):
+        grid = None
     train_step_ahead(model,
                         train_loader,
                         optimizer,
