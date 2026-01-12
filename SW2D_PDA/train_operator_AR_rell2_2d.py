@@ -599,5 +599,6 @@ if __name__ == '__main__':
     config_file = args.config_path
     with open(config_file, 'r') as stream:
         config = yaml.load(stream, yaml.FullLoader)
+        config['train']['save_name'] = config['train']['save_name'].replace('.pt', f'_seed{args.test_seed}.pt')
 
     train_2d(args, config)
