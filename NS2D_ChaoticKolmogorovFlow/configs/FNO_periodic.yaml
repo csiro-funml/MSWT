@@ -13,10 +13,10 @@ data:
   shuffle: True
   S2: 64
   T2: 65
-  grid_form: linear
+  grid_form: periodic
 
 model:
-  in_dim: 3
+  in_dim: 5
   out_dim: 1
   layers: [64, 64, 64, 64, 64, 64]
   modes1: [16, 16, 16, 16]
@@ -33,7 +33,7 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/FNO2d/
+  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/FNO2d_periodic/
   save_name: FNO2d-mode16-dim64-layer4.pt
   data_iter: 1
   eqn_iter: 0
