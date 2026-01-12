@@ -14,6 +14,7 @@ from collections import OrderedDict
 import os
 import scipy
 import io
+import math
 from PIL import Image
 from utils.compute_diagnostics import streamfunction_to_velocity, velocity_from_vorticity
 from utils.compute_physical_statistics import compute_spectra
@@ -571,6 +572,40 @@ def save_checkpoint(path, name, model, epoch, optimizer=None, scheduler=None):
     }, ckpt_dir + name)
     print('Checkpoint is saved at %s' % ckpt_dir + name)
 
+
+
+def torch2dgrid_2d(num_x, num_y, form='linear', device=None, dtype=None):
+    """ 
+    Args:
+        num_x: number of grid points in x direction
+        num_y: number of grid points in y direction
+        form: 'linear' or 'periodic' (Return sin/cos positional grid: (H, W, 4) if form is 'periodic')
+        device: device to place the grid
+        dtype: dtype of the grid
+    Returns:
+        mesh: (num_x, num_y, 2 or 4) tensor
+    """
+    bot=(0,0)
+    top=(1,1)
+    x_bot, y_bot = bot
+    x_top, y_top = top
+    x_arr = torch.linspace(x_bot, x_top, steps=num_x, device=device, dtype=dtype)
+    y_arr = torch.linspace(y_bot, y_top, steps=num_y, device=device, dtype=dtype)
+    xx, yy = torch.meshgrid(x_arr, y_arr, indexing='ij')
+    if form == 'linear':
+        mesh = torch.stack([xx, yy], dim=2)
+    elif form == 'periodic':
+        two_pi = 2.0 * math.pi
+        feats = [
+            torch.sin(two_pi * xx),
+            torch.cos(two_pi * xx),
+            torch.sin(two_pi * yy),
+            torch.cos(two_pi * yy),
+        ]
+        mesh =torch.stack(feats, dim=-1)
+    else:
+        raise ValueError(f"Invalid form: {form}")
+    return mesh
 
 # -------------------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------

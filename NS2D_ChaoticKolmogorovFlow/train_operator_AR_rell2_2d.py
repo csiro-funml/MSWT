@@ -21,7 +21,7 @@ from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
 from utils.criterion import LpLoss
-from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint
+from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint, torch2dgrid_2d
 
 
 
@@ -58,11 +58,8 @@ def evaluate_step_ahead(model, test_loader, device, grid):
         for x, y in test_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            if grid is not None:
-                grid = grid.to(x.device).unsqueeze(0)
-                x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
-            else:
-                x_in = x.unsqueeze(-1)
+            grid = grid.to(x.device).unsqueeze(0)
+            x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
             if isinstance(model, PDERefiner):
                 if len(x.shape) == 3:
                     x = rearrange(x, 'b h w -> b 1 1 h w')
@@ -108,11 +105,8 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     sample = data[sample_idx]
     x = sample[..., t_idx].to(device)
     y = sample[..., t_idx + 1].to(device)
-    if grid is not None:
-        grid_b = grid.to(device)
-        x_in = torch.cat((x.unsqueeze(0).unsqueeze(-1), grid_b), dim=-1)
-    else:
-        x_in = x.unsqueeze(0).unsqueeze(-1)
+    grid_b = grid.unsqueeze(0).to(device)
+    x_in = torch.cat((x.unsqueeze(0).unsqueeze(-1), grid_b), dim=-1)
     with torch.no_grad():
         if isinstance(model, PDERefiner):
             if len(x.shape) == 2:
@@ -127,24 +121,12 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
             pred = pred.squeeze(-1)
     return pred, y.unsqueeze(0)
 
-def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
-    x_bot, y_bot = bot
-    x_top, y_top = top
-    x_arr = torch.linspace(x_bot, x_top, steps=num_x)
-    y_arr = torch.linspace(y_bot, y_top, steps=num_y)
-    xx, yy = torch.meshgrid(x_arr, y_arr, indexing='ij')
-    mesh = torch.stack([xx, yy], dim=2)
-    return mesh
-
 
 def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True, writer=None, model_name='fno2d', start_ep=0):
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
     
-    if grid is not None:
-        grid = grid.to(device).unsqueeze(0)
-
     lambda_amp_final = 1e-2    # good starting point
     warmup_frac = 0.2          # first 20% epochs
     if start_ep >= epochs:
@@ -170,10 +152,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            if grid is not None:
-                x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
-            else:
-                x_in = x.unsqueeze(-1)
+            x_in = torch.cat((x.unsqueeze(-1), grid.unsqueeze(0).expand(batch, -1, -1, -1)), dim=-1)
             if isinstance(model, PDERefiner): # for PDERefiner, the loss function is a denoising loss
                 loss = model.training_step((x.unsqueeze(-1), y.unsqueeze(-1)))
             else:
@@ -313,7 +292,9 @@ def train_2d(args, config):
     model_name = model_cfg.get('name', 'fno2d').lower()
     
     if model_name == 'fno2d':
-        model = FNO2d(modes1=model_cfg['modes1'],
+        model = FNO2d(in_dim=model_cfg.get('in_dim', 3),
+                      out_dim=model_cfg.get('out_dim', 1),
+                      modes1=model_cfg['modes1'],
                       modes2=model_cfg['modes2'],
                       fc_dim=model_cfg['fc_dim'],
                       layers=model_cfg['layers'],
@@ -479,9 +460,7 @@ def train_2d(args, config):
     os.makedirs(tensorboard_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
-    grid = torch2dgrid(S_data, S_data)
-    if not model_cfg.get('external_grid', True):
-        grid = None
+    grid = torch2dgrid_2d(S_data, S_data, form=config['data']['grid_form'], device=device, dtype=torch.float32)
     train_step_ahead(model,
                         train_loader,
                         optimizer,
@@ -524,5 +503,6 @@ if __name__ == '__main__':
     config_file = args.config_path
     with open(config_file, 'r') as stream:
         config = yaml.load(stream, yaml.FullLoader)
+        config['train']['save_name'] = config['train']['save_name'].replace('.pt', f'_seed{args.test_seed}.pt')
 
     train_2d(args, config)
