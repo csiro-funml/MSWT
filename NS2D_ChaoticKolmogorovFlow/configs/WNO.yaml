@@ -13,6 +13,7 @@ data:
   shuffle: True
   S2: 64
   T2: 65
+  grid_form: linear
 
 model:
   name: wno

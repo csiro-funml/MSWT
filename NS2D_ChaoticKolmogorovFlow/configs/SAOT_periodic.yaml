@@ -13,31 +13,38 @@ data:
   shuffle: True
   S2: 64
   T2: 65
-  grid_form: linear
+  grid_form: periodic
 
 model:
-  name: multiscale_wavelet2d
-  wave: haar
-  dims: [64, 128, 256, 512]
-  in_chans: 3    # u plus (x,y) grid concatenated in train loop
-  out_chans: 1
-  use_efficient_attention: True
-  efficient_layers: [0, 1, 2]
+  name: saot
+  space_dim: 2
+  n_layers: 5
+  n_hidden: 384
+  dropout: 0.0
+  n_head: 4
+  Time_Input: False
+  mlp_ratio: 1
+  fun_dim: 1
+  out_dim: 1
+  slice_num: 32
+  ref: 8
+  unified_pos: 0
+  is_filter: True
+
 
 train:
   batchsize: 100
-  epochs: 100000
-  milestones: [20000, 40000, 60000, 80000]
+  epochs: 100_001
+  milestones: [20_000, 40_000, 60_000, 80_000]
   base_lr: 0.001
   scheduler_gamma: 0.5
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/MSWT2d/
-  save_name: MultiscaleWavelet2d-dim64-nlayers4.pt
+  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/SAOT2d_periodic/
+  save_name: SAOT2d-nlayers5-nhidden384.pt
   data_iter: 1
   eqn_iter: 0
-
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pino_ns2d/NS_Re500_s256_T100_test.npy'
