@@ -9,8 +9,8 @@ CONFIG_PATH="${1:-configs/HFS_periodic.yaml}"
 TEST_RATIO="${2:-0.25}"
 
 # Seeds to iterate over
-# SEEDS=(42)
-SEEDS=(43 44 45 46)
+SEEDS=(42)
+# SEEDS=(43 44 45 46)
 
 # Base directory (directory where submit_bash.sh is located)
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -82,7 +82,7 @@ EOF
     
     # Optionally remove the temporary script after submission
     # Uncomment the next line if you want to clean up immediately
-    # rm -f "$TEMP_SCRIPT"
+    rm -f "$TEMP_SCRIPT"
 done
 
 echo ""
