@@ -59,6 +59,7 @@ def evaluate_step_ahead(model, test_loader, device, grid):
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             if grid is not None:
+                grid = grid.to(x.device).unsqueeze(0)
                 x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
             else:
                 x_in = x.unsqueeze(-1)
@@ -494,7 +495,7 @@ def train_2d(args, config):
                         start_ep=start_ep)
     
     if test_loader is not None:
-        test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid.to(device).unsqueeze(0))
+        test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, device)
         print(f'Random test split relative L2: {test_l2:.6f}')
         if writer is not None:
             writer.add_scalar('eval/test_l2', test_l2, config['train']['epochs'])
