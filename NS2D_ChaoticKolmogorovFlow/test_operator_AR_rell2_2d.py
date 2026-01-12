@@ -253,7 +253,7 @@ def main():
     print("total number of parameters: ", sum(p.numel() for p in model.parameters()))
 
 
-    ckpt_path = os.path.join(config.get('train', {}).get('save_dir'), config.get('train', {}).get('save_name'))
+    ckpt_path = os.path.join(config.get('train', {}).get('save_dir'), config.get('train', {}).get('save_name')).replace('.pt', f'_seed{args.test_seed}.pt')
     if os.path.exists(ckpt_path):
         ckpt = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(ckpt['model'])
