@@ -14,26 +14,21 @@ data:
   shuffle: True
   S2: 96
   T2: 88
+  grid_form: linear
 
 model:
-  name: saot
-  space_dim: 2
-  n_layers: 5
-  n_hidden: 256
-  dropout: 0.0
-  n_head: 4
-  Time_Input: False
-  mlp_ratio: 1
-  fun_dim: 2
-  out_dim: 2
-  slice_num: 32
-  ref: 8
-  unified_pos: 0
-  is_filter: True
-
+  name: refiner_unet
+  time_history: 0
+  time_future: 1
+  in_channels: 4
+  out_channels: 2
+  activation: 'gelu'
+  hidden_channels: 16
+  n_blocks: 3
+  
 
 train:
-  batchsize: 32
+  batchsize: 100
   epochs: 10_000
   milestones: [2_000, 4_000, 6_000, 8_000]
   base_lr: 0.001
@@ -41,10 +36,11 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/SAOT2d/
-  save_name: SAOT2d-nlayers5-nhidden256.pt
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/PDERefinerUNet2d/
+  save_name: PDERefinerUNet2d-dim16-nblocks3.pt
   data_iter: 1
   eqn_iter: 0
+
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'

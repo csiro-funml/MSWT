@@ -14,6 +14,7 @@ data:
   shuffle: True
   S2: 96
   T2: 88
+  grid_form: periodic
 
 model:
   layers: [64, 64, 64, 64, 64, 64]
@@ -21,7 +22,7 @@ model:
   modes2: [16, 16, 16, 16]
   fc_dim: 128
   act: gelu
-  in_dim: 4
+  in_dim: 6
   out_dim: 2
 
 train:
@@ -33,7 +34,7 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/FNO2d/
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/FNO2d_periodic/
   save_name: FNO2d-mode16-dim64-layer4.pt
   data_iter: 1
   eqn_iter: 0

@@ -14,17 +14,13 @@ data:
   shuffle: True
   S2: 96
   T2: 88
+  grid_form: periodic
 
 model:
-  name: refiner_unet
-  time_history: 0
-  time_future: 1
-  in_channels: 4
-  out_channels: 2
-  activation: 'gelu'
-  hidden_channels: 16
-  n_blocks: 3
-  
+  name: hfs
+  target_params: small
+  in_c: 6
+  out_c: 2
 
 train:
   batchsize: 100
@@ -35,8 +31,8 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/PDERefinerUNet2d/
-  save_name: PDERefinerUNet2d-dim16-nblocks3.pt
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/HFS2d_periodic/
+  save_name: HFS2d-small-nlayer5-bottleneck512.pt
   data_iter: 1
   eqn_iter: 0
 
