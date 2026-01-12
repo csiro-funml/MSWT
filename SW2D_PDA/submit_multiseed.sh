@@ -10,7 +10,7 @@ TEST_RATIO="${2:-0.25}"
 
 # Seeds to iterate over
 # SEEDS=(42)
-SEEDS=(43 44 45 46)
+SEEDS=(42 43 44 45 46)
 
 # Base directory (directory where submit_bash.sh is located)
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,7 +33,7 @@ for SEED in "${SEEDS[@]}"; do
     cat > "$TEMP_SCRIPT" << EOF
 #!/bin/bash
 
-#SBATCH --time=4:00:00           # Increased time for longer training with larger batches
+#SBATCH --time=10:00:00           # Increased time for longer training with larger batches
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
