@@ -128,7 +128,9 @@ def main():
     model_name = model_cfg.get('name', 'fno2d').lower()
     
     if model_name == 'fno2d':
-        model = FNO2d(modes1=model_cfg['modes1'],
+        model = FNO2d(in_dim=model_cfg.get('in_dim', 3),
+                      out_dim=model_cfg.get('out_dim', 1),
+                      modes1=model_cfg['modes1'],
                       modes2=model_cfg['modes2'],
                       fc_dim=model_cfg['fc_dim'],
                       layers=model_cfg['layers'],
