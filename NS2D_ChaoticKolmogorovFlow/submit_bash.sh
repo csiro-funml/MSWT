@@ -38,10 +38,14 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefiner.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefinerUNet.yaml --test_ratio 0.25
-# python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_periodic_patching.yaml --test_ratio 0.25
+# python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_periodic.yaml --test_ratio 0.25
 
 # python3 train_operator_AR_rell2_2d.py --config_path configs/FNO_periodic.yaml --test_ratio 0.25 --test_seed 42
 # python3 train_operator_AR_rell2_2d.py --config_path configs/HFS_periodic.yaml --test_ratio 0.25 --test_seed 42
+# python3 train_operator_AR_rell2_2d.py --config_path configs/WNO_periodic.yaml --test_ratio 0.25 --test_seed 42    
+# python3 train_operator_AR_rell2_2d.py --config_path configs/SAOT_periodic.yaml --test_ratio 0.25 --test_seed 42
+# python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefinerUNet_periodic.yaml --test_ratio 0.25 --test_seed 42
+# python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_periodic_patching.yaml --test_ratio 0.25
 
 
 #################################################################################################################################
