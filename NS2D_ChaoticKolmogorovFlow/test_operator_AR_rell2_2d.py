@@ -20,16 +20,8 @@ from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
 from utils.criterion import LpLoss, LogEnstropyEnergyLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
+from utils.utilities import torch2dgrid_2d
 
-
-def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
-    x_bot, y_bot = bot
-    x_top, y_top = top
-    x_arr = torch.linspace(x_bot, x_top, steps=num_x)
-    y_arr = torch.linspace(y_bot, y_top, steps=num_y)
-    xx, yy = torch.meshgrid(x_arr, y_arr, indexing='ij')
-    mesh = torch.stack([xx, yy], dim=2)
-    return mesh
 
 def load_ns_sequences(data_config):
     """Load full (N, X, Y, T) sequences for evaluation."""
@@ -66,17 +58,13 @@ def load_ns_sequences(data_config):
     return data, S, T
 
 
-def autoregressive_eval(model, sequences, device, use_external_grid=True):
+def autoregressive_eval(model, sequences, device, grid):
     """Run autoregressive rollout on full sequences."""
     lploss = LpLoss(size_average=True)
     log_en_err = LogEnstropyEnergyLoss()
     model.eval()
     S = sequences.shape[1]
     T = sequences.shape[-1]
-    if not use_external_grid:
-        grid = torch2dgrid(S, S).to(device).unsqueeze(0)  # 1 x S x S x 2
-    else:
-        grid = None # we will generate the grid inside the model
     total_l2 = 0.0
     step_l2 = 0.0
     total_log_en_err = 0.0
@@ -90,10 +78,7 @@ def autoregressive_eval(model, sequences, device, use_external_grid=True):
             preds = []  # predicted rollout
             prev = seq[..., 0]  # initial condition
             for t in range(T - 1):
-                if grid is not None:
-                    x_in = torch.cat((prev.unsqueeze(-1), grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
-                else:
-                    x_in = prev.unsqueeze(-1)
+                x_in = torch.cat((prev.unsqueeze(-1), grid.unsqueeze(0).expand(prev.shape[0], -1, -1, -1)), dim=-1)
                 if isinstance(model, PDERefiner):
                     if len(prev.shape) == 3:
                         prev = rearrange(prev, 'b h w -> b 1 1 h w')
@@ -138,7 +123,7 @@ def main():
     data_config = config['test_data']
     model_cfg = config['model']
     sequences, S_data, T_data = load_ns_sequences(data_config)
-
+    grid = torch2dgrid_2d(S_data, S_data, form=config['data']['grid_form'], device=device, dtype=torch.float32)
     model_name = model_cfg.get('name', 'fno2d').lower()
     
     if model_name == 'fno2d':
@@ -274,7 +259,7 @@ def main():
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
 
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
-    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device)
+    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     print(f'Relative L2  rollout avg: {total_l2:.6f}')
     print(f'Relative L2 over first step: {step_l2:.6f}')
     print(f'Log energy error rollout avg: {total_log_en_err:.6f}')
@@ -284,8 +269,8 @@ def main():
     # Save prediction and energy plots for the first example
     if example['truth'] is not None:
         plot_dir = config.get('train', {}).get('save_dir')
-        pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions')
-        spec_dir = os.path.join(plot_dir, 'saved_plots', 'energy')
+        pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions', f'seed{args.test_seed}')
+        spec_dir = os.path.join(plot_dir, 'saved_plots', 'energy', f'seed{args.test_seed}')
         os.makedirs(pred_dir, exist_ok=True)
         os.makedirs(spec_dir, exist_ok=True)
 
