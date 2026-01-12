@@ -26,7 +26,7 @@ from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
 from utils.criterion import LpLoss
-from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint
+from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint, torch2dgrid_2d
 
 
 class SyntheticStepDataset(Dataset):
@@ -164,8 +164,6 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
-    if grid is not None:
-        grid = grid.to(device).unsqueeze(0)
 
     lambda_amp_final = 1e-2    # good starting point
     warmup_frac = 0.2          # first 20% epochs
@@ -192,10 +190,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            if grid is not None:
-                x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
-            else:
-                x_in = x
+            x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
             if isinstance(model, PDERefiner): # for PDERefiner, the loss function is a denoising loss
                 loss = model.training_step((x, y))
             else:
@@ -558,9 +553,7 @@ def train_2d(args, config):
     os.makedirs(tensorboard_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
-    grid = torch2dgrid(S_data[0], S_data[1])
-    if not model_cfg.get('external_grid', True):
-        grid = None
+    grid = torch2dgrid_2d(S_data[0], S_data[1], form=config['data']['grid_form'], device=device, dtype=torch.float32)
     train_step_ahead(model,
                         train_loader,
                         optimizer,
@@ -574,7 +567,7 @@ def train_2d(args, config):
                         start_ep=start_ep)
     
     if test_loader is not None:
-        eval_grid = None if grid is None else grid.to(device).unsqueeze(0)
+        eval_grid = grid.to(device).unsqueeze(0)
         test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, eval_grid)
         print(f'Random test split relative L2: {test_l2:.6f}')
         if writer is not None:
