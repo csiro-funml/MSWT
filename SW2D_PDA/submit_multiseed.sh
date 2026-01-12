@@ -33,7 +33,7 @@ for SEED in "${SEEDS[@]}"; do
     cat > "$TEMP_SCRIPT" << EOF
 #!/bin/bash
 
-#SBATCH --time=10:00:00           # Increased time for longer training with larger batches
+#SBATCH --time=15:00:00           # Increased time for longer training with larger batches
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
