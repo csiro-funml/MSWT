@@ -13,12 +13,12 @@ data:
   shuffle: True
   S2: 64
   T2: 65
-  grid_form: linear
+  grid_form: periodic
 
 model:
   name: hfs
   target_params: small
-  in_c: 3
+  in_c: 5
   out_c: 1
   
   
@@ -32,7 +32,7 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/HFS2d/
+  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/HFS2d_periodic/
   save_name: HFS2d-small-nlayer5-bottleneck512.pt
   data_iter: 1
   eqn_iter: 0
