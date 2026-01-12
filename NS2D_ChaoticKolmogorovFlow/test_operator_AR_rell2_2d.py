@@ -14,6 +14,7 @@ from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
 from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention
+from models.periodic_mswt import PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
@@ -65,14 +66,17 @@ def load_ns_sequences(data_config):
     return data, S, T
 
 
-def autoregressive_eval(model, sequences, device):
+def autoregressive_eval(model, sequences, device, use_external_grid=True):
     """Run autoregressive rollout on full sequences."""
     lploss = LpLoss(size_average=True)
     log_en_err = LogEnstropyEnergyLoss()
     model.eval()
     S = sequences.shape[1]
     T = sequences.shape[-1]
-    grid = torch2dgrid(S, S).to(device).unsqueeze(0)  # 1 x S x S x 2
+    if not use_external_grid:
+        grid = torch2dgrid(S, S).to(device).unsqueeze(0)  # 1 x S x S x 2
+    else:
+        grid = None # we will generate the grid inside the model
     total_l2 = 0.0
     step_l2 = 0.0
     total_log_en_err = 0.0
@@ -86,7 +90,10 @@ def autoregressive_eval(model, sequences, device):
             preds = []  # predicted rollout
             prev = seq[..., 0]  # initial condition
             for t in range(T - 1):
-                x_in = torch.cat((prev.unsqueeze(-1), grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
+                if grid is not None:
+                    x_in = torch.cat((prev.unsqueeze(-1), grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
+                else:
+                    x_in = prev.unsqueeze(-1)
                 if isinstance(model, PDERefiner):
                     if len(prev.shape) == 3:
                         prev = rearrange(prev, 'b h w -> b 1 1 h w')
@@ -235,6 +242,20 @@ def main():
             dim=model_cfg.get('dim', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+        ).to(device)
+    elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
+        model = PeriodicMSWT2D_Patching(
+            wave=model_cfg.get('wave', 'haar'),
+            input_dim=model_cfg.get('in_chans', 3),
+            output_dim=model_cfg.get('out_chans', 1),
+            dim=model_cfg.get('dim', None),
+            dims=model_cfg.get('dims', []),
+            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
+            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            add_grid=model_cfg.get('add_grid', False),
+            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
+            patch_size=model_cfg.get('patch_size', None),
+            local_attention_size=model_cfg.get('local_attention_size', None),
         ).to(device)
     else:
         raise ValueError(f'Model {model_name} not supported')
