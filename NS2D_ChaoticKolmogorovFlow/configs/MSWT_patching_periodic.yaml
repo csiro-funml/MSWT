@@ -13,7 +13,8 @@ data:
   shuffle: True
   S2: 64
   T2: 65
-
+  grid_form: periodic
+  
 model:
   name: multiscale_wavelet2d_periodic_patching
   wave: haar
