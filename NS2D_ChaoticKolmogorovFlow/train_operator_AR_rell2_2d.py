@@ -474,7 +474,7 @@ def train_2d(args, config):
                         start_ep=start_ep)
     
     if test_loader is not None:
-        test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, device)
+        test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)
         print(f'Random test split relative L2: {test_l2:.6f}')
         if writer is not None:
             writer.add_scalar('eval/test_l2', test_l2, config['train']['epochs'])
