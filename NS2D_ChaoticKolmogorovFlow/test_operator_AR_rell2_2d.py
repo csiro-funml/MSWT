@@ -58,19 +58,12 @@ def load_ns_sequences(data_config):
     return data, S, T
 
 
-def autoregressive_eval(model, sequences, device, grid):
+def autoregressive_predict(model, sequences, device, grid):
     """Run autoregressive rollout on full sequences."""
-    lploss = LpLoss(size_average=True)
-    log_en_err = LogEnstropyEnergyLoss()
     model.eval()
     S = sequences.shape[1]
     T = sequences.shape[-1]
-    total_l2 = 0.0
-    step_l2 = 0.0
-    total_log_en_err = 0.0
-    step_log_en_err = 0.0
-    batches = 0
-    example = {'truth': None, 'pred': None}
+    total_pred = []
     loader = DataLoader(TensorDataset(sequences), batch_size=1, shuffle=False)
     with torch.no_grad():
         for (seq,) in loader:
@@ -92,23 +85,23 @@ def autoregressive_eval(model, sequences, device, grid):
                     pred = pred.squeeze(-1)
                 preds.append(pred)
                 prev = pred
+        
             pred_seq = torch.stack(preds, dim=-1)       # (1, S, S, T-1)
-            truth_seq = seq[..., 1:]                    # align with predictions
-            step_l2 += lploss(pred_seq[..., :1].view(1, S, S, 1),
-                            truth_seq[..., :1].view(1, S, S, 1)).item() # first step loss
-            total_l2 += lploss(pred_seq.view(1, S, S, T - 1),
-                            truth_seq.view(1, S, S, T - 1)).item() # overall step loss
-            
-            step_log_en_err += log_en_err(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
-            reshape_pred_seq = rearrange(pred_seq, 'b h w t -> (b t) h w') # (B*T, H, W) 
-            reshape_truth_seq = rearrange(truth_seq, 'b h w t -> (b t) h w')
-            total_log_en_err += log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
-            batches += 1
-            if example['truth'] is None:
-                example['truth'] = truth_seq.detach().cpu()
-                example['pred'] = pred_seq.detach().cpu()
-    return total_l2 / max(1, batches), step_l2 / max(1, batches), total_log_en_err / max(1, batches), step_log_en_err / max(1, batches), example
+            total_pred.append(pred_seq)
+        total_pred = torch.stack(total_pred, dim=0)
+    print("total_pred shape: ", total_pred.shape, "sequences.shape: ", sequences.shape)
+    return total_pred, sequences
 
+
+def evaluate_model(truth_seq, pred_seq):
+    lploss = LpLoss(size_average=True)
+    log_en_err = LogEnstropyEnergyLoss()
+    step_log_en_err += log_en_err(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
+    reshape_pred_seq = rearrange(pred_seq, 'b h w t -> (b t) h w') # (B*T, H, W) 
+    reshape_truth_seq = rearrange(truth_seq, 'b h w t -> (b t) h w')
+    total_log_en_err += log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
+    batches += 1
+    return total_l2 / max(1, batches), step_l2 / max(1, batches), total_log_en_err / max(1, batches), step_log_en_err / max(1, batches)
 
 
 def main():
@@ -262,7 +255,20 @@ def main():
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
 
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
-    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
+    # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
+    truth_seq, pred_seq = autoregressive_predict(model, sequences, device, grid)
+    exit(-1)
+
+    # step_log_en_err += log_en_err(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
+    #         reshape_pred_seq = rearrange(pred_seq, 'b h w t -> (b t) h w') # (B*T, H, W) 
+    #         reshape_truth_seq = rearrange(truth_seq, 'b h w t -> (b t) h w')
+    #         total_log_en_err += log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
+    #         batches += 1
+    #         if example['truth'] is None:
+    #             example['truth'] = truth_seq.detach().cpu()
+    #             example['pred'] = pred_seq.detach().cpu()
+    # return total_l2 / max(1, batches), step_l2 / max(1, batches), total_log_en_err / max(1, batches), step_log_en_err / max(1, batches), example
+
     print(f'Relative L2  rollout avg: {total_l2:.6f}')
     print(f'Relative L2 over first step: {step_l2:.6f}')
     print(f'Log energy error rollout avg: {total_log_en_err:.6f}')
