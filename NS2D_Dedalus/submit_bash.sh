@@ -47,7 +47,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_DeNoAttn_StackLayers.yaml --test_ratio 0.25
 #################################################################################################################################
 
-python3 train_operator_plot.py
+python3 train_operator_plot.py --config_path configs/FNO.yaml
 # Testing
 # python3 test_operator_AR_rell2_2d.py --config_path configs/FNO.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/HFS.yaml
