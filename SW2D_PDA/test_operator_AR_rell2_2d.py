@@ -26,6 +26,7 @@ from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
 from utils.criterion import LpLoss, LogEnstropyEnergyLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
+from utils.utilities import torch2dgrid_2d
 
 
 def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
@@ -63,16 +64,16 @@ def load_sw_sequences(data_config):
     return sequences, (S1, S2), T
 
 
-def autoregressive_eval(model, sequences, device, use_external_grid=True):
+def autoregressive_eval(model, sequences, device, use_external_grid=True, grid=None):
     """Run autoregressive rollout on full sequences."""
     lploss = LpLoss(size_average=True)
     log_en_err = LogEnstropyEnergyLoss()
     model.eval()
     S1, S2 = sequences.shape[1], sequences.shape[2]
     T = sequences.shape[-2]
-    grid = None
-    if use_external_grid:
-        grid = torch2dgrid(S1, S2).to(device).unsqueeze(0)  # 1 x S1 x S2 x 2
+    # grid = None
+    # if use_external_grid:
+        # grid = torch2dgrid(S1, S2).to(device).unsqueeze(0)  # 1 x S1 x S2 x 2
     total_l2 = 0.0
     step_l2 = 0.0
     total_log_en_err = 0.0
@@ -333,11 +334,13 @@ def main():
 
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data[0]}x{S_data[1]} for {T_data} steps.')
     use_external_grid = model_cfg.get('external_grid', True)
+    grid = torch2dgrid_2d(S_data[0], S_data[1], form=config['data']['grid_form'], device=device, dtype=torch.float32)
     total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(
         model,
         sequences,
         device,
         use_external_grid=use_external_grid,
+        grid=grid,
     )
     print(f'Relative L2  rollout avg: {total_l2:.6f}')
     print(f'Relative L2 over first step: {step_l2:.6f}')
