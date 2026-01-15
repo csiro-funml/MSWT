@@ -52,14 +52,11 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 
 # Testing
-python3 test_operator_AR_rell2_2d.py --config_path configs/FNO_periodic.yaml --test_seed 42
-# python3 test_operator_AR_rell2_2d.py --config_path configs/HFS.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/WNO.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/PDERefiner.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/PDERefinerUNet.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_NodecoderAttn.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_double_attn.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_periodic_patching.yaml
+# python3 test_operator_AR_rell2_2d.py --config_path configs/FNO_periodic.yaml --test_seed 42
+# python3 test_operator_AR_rell2_2d.py --config_path configs/HFS_periodic.yaml --test_seed 42
+# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_patching_periodic.yaml --test_seed 42
+# python3 test_operator_AR_rell2_2d.py --config_path configs/WNO_periodic.yaml --test_seed 42
+# python3 test_operator_AR_rell2_2d.py --config_path configs/SAOT_periodic.yaml --test_seed 42
+# python3 test_operator_AR_rell2_2d.py --config_path configs/PDERefinerUNet_periodic.yaml --test_seed 42
+# python3 test_operator_AR_rell2_2d.py --config_path configs/ablations/MSWT_periodic_patching.yaml --test_seed 42
 #################################################################################################################################
