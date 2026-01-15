@@ -243,11 +243,9 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
 
 def genertate_images_and_spectra(
     pred_denorm: torch.Tensor,
-    epoch: int,
-    form: str,
-    model_name: str,
     Lx: float = 2 * np.pi,
-    Ly: float = 2 * np.pi
+    Ly: float = 2 * np.pi,
+    model_name: str = 'fno2d'
 ):
     """Log prediction, target, error images and energy/enstrophy spectra to TensorBoard.
     
@@ -263,6 +261,12 @@ def genertate_images_and_spectra(
     """
     import matplotlib.pyplot as plt
     B, H, W, T, C = pred_denorm.shape
+    # Create enstrophy spectrum plot
+    
+
+    plt.figure(figsize=(10, 6))
+    plt.imshow(pred_denorm[0, :, :, 0, 0], cmap='viridis')
+    plt.savefig(f'{model_name}_ground_truth.png')
 
     ux_pred, uy_pred = velocity_from_vorticity(torch.from_numpy(pred_denorm))
 
@@ -284,21 +288,9 @@ def genertate_images_and_spectra(
     ax_energy.legend(fontsize=12)
     ax_energy.grid(True)
     plt.tight_layout()
+    plt.savefig(f'{model_name}_energy_spectrum.png')
     
     
-    # Create enstrophy spectrum plot
-    fig_enstrophy, ax_enstrophy = plt.subplots(figsize=(10, 6))
-
-    ax_enstrophy.loglog(k_bins[start_truth:k_nyquist], Zk_pred[start_truth:k_nyquist], 
-                    'o-', markersize=2, label=f'{model_name} Prediction', linewidth=2, color='blue')
-    ax_enstrophy.set_xlabel('Wavenumber', fontsize=14)
-    ax_enstrophy.set_ylabel('Enstrophy', fontsize=14)
-    ax_enstrophy.set_title('Enstrophy Spectrum', fontsize=14)
-    ax_enstrophy.legend(fontsize=12)
-    ax_enstrophy.grid(True)
-    plt.tight_layout()
-    
-    plt.savefig(f'energy_spectrum_{epoch}.png')
 
    
 
@@ -324,7 +316,7 @@ def train_2d(args, config):
     #
     x, _ = full_dataset[3000]
     print("x shape:", x.shape)
-    genertate_images_and_spectra(x)
+    genertate_images_and_spectra(x[...,-1][None, ..., None, None].cpu().numpy())
 
 
 
