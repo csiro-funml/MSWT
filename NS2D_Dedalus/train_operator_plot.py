@@ -266,9 +266,11 @@ def genertate_images_and_spectra(
 
     plt.figure(figsize=(10, 6))
     plt.imshow(pred_denorm[0, :, :, 0, 0], cmap='viridis')
+    im = plt.imshow(pred_denorm[0, :, :, 0, 0], cmap='RdBu_r', origin='lower')
+    plt.colorbar(im)
     plt.savefig(f'{model_name}_ground_truth.png')
 
-    ux_pred, uy_pred = velocity_from_vorticity(torch.from_numpy(pred_denorm))
+    ux_pred, uy_pred = velocity_from_vorticity(torch.from_numpy(pred_denorm[0, :, :, 0, 0]))
 
     # Compute spectra for prediction and target
     k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
