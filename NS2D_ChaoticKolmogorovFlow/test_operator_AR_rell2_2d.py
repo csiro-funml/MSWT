@@ -90,7 +90,7 @@ def autoregressive_predict(model, sequences, device, grid):
             total_pred.append(pred_seq)
         total_pred = torch.stack(total_pred, dim=0)
     print("total_pred shape: ", total_pred.shape, "sequences.shape: ", sequences.shape)
-    return total_pred.squeeze(1), sequences[..., 1:]
+    return total_pred.squeeze(1), sequences[..., 1:].to(device)
 
 
 def evaluate_model(truth_seq, pred_seq):
