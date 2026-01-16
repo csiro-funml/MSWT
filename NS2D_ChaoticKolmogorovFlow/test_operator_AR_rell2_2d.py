@@ -110,7 +110,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
 
 
     time_idx = [0, 29, truth_seq.shape[-1] - 1]
-    metrics_name = ['l2', 'SML', 'EMLR', 'SMAE', 'EMAE']
+    metrics_name = ['l2', 'SMLR', 'EMLR', 'SMAE', 'EMAE']
     metrics_dict = {}
     
     # Initialize metrics_dict in desired column order:
