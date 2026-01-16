@@ -32,8 +32,8 @@ if __name__ == "__main__":
                 df_metric['model'] = model_name
                 total_df_metric = pd.concat([total_df_metric, df_metric], ignore_index=True)
 
-    # total_df_metric.to_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'), index=False)
-    total_df_metric = pd.read_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'))
+    total_df_metric.to_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'), index=False)
+    # total_df_metric = pd.read_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'))
 
     # group by model, and computed the mean and std of the metrics
     
