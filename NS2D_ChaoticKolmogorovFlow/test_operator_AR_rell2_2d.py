@@ -13,12 +13,11 @@ from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
-from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention
 from models.periodic_mswt import PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
-from utils.criterion import LpLoss, LogEnstropyEnergyLoss
+from utils.criterion import LpLoss, LogEnstropyEnergyLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, compute_2d_spectral_energy, compute_2d_enstropy_spectrum
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
 from utils.utilities import torch2dgrid_2d
 
@@ -59,7 +58,10 @@ def load_ns_sequences(data_config):
 
 
 def autoregressive_predict(model, sequences, device, grid):
-    """Run autoregressive rollout on full sequences."""
+    """Run autoregressive rollout on full sequences.
+    
+    sequences: (B, T, H, W)
+    """
     model.eval()
     S = sequences.shape[1]
     T = sequences.shape[-1]
@@ -94,21 +96,43 @@ def autoregressive_predict(model, sequences, device, grid):
 
 
 def evaluate_model(truth_seq, pred_seq):
+    """ 
+    truth_seq: (B, T, H, W)
+    pred_seq: (B, T, H, W)
+    """
     lploss = LpLoss(size_average=True)
-    log_en_err = LogEnstropyEnergyLoss()
     
-    first_step_l2 = lploss(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
-    fist_step_log_en_err = log_en_err(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
+    # log_en_err = LogEnstropyEnergyLoss()
+    meape = MeanEnergyAbsolutePercentageError()
+    melr = MeanEnergyLogRatioError()
 
-    last_step_l2 = lploss(pred_seq[..., -1], truth_seq[..., -1]).item() # last step loss
-    last_step_log_en_err = log_en_err(pred_seq[..., -1], truth_seq[..., -1]).item() # last step loss
 
-    # reshape_pred_seq = rearrange(pred_seq, 'b h w t -> (b t) h w') # (B*T, H, W) 
-    # reshape_truth_seq = rearrange(truth_seq, 'b h w t -> (b t) h w')
-    # total_l2 = lploss(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
-    # total_log_en_err = log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
-    print("first rel l2, last rel l2, first step log en err, last step log en err: %.4f, %.4f, %.4f, %.4f" % (first_step_l2, last_step_l2, fist_step_log_en_err, last_step_log_en_err))
-    return first_step_l2, fist_step_log_en_err, last_step_l2, last_step_log_en_err
+    time_idx = [0, 29, truth_seq.shape[-1] - 1]
+
+    for t in time_idx:
+        # convert the vorcitity to velocity
+        ux_true, uy_true = velocity_from_vorticity(truth_seq[:, t])
+        ux_pred, uy_pred = velocity_from_vorticity(pred_seq[:, t])
+
+        Ek_true = compute_2d_spectral_energy(ux_true, uy_true)
+        Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred)
+
+        Zk_true = compute_2d_enstropy_spectrum(truth_seq)
+        Zk_pred = compute_2d_enstropy_spectrum(pred_seq)
+        exit(-1)
+    
+        first_step_l2 = lploss(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
+        fist_step_log_en_err = log_en_err(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
+
+        last_step_l2 = lploss(pred_seq[..., -1], truth_seq[..., -1]).item() # last step loss
+        last_step_log_en_err = log_en_err(pred_seq[..., -1], truth_seq[..., -1]).item() # last step loss
+
+        # reshape_pred_seq = rearrange(pred_seq, 'b h w t -> (b t) h w') # (B*T, H, W) 
+        # reshape_truth_seq = rearrange(truth_seq, 'b h w t -> (b t) h w')
+        # total_l2 = lploss(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
+        # total_log_en_err = log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
+        print("first rel l2, last rel l2, first step log en err, last step log en err: %.4f, %.4f, %.4f, %.4f" % (first_step_l2, last_step_l2, fist_step_log_en_err, last_step_log_en_err))
+        return first_step_l2, fist_step_log_en_err, last_step_l2, last_step_log_en_err
 
 
 def main():
@@ -158,6 +182,16 @@ def main():
                 hidden_channels=model_cfg.get('hidden_channels', 16),
                 n_blocks=model_cfg.get('n_blocks', 3),
     ).to(device)
+    elif model_name in ['refiner_unet']:
+        model = UNetRefiner(
+            input_channels=model_cfg.get('in_channels', 3),
+            output_channels=model_cfg.get('out_channels', 1),
+            time_history=model_cfg.get('time_history', 0),
+            time_future=model_cfg.get('time_future', 0),
+            hidden_channels=model_cfg.get('hidden_channels', 16),
+            activation=model_cfg.get('activation', 'gelu'),
+            n_blocks=model_cfg.get('n_blocks', 3),
+        ).to(device)
     elif model_name in ['wno', 'wno2d']:
         dummy = torch.zeros(1, 1, S_data, S_data, device=device)
         model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
@@ -181,16 +215,6 @@ def main():
                         ref=model_cfg.get('ref', 8),
                         unified_pos=model_cfg.get('unified_pos', 0),
                         is_filter=model_cfg.get('is_filter', True)).to(device)
-    elif model_name in ['refiner_unet']:
-        model = UNetRefiner(
-            input_channels=model_cfg.get('in_channels', 3),
-            output_channels=model_cfg.get('out_channels', 1),
-            time_history=model_cfg.get('time_history', 0),
-            time_future=model_cfg.get('time_future', 0),
-            hidden_channels=model_cfg.get('hidden_channels', 16),
-            activation=model_cfg.get('activation', 'gelu'),
-            n_blocks=model_cfg.get('n_blocks', 3),
-        ).to(device)
     elif model_name in ['multiscale_wavelet', 'multiscale_wavelet2d', 'multiscale_wavelet_transformer2d']:
         model = MultiscaleWaveletTransformer2D(
             wave=model_cfg.get('wave', 'haar'),
@@ -199,35 +223,6 @@ def main():
             dim=model_cfg.get('dim', None),
             dims=model_cfg.get('dims', []),
             patch_size= model_cfg.get('patch_size', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_nodecoderattn']:
-        model = MultiscaleWaveletTransformer2DDecoderNoAttention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_attn05124_group4']:
-        model = MultiscaleWaveletTransformer2DEfficient(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_double_attn']:
-        model = MultiscaleWaveletDoubleAttention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
         ).to(device)
@@ -265,7 +260,8 @@ def main():
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     truth_seq, pred_seq = autoregressive_predict(model, sequences, device, grid)
     
-    first_step_l2, fist_step_log_en_err, last_step_l2, last_step_log_en_err = evaluate_model(truth_seq, pred_seq)
+    evaluate_model(truth_seq, pred_seq)
+    
 
     example = {'truth': truth_seq.detach().cpu(), 'pred': pred_seq.detach().cpu()}
     # Save prediction and energy plots for the first example

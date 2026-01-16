@@ -17,7 +17,7 @@ from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DD
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
-from utils.criterion import LpLoss, LogEnstropyEnergyLoss
+from utils.criterion import LpLoss, LogEnstropyEnergyLoss, compute_2d_spectral_energy, compute_2d_enstropy_spectrum
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
 
 

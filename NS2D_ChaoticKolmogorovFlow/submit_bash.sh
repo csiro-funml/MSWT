@@ -52,7 +52,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 
 # Testing
-# python3 test_operator_AR_rell2_2d.py --config_path configs/FNO_periodic.yaml --test_seed 42
+python3 test_operator_AR_rell2_2d.py --config_path configs/linear/FNO.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/HFS_periodic.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_patching_periodic.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/WNO_periodic.yaml --test_seed 42

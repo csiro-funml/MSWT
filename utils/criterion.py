@@ -15,6 +15,8 @@ from scipy.optimize import minimize_scalar, fsolve
 import os
 from utils.compute_physical_statistics import compute_spectra
 from utils.compute_diagnostics import streamfunction_to_velocity
+from typing import Optional, Tuple
+import math
 
 def get_loss_func(name, component, normalizer):
     if name == 'rel2':
@@ -450,6 +452,57 @@ class LogEnstropyEnergyLoss(_WeightedLoss):
         log_e_target = torch.log(e_target)
 
         err = torch.abs(log_e_pred - log_e_target)
+        return torch.mean(err) # average over frequency bins and over the samples
+
+
+def compute_2d_spectral_energy(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
+    """ 
+    ux_grid and uy_grid need to be in shape (B, *, H, W)
+    """
+    Nx, Ny = ux_grid.shape[-2], ux_grid.shape[-1]
+    N = Nx * Ny
+    assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly"
+    k0 = 2 * np.pi / Lx
+
+    # Transform to spectral space
+    uxh = np.fft.rfft2(ux_grid)
+    uyh = np.fft.rfft2(uy_grid)
+
+    # Energy per mode (normalised)
+    E_mode = 0.5 * (np.abs(uxh)**2 + np.abs(uyh)**2) / (N * N)
+    return E_mode
+
+def compute_2d_enstropy_spectrum(w):
+    """
+    w needs to be in shape (B, *, H, W)
+    """
+    # Transform to spectral space (amplitude)
+    Nx, Ny = w.shape[-2], w.shape[-1]
+    N = Nx * Ny
+  
+    Ez = (np.abs(w)**2) / (N * N)
+    return Ez
+
+
+class MeanEnergyAbsolutePercentageError(_WeightedLoss):
+    def __init__(self):
+        super(MeanEnergyAbsolutePercentageError, self).__init__()
+    
+    def forward(self, Ek_pred, Ek_target):
+        # pred: (B, H, W)
+        # target: (B, H, W)
+        err = (Ek_pred - Ek_target) / Ek_target
+        return torch.mean(err)*100 # percentage error
+
+
+class MeanEnergyLogRatioError(_WeightedLoss):
+    def __init__(self):
+        super(MeanEnergyLogRatioError, self).__init__()
+    
+    def forward(self, Ek_pred, Ek_target):
+        # pred: (B, H, W)
+        # target: (B, H, W)
+        err = torch.log(Ek_pred / Ek_target)
         return torch.mean(err) # average over frequency bins and over the samples
 
 
@@ -1455,6 +1508,257 @@ def spectral_cfd(y: torch.Tensor,
     E_freq_cumsum = E_freq_cumsum / E_freq_cumsum[-1]
     k_low, k_high = find_freq_from_percentile(E_freq_cumsum, low_percentile, high_percentile)
     return k_low, k_high, k_freq, E_freq
+
+
+
+
+def _fft_wavenumbers_2d(H: int, W: int, device, dtype, Lx: float, Ly: float):
+    """
+    Returns 2D wavenumber grids kx, ky with physical scaling for a periodic domain
+    of size Lx x Ly, on an HxW grid.
+    """
+    # torch.fft.fftfreq returns cycles per unit; multiply by 2*pi for radians per unit
+    kx_1d = (2.0 * math.pi) * torch.fft.fftfreq(W, d=Lx / W, device=device)  # shape (W,)
+    ky_1d = (2.0 * math.pi) * torch.fft.fftfreq(H, d=Ly / H, device=device)  # shape (H,)
+
+    # meshgrid -> (H, W)
+    ky, kx = torch.meshgrid(ky_1d, kx_1d, indexing="ij")
+    return kx.to(dtype=dtype), ky.to(dtype=dtype)
+
+def spectral_grad_2d(phi: torch.Tensor, Lx: float = 1.0, Ly: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Spectral gradient (periodic) for a scalar field phi on the last two dims (H, W).
+
+    phi: (..., H, W)
+    returns: (dphi_dx, dphi_dy) each (..., H, W)
+    """
+    H, W = phi.shape[-2], phi.shape[-1]
+    device, dtype = phi.device, phi.dtype
+
+    kx, ky = _fft_wavenumbers_2d(H, W, device, dtype, Lx, Ly)
+    Phi = torch.fft.fft2(phi, dim=(-2, -1))
+    dphi_dx = torch.fft.ifft2(1j * kx * Phi, dim=(-2, -1)).real
+    dphi_dy = torch.fft.ifft2(1j * ky * Phi, dim=(-2, -1)).real
+    return dphi_dx, dphi_dy
+
+def spectral_laplacian_2d(phi: torch.Tensor, Lx: float = 1.0, Ly: float = 1.0) -> torch.Tensor:
+    """
+    Spectral Laplacian (periodic) for a scalar field phi on the last two dims (H, W).
+
+    phi: (..., H, W)
+    returns: laplacian(phi) with same shape
+    """
+    H, W = phi.shape[-2], phi.shape[-1]
+    device, dtype = phi.device, phi.dtype
+
+    kx, ky = _fft_wavenumbers_2d(H, W, device, dtype, Lx, Ly)
+    k2 = kx**2 + ky**2
+
+    Phi = torch.fft.fft2(phi, dim=(-2, -1))
+    lap = torch.fft.ifft2(-k2 * Phi, dim=(-2, -1)).real
+    return lap
+
+def curl_f_to_g(fx: torch.Tensor, fy: torch.Tensor, Lx: float = 1.0, Ly: float = 1.0) -> torch.Tensor:
+    """
+    Compute g = (curl f)_z = d(fy)/dx - d(fx)/dy for 2D forcing f=(fx,fy),
+    using spectral derivatives (periodic).
+    """
+    dfy_dx, _ = spectral_grad_2d(fy, Lx=Lx, Ly=Ly)
+    _, dfx_dy = spectral_grad_2d(fx, Lx=Lx, Ly=Ly)
+    return dfy_dx - dfx_dy
+
+def time_derivative(w: torch.Tensor, dt: float, scheme: str = "central") -> torch.Tensor:
+    """
+    Finite-difference time derivative along dim=1 (time).
+    w: (B, T, H, W) or (T, H, W) (we'll treat first dim as batch if 4D)
+    Returns dw/dt with same shape (endpoints handled by one-sided differences).
+    """
+    if w.dim() == 3:
+        w_ = w.unsqueeze(0)  # (1,T,H,W)
+        squeeze_back = True
+    elif w.dim() == 4:
+        w_ = w
+        squeeze_back = False
+    else:
+        raise ValueError("w must be (T,H,W) or (B,T,H,W)")
+
+    B, T, H, W = w_.shape
+    dw = torch.empty_like(w_)
+
+    if scheme == "central":
+        # interior
+        dw[:, 1:-1] = (w_[:, 2:] - w_[:, :-2]) / (2.0 * dt)
+        # endpoints one-sided
+        dw[:, 0] = (w_[:, 1] - w_[:, 0]) / dt
+        dw[:, -1] = (w_[:, -1] - w_[:, -2]) / dt
+    elif scheme == "forward":
+        dw[:, :-1] = (w_[:, 1:] - w_[:, :-1]) / dt
+        dw[:, -1] = dw[:, -2]
+    else:
+        raise ValueError("scheme must be 'central' or 'forward'")
+
+    return dw.squeeze(0) if squeeze_back else dw
+
+@torch.no_grad()
+def vorticity_residual_2d(
+    u: torch.Tensor,
+    w: torch.Tensor,
+    nu: float,
+    f: Optional[torch.Tensor] = None,
+    dt: Optional[float] = None,
+    Lx: float = 1.0,
+    Ly: float = 1.0,
+    return_terms: bool = False,
+):
+    """
+    Compute 2D incompressible vorticity-form NS residual:
+        r = w_t + u·∇w - nu Δw - g
+    where g = curl(f) = d(fy)/dx - d(fx)/dy
+
+    Inputs
+    ------
+    u : (B,T,2,H,W) or (T,2,H,W)  velocity field
+    w : (B,T,H,W)   or (T,H,W)    vorticity field (omega)
+    nu: viscosity (kinematic), scalar
+    f : optional forcing (B,T,2,H,W) or (T,2,H,W) or (2,H,W)/(T,2,H,W). If None, g=0.
+    dt: required for time derivative (unless you precompute w_t yourself and modify code)
+    Lx,Ly: domain sizes for spectral derivatives (periodic)
+    return_terms: if True, also return a dict of terms.
+
+    Returns
+    -------
+    r : same shape as w (B,T,H,W) or (T,H,W)
+    (optionally terms dict)
+    """
+    # Normalize shapes to (B,T,*,H,W)
+    squeeze_u = False
+    squeeze_w = False
+
+    if u.dim() == 4:  # (T,2,H,W)
+        u_ = u.unsqueeze(0)
+        squeeze_u = True
+    elif u.dim() == 5:
+        u_ = u
+    else:
+        raise ValueError("u must be (T,2,H,W) or (B,T,2,H,W)")
+
+    if w.dim() == 3:  # (T,H,W)
+        w_ = w.unsqueeze(0)
+        squeeze_w = True
+    elif w.dim() == 4:
+        w_ = w
+    else:
+        raise ValueError("w must be (T,H,W) or (B,T,H,W)")
+
+    if u_.shape[0] != w_.shape[0] or u_.shape[1] != w_.shape[1]:
+        raise ValueError(f"Batch/time mismatch: u {u_.shape[:2]} vs w {w_.shape[:2]}")
+    if dt is None:
+        raise ValueError("dt is required to compute w_t")
+
+    ux = u_[:, :, 0]  # (B,T,H,W)
+    uy = u_[:, :, 1]
+
+    # w_t
+    wt = time_derivative(w_, dt=dt, scheme="central")  # (B,T,H,W)
+
+    # grad w (spectral, per time slice)
+    # We'll vectorize over (B,T) by merging dims.
+    B, T, H, W = w_.shape
+    w_flat = w_.reshape(B * T, H, W)
+    dw_dx_flat, dw_dy_flat = spectral_grad_2d(w_flat, Lx=Lx, Ly=Ly)
+    dw_dx = dw_dx_flat.reshape(B, T, H, W)
+    dw_dy = dw_dy_flat.reshape(B, T, H, W)
+
+    adv = ux * dw_dx + uy * dw_dy
+
+    # Laplacian w
+    lapw_flat = spectral_laplacian_2d(w_flat, Lx=Lx, Ly=Ly)
+    lapw = lapw_flat.reshape(B, T, H, W)
+
+    # g = curl f (if provided)
+    if f is None:
+        g = torch.zeros_like(w_)
+    else:
+        # Accept (2,H,W), (T,2,H,W), (B,T,2,H,W)
+        if f.dim() == 3:  # (2,H,W)
+            f_ = f.unsqueeze(0).unsqueeze(0).expand(B, T, -1, -1, -1)
+        elif f.dim() == 4:  # (T,2,H,W)
+            f_ = f.unsqueeze(0).expand(B, -1, -1, -1, -1)
+        elif f.dim() == 5:
+            f_ = f
+        else:
+            raise ValueError("f must be (2,H,W), (T,2,H,W), or (B,T,2,H,W)")
+
+        fx = f_[:, :, 0].reshape(B * T, H, W)
+        fy = f_[:, :, 1].reshape(B * T, H, W)
+        g_flat = curl_f_to_g(fx, fy, Lx=Lx, Ly=Ly)
+        g = g_flat.reshape(B, T, H, W)
+
+    r = wt + adv - float(nu) * lapw - g
+
+    if squeeze_w and squeeze_u:
+        r_out = r.squeeze(0)
+    elif squeeze_w:
+        r_out = r.squeeze(0)
+    else:
+        r_out = r
+
+    if return_terms:
+        terms = {
+            "w_t": wt.squeeze(0) if squeeze_w else wt,
+            "advection": adv.squeeze(0) if squeeze_w else adv,
+            "laplacian": lapw.squeeze(0) if squeeze_w else lapw,
+            "g": g.squeeze(0) if squeeze_w else g,
+        }
+        return r_out, terms
+    return r_out
+
+def rms_residual(r: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    """
+    Compute RMS over all dims except batch (if present).
+    r: (B,T,H,W) or (T,H,W) etc.
+    mask: optional same shape as r (or broadcastable) with 0/1 for excluding points.
+    """
+    x = r
+    if mask is not None:
+        x = x * mask
+        denom = mask.sum().clamp_min(1.0)
+        return torch.sqrt((x**2).sum() / denom)
+    return torch.sqrt((x**2).mean())
+
+
+
+class PDEResidualLoss(_WeightedLoss):
+    def __init__(self, nu=1.0/500, Lx=2*np.pi, Ly=2*np.pi, dt=1.0/500, f=None, H=64, W=64):
+        super(PDEResidualLoss, self).__init__()
+        self.nu = nu
+        self.Lx = Lx
+        self.Ly = Ly
+        self.dt = dt
+        
+        if f is None:
+            y_grid = torch.linspace(0, Ly, W)
+            f_y = -4 * torch.cos(4 * y_grid)
+            f_x = torch.zeros_like(f_y)
+            f = torch.stack([f_x, f_y], dim=-1) # (H, W, 2)
+        self.f = f
+    
+    def forward(self, u: torch.Tensor, w: torch.Tensor):
+        # u: (B,T,2,H,W), w: (B,T,H,W)
+        f = self.f.unsqueeze(0).unsqueeze(0).expand(u.shape[0], u.shape[1], -1, -1, -1)
+        r = vorticity_residual_2d(u, w, nu=self.nu, f=f, dt=self.dt, Lx=self.Lx, Ly=self.Ly, return_terms=True)
+        score = rms_residual(r)
+        return score
+# --------------------------
+# Example usage
+# --------------------------
+# u: (B,T,2,H,W), w: (B,T,H,W), f: (B,T,2,H,W) or None
+# nu = 1e-3
+# dt = 0.01
+# r_w, terms = vorticity_residual_2d(u, w, nu=nu, f=f, dt=dt, Lx=1.0, Ly=1.0, return_terms=True)
+# score = rms_residual(r_w)  # scalar
+
+
 
 if __name__ == "__main__":
     # x = torch.randn([2, 128, 128, 1, 3])
