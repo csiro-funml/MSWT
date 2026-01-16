@@ -2,6 +2,171 @@ import pandas as pd
 import os
 import torch
 import numpy as np
+import re
+import numpy as np
+import pandas as pd
+
+
+def process_metric_table(CSV_PATH):
+    # -----------------------------
+    # Config
+    # -----------------------------
+    CSV_PATH = "avg_evaluation_metrics.csv"   # <-- set this to your local path
+    STEPS = [1, 30, 64]
+
+    # Map raw metric names -> display names used in the LaTeX header
+    METRIC_DISPLAY = {
+        "l2": r"Rel $L^2$",
+        "SMLR": "SMLR",
+        "EMLR": "EMLR",
+        "SMAE": "SMAE",
+        "EMAE": "EMAE",
+    }
+
+    GROUP_1 = ["l2", "SMLR", "EMLR"]
+    GROUP_2 = ["SMAE", "EMAE"]
+
+    # -----------------------------
+    # Helpers
+    # -----------------------------
+    def _parse_float_token(tok: str) -> float:
+        """Parse tokens like '0.123', 'nan', 'inf' into float."""
+        t = tok.strip().lower()
+        if t in {"nan", "+nan", "-nan"}:
+            return float("nan")
+        if t in {"inf", "+inf", "infty", "infinity", "+infty"}:
+            return float("inf")
+        if t in {"-inf", "-infty", "-infinity"}:
+            return float("-inf")
+        return float(t)
+
+    def clean_pm_string(cell) -> str:
+        """
+        Apply your rules:
+        - '0.2190 ± nan' -> '0.2190 ± 0.0000'
+        - 'nan ± nan' or 'inf ± nan' (or any non-finite mean/std except finite±nan) -> '--'
+        - otherwise: format as '%.4f ± %.4f'
+        """
+        if pd.isna(cell):
+            return "--"
+
+        s = str(cell).strip()
+        if "±" not in s:
+            return s
+
+        parts = [p.strip() for p in s.split("±")]
+        if len(parts) != 2:
+            return s
+
+        mean_s, std_s = parts
+        try:
+            mean = _parse_float_token(mean_s)
+            std = _parse_float_token(std_s)
+        except Exception:
+            return "--"
+
+        # Rule 1: finite mean, std is nan -> std := 0
+        if np.isfinite(mean) and (not np.isfinite(std)) and np.isnan(std):
+            std = 0.0
+            return f"{mean:.4f} ± {std:.4f}"
+
+        # Normal finite case
+        if np.isfinite(mean) and np.isfinite(std):
+            return f"{mean:.4f} ± {std:.4f}"
+
+        # Rule 2: any other nan/inf combos -> '--'
+        return "--"
+
+    def to_latex_cell(s: str) -> str:
+        """Convert 'a ± b' -> '$a \\pm b$' and keep '--' unchanged."""
+        if s == "--":
+            return "--"
+        if "±" in s:
+            a, b = [x.strip() for x in s.split("±")]
+            return rf"${a} \pm {b}$"
+        return s
+
+    def build_multiindex_table(df: pd.DataFrame, metrics: list[str], steps: list[int]) -> pd.DataFrame:
+        """
+        Build a DataFrame with MultiIndex columns: (METRIC_DISPLAY[metric], f"step {step}").
+        Assumes input columns look like '{metric}_step{step}' with metric possibly capitalized.
+        """
+        cols = []
+        data = {}
+        for m in metrics:
+            for st in steps:
+                colname = f"{m}_step{st}"
+                if colname not in df.columns:
+                    raise KeyError(f"Missing column in CSV: {colname}")
+                disp_m = METRIC_DISPLAY[m]
+                disp_s = f"step {st}"
+                cols.append((disp_m, disp_s))
+                data[(disp_m, disp_s)] = df[colname].map(to_latex_cell)
+
+        out = pd.DataFrame(data, index=df["Model"])
+        out.columns = pd.MultiIndex.from_tuples(cols, names=["Metric", "Step"])
+        return out
+
+    # -----------------------------
+    # Main
+    # -----------------------------
+    df = pd.read_csv(CSV_PATH)
+
+    # Ensure model column name
+    if "Unnamed: 0" in df.columns and "Model" not in df.columns:
+        df = df.rename(columns={"Unnamed: 0": "Model"})
+
+    # Clean every metric cell (mean ± std strings)
+    for c in df.columns:
+        if c != "Model":
+            df[c] = df[c].apply(clean_pm_string)
+
+    # Build the two multi-header tables
+    t1 = build_multiindex_table(df, GROUP_1, STEPS)  # Rel L^2, SMLR, EMLR
+    t2 = build_multiindex_table(df, GROUP_2, STEPS)  # SMAE, EMAE
+
+    # Export to LaTeX (pandas handles multicolumn headers)
+    latex_1 = t1.to_latex(
+        escape=False,
+        multicolumn=True,
+        multicolumn_format="c",
+        index=True,
+        column_format="l" + "c" * (len(GROUP_1) * len(STEPS)),
+        bold_rows=False,
+        caption=r"Long-term evaluation metrics (mean $\pm$ std) for \textbf{Rel $L^2$}, \textbf{SMLR}, and \textbf{EMLR} at selected rollout steps.",
+        label="tab:metrics_relL2_smlr_emlr",
+    )
+
+    latex_2 = t2.to_latex(
+        escape=False,
+        multicolumn=True,
+        multicolumn_format="c",
+        index=True,
+        column_format="l" + "c" * (len(GROUP_2) * len(STEPS)),
+        bold_rows=False,
+        caption=r"Long-term evaluation metrics (mean $\pm$ std) for \textbf{SMAE} and \textbf{EMAE} at selected rollout steps.",
+        label="tab:metrics_smae_emae",
+    )
+
+    # Optional: swap pandas' default rules for booktabs style
+    def add_booktabs(tex: str) -> str:
+        tex = tex.replace(r"\toprule", r"\toprule")
+        tex = tex.replace(r"\midrule", r"\midrule")
+        tex = tex.replace(r"\bottomrule", r"\bottomrule")
+        return tex
+
+    latex_1 = add_booktabs(latex_1)
+    latex_2 = add_booktabs(latex_2)
+
+    with open("table_relL2_smlr_emlr.tex", "w") as f:
+        f.write(latex_1)
+
+    with open("table_smae_emae.tex", "w") as f:
+        f.write(latex_2)
+
+    print("Wrote: table_relL2_smlr_emlr.tex")
+    print("Wrote: table_smae_emae.tex")
+
 
 if __name__ == "__main__":
     if torch.cuda.is_available():
