@@ -106,7 +106,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     # log_en_err = LogEnstropyEnergyLoss()
     meape = MeanEnergyAbsolutePercentageError()
     melr = MeanEnergyLogRatioError()
-    pderesidual = PDEResidualLoss()
+    # pderesidual = PDEResidualLoss()
 
 
     time_idx = [0, 29, truth_seq.shape[-1] - 1]
@@ -136,12 +136,12 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
         Zk_true = compute_2d_enstropy_spectrum(w_grid=truth_seq_t)  # (N, H, W)
         Zk_pred = compute_2d_enstropy_spectrum(w_grid=pred_seq_t) # (N, H, W)
 
-        step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
-        print("ground truth pderesidual: ", step_pderesidual)
-        step_pderesidual_pred = pderesidual(ux_pred, uy_pred, pred_seq_t).item()
-        print("predicted pderesidual: ", step_pderesidual_pred)
+        # step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
+        # print("ground truth pderesidual: ", step_pderesidual)
+        # step_pderesidual_pred = pderesidual(ux_pred, uy_pred, pred_seq_t).item()
+        # print("predicted pderesidual: ", step_pderesidual_pred)
         # print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
-        # exit(-1)
+        # exit(-1)s
     
         step_l2 = lploss(pred_seq_t, truth_seq_t).item() # first step loss
         step_spectral_meape = meape(Ek_pred, Ek_true).item()
@@ -166,7 +166,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     # want df_metric to have 2 level of columns: the first level is the metric name, the second level is the step number
     save_folder = os.path.join(save_dir, 'evaluation_metrics')
     os.makedirs(save_folder, exist_ok=True)
-    df_metric.to_csv(os.path.join(save_dir, f'{model_name}_seed{seed}_metrics.csv'), index=False)
+    df_metric.to_csv(os.path.join(save_folder, f'{model_name}_seed{seed}_metrics.csv'), index=False)
     return metrics_dict
 
 def main():
