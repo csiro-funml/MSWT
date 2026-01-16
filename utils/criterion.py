@@ -509,7 +509,9 @@ class MeanEnergyLogRatioError(_WeightedLoss):
     def forward(self, Ek_pred, Ek_target):
         # pred: (B, H, W)
         # target: (B, H, W)
-        err = torch.abs(torch.log(Ek_pred) - torch.log(Ek_target))
+        print("ratio max", torch.max(Ek_pred / Ek_target), "ratio min", torch.min(Ek_pred / Ek_target))
+        err = torch.abs(torch.log(Ek_pred / Ek_target))
+        print("err max", torch.max(err), "err min", torch.min(err))
         return torch.mean(err) # average over frequency bins and over the samples
 
 

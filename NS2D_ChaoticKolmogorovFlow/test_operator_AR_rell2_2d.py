@@ -144,7 +144,8 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
         step_enstropy_meape = meape(Zk_pred, Zk_true).item()
         step_enstropy_melr = melr(Zk_pred, Zk_true).item()
         
-        print(f"{model_name} seed: {seed}, step: {t}, step l2: {step_l2:.4f}, step spectral meape: {step_spectral_meape:.4f},\
+        print(f"{model_name} seed: {seed}, step: {t}, step l2: {step_l2:.4f}, \
+             step spectral meape: {step_spectral_meape:.4f},\
              step spectral melr: {step_spectral_melr:.4f},\
              step enstropy meape: {step_enstropy_meape:.4f},\
              step enstropy melr: {step_enstropy_melr:.4f}")
