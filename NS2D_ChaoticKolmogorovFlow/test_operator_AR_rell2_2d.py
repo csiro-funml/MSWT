@@ -60,7 +60,7 @@ def load_ns_sequences(data_config):
 def autoregressive_predict(model, sequences, device, grid):
     """Run autoregressive rollout on full sequences.
     
-    sequences: (B, T, H, W)
+    sequences: (B, H, W, T)
     """
     model.eval()
     S = sequences.shape[1]
@@ -97,8 +97,8 @@ def autoregressive_predict(model, sequences, device, grid):
 
 def evaluate_model(truth_seq, pred_seq):
     """ 
-    truth_seq: (B, T, H, W)
-    pred_seq: (B, T, H, W)
+    truth_seq: (B, H, W, T)
+    pred_seq: (B, H, W, T)
     """
     lploss = LpLoss(size_average=True)
     
@@ -111,9 +111,9 @@ def evaluate_model(truth_seq, pred_seq):
 
     for t in time_idx:
         # convert the vorcitity to velocity
-        ux_true, uy_true = velocity_from_vorticity(truth_seq[:, t])
-        ux_pred, uy_pred = velocity_from_vorticity(pred_seq[:, t])
-
+        ux_true, uy_true = velocity_from_vorticity(truth_seq[..., t])
+        ux_pred, uy_pred = velocity_from_vorticity(pred_seq[..., t])
+        print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
         Ek_true = compute_2d_spectral_energy(ux_true, uy_true)
         Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred)
 

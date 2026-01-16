@@ -465,11 +465,11 @@ def compute_2d_spectral_energy(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
     k0 = 2 * np.pi / Lx
 
     # Transform to spectral space
-    uxh = np.fft.rfft2(ux_grid)
-    uyh = np.fft.rfft2(uy_grid)
+    uxh = torch.fft.rfft2(ux_grid)
+    uyh = torch.fft.rfft2(uy_grid)
 
     # Energy per mode (normalised)
-    E_mode = 0.5 * (np.abs(uxh)**2 + np.abs(uyh)**2) / (N * N)
+    E_mode = 0.5 * (torch.abs(uxh)**2 + torch.abs(uyh)**2) / (N * N)
     return E_mode
 
 def compute_2d_enstropy_spectrum(w):
@@ -480,7 +480,7 @@ def compute_2d_enstropy_spectrum(w):
     Nx, Ny = w.shape[-2], w.shape[-1]
     N = Nx * Ny
   
-    Ez = (np.abs(w)**2) / (N * N)
+    Ez = (torch.abs(w)**2) / (N * N)
     return Ez
 
 
