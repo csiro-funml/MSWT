@@ -17,9 +17,10 @@ from models.periodic_mswt import PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
-from utils.criterion import LpLoss, LogEnstropyEnergyLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, compute_2d_spectral_energy, compute_2d_enstropy_spectrum
+from utils.criterion import LpLoss, LogEnstropyEnergyLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, compute_2d_spectral_energy, compute_2d_enstropy_spectrum, PDEResidualLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
 from utils.utilities import torch2dgrid_2d
+import pandas as pd
 
 
 def load_ns_sequences(data_config):
@@ -95,7 +96,7 @@ def autoregressive_predict(model, sequences, device, grid):
     return total_pred.squeeze(1), sequences[..., 1:].to(device)
 
 
-def evaluate_model(truth_seq, pred_seq):
+def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     """ 
     truth_seq: (B, H, W, T)
     pred_seq: (B, H, W, T)
@@ -105,10 +106,22 @@ def evaluate_model(truth_seq, pred_seq):
     # log_en_err = LogEnstropyEnergyLoss()
     meape = MeanEnergyAbsolutePercentageError()
     melr = MeanEnergyLogRatioError()
+    pderesidual = PDEResidualLoss()
 
 
     time_idx = [0, 29, truth_seq.shape[-1] - 1]
-
+    metrics_name = ['l2', 'spectral_meape', 'spectral_melr', 'enstropy_meape', 'enstropy_melr']
+    metrics_dict = {}
+    
+    # Initialize metrics_dict in desired column order:
+    # First all metrics (l2, spectral_meape, etc.) grouped by metric, then seed and model
+    for metric in metrics_name:
+       for t in time_idx:
+           metrics_dict[metric+f'_step{t+1}'] = 0
+    metrics_dict['seed'] = seed
+    metrics_dict['model'] = model_name
+    
+    # Compute actual metric values
     for t in time_idx:
         truth_seq_t = truth_seq[..., t]
         pred_seq_t = pred_seq[..., t]
@@ -131,12 +144,24 @@ def evaluate_model(truth_seq, pred_seq):
         step_enstropy_meape = meape(Zk_pred, Zk_true).item()
         step_enstropy_melr = melr(Zk_pred, Zk_true).item()
         
-        print("step: %d, step l2: %.4f, step spectral meape: %.4f,\
-             step spectral melr: %.4f,\
-             step enstropy meape: %.4f,\
-             step enstropy melr: %.4f" % (t, step_l2, step_spectral_meape, step_spectral_melr, step_enstropy_meape, step_enstropy_melr))
+        print(f"{model_name} seed: {seed}, step: {t}, step l2: {step_l2:.4f}, step spectral meape: {step_spectral_meape:.4f},\
+             step spectral melr: {step_spectral_melr:.4f},\
+             step enstropy meape: {step_enstropy_meape:.4f},\
+             step enstropy melr: {step_enstropy_melr:.4f}")
+            
+        # Use consistent f-string formatting
+        metrics_dict[f'l2_step{t+1}'] = step_l2
+        metrics_dict[f'spectral_meape_step{t+1}'] = step_spectral_meape
+        metrics_dict[f'spectral_melr_step{t+1}'] = step_spectral_melr
+        metrics_dict[f'enstropy_meape_step{t+1}'] = step_enstropy_meape
+        metrics_dict[f'enstropy_melr_step{t+1}'] = step_enstropy_melr
         
-
+    df_metric = pd.Series(metrics_dict).to_frame().T
+    # want df_metric to have 2 level of columns: the first level is the metric name, the second level is the step number
+    save_folder = os.path.join(save_dir, 'evaluation_metrics')
+    os.makedirs(save_folder, exist_ok=True)
+    df_metric.to_csv(os.path.join(save_dir, f'{model_name}_seed{seed}_metrics.csv'), index=False)
+    return metrics_dict
 
 def main():
     parser = ArgumentParser(description='Evaluate 2D operator autoregressively')
@@ -250,8 +275,9 @@ def main():
 
     print("total number of parameters: ", sum(p.numel() for p in model.parameters()))
 
-
-    ckpt_path = os.path.join(config.get('train', {}).get('save_dir'), config.get('train', {}).get('save_name')).replace('.pt', f'_seed{args.test_seed}.pt')
+    save_dir = config.get('train', {}).get('save_dir')
+    save_name = config.get('train', {}).get('save_name')
+    ckpt_path = os.path.join(save_dir, save_name).replace('.pt', f'_seed{args.test_seed}.pt')
     if os.path.exists(ckpt_path):
         ckpt = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(ckpt['model'])
@@ -263,7 +289,7 @@ def main():
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     truth_seq, pred_seq = autoregressive_predict(model, sequences, device, grid)
     
-    evaluate_model(truth_seq, pred_seq)
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
     
 
     example = {'truth': truth_seq.detach().cpu(), 'pred': pred_seq.detach().cpu()}
