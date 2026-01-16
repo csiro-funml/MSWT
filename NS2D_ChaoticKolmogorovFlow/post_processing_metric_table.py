@@ -23,7 +23,7 @@ if __name__ == "__main__":
                 df_metric = pd.read_csv(os.path.join(path_folder, file))
                 # print(df_metric.head())
                 # df_metric = df.iloc[0]
-                # only keep wno with seed 42 and abandon other seeeds for wno
+                # only keep wno with seed 42 and abandon other seeeds for wno because their metrics are not stable
                 if model_name == 'WNO':
                     print(df_metric['seed'].values[0])
                     if df_metric['seed'].values[0] != 42:
