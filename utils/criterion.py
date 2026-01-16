@@ -1894,7 +1894,7 @@ class PDEResidualLoss(_WeightedLoss):
         r = vorticity_residual_spatial_2d(
             ux, uy, w, 
             nu=self.nu, 
-            f=self.f, 
+            f=self.f.to(ux.device), 
             Lx=self.Lx, 
             Ly=self.Ly, 
             return_terms=False
