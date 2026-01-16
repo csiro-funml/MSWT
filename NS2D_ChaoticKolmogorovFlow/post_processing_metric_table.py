@@ -11,6 +11,7 @@ if __name__ == "__main__":
    
 
     model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
+    renamed_name_list = ['FNO', 'Unet', 'WNO', 'SAOT', 'HFS', 'MSWT']
     
     seeds = [42, 43, 44, 45, 46]
     total_df_metric = pd.DataFrame()
@@ -31,7 +32,7 @@ if __name__ == "__main__":
                 df_metric['model'] = model_name
                 total_df_metric = pd.concat([total_df_metric, df_metric], ignore_index=True)
 
-    total_df_metric.to_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'), index=False)
+    # total_df_metric.to_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'), index=False)
     total_df_metric = pd.read_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'))
 
     # group by model, and computed the mean and std of the metrics
@@ -61,11 +62,15 @@ if __name__ == "__main__":
     # save the avg to a csv
     avg_df = pd.DataFrame(avg).T
     # order the index by the order of ['fno2d', 'refiner_unet', 'wno', 'saot', 'hfs', 'multisacle_wavelet2d_periodic_patching']
-    avg_df = avg_df.reindex(index=['fno2d', 'refiner_unet', 'wno', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching'])
-
+    avg_df = avg_df.reindex(index=model_name_list)
+    # RENAME the index by the renamed_name_list
+    avg_df.index = renamed_name_list
     # over the columns by the orders: l2_step{1, 30, 64}, spectral_melr_step{1, 30, T}, enstropy_melr_step{1, 30, T},spectral_meape_step{1, 30, T}, enstropy_meape_step{1, 30, T}
-    df = pd.DataFrame()
-    for col in ['l2', 'spectral_melr', 'enstropy_melr', 'spectral_meape', 'enstropy_meape']:
-        for t in [1, 30, 64]:
-            df[f'{col}_step{t}'] = avg_df[f'{col}_step{t}']
-    df.to_csv(os.path.join(save_folder, 'avg_evaluation_metrics.csv'))
+    # reorder the columns by the orders: l2_step1,l2_step30,l2_step64, spectral_melr_step1,spectral_melr_step30,spectral_melr_step64, enstropy_melr_step1,enstropy_melr_step30,enstropy_melr_step64,spectral_meape_step1,spectral_meape_step30,spectral_meape_step64, enstropy_meape_step1,enstropy_meape_step30,enstropy_meape_step64
+    
+    new_columns = ['l2_step1', 'l2_step30', 'l2_step64', 'spectral_melr_step1', 'spectral_melr_step30', 'spectral_melr_step64', 'enstropy_melr_step1', 'enstropy_melr_step30', 'enstropy_melr_step64', 'spectral_meape_step1', 'spectral_meape_step30', 'spectral_meape_step64', 'enstropy_meape_step1', 'enstropy_meape_step30', 'enstropy_meape_step64']
+    
+    
+    avg_df = avg_df[new_columns]
+    print(avg_df)
+    avg_df.to_csv(os.path.join(save_folder, 'avg_evaluation_metrics.csv'))
