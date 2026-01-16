@@ -509,8 +509,8 @@ class MeanEnergyLogRatioError(_WeightedLoss):
     def forward(self, Ek_pred, Ek_target):
         # pred: (B, H, W)
         # target: (B, H, W)
-        print("ratio max", torch.max(Ek_pred / Ek_target), "ratio min", torch.min(Ek_pred / Ek_target))
-        err = torch.abs(torch.log(Ek_pred / Ek_target))
+        print("ratio max", torch.max(Ek_pred / Ek_target+1e-10), "ratio min", torch.min(Ek_pred / Ek_target+1e-10))
+        err = torch.abs(torch.log(Ek_pred / (Ek_target+1e-10)))
         print("err max", torch.max(err), "err min", torch.min(err))
         return torch.mean(err) # average over frequency bins and over the samples
 
@@ -1609,6 +1609,122 @@ def time_derivative(w: torch.Tensor, dt: float, scheme: str = "central") -> torc
     return dw.squeeze(0) if squeeze_back else dw
 
 @torch.no_grad()
+def vorticity_residual_spatial_2d(
+    ux: torch.Tensor,
+    uy: torch.Tensor,
+    w: torch.Tensor,
+    nu: float,
+    f: Optional[torch.Tensor] = None,
+    Lx: float = 1.0,
+    Ly: float = 1.0,
+    return_terms: bool = False,
+):
+    """
+    Compute spatial-only 2D vorticity-form NS residual (without time derivative):
+        r_spatial = u·∇w - nu Δw - g
+    where g = curl(f) = d(fy)/dx - d(fx)/dy
+
+    This is useful for evaluating residual at a single time snapshot.
+
+    Inputs
+    ------
+    ux : (B, H, W) or (H, W)  x-component of velocity field
+    uy : (B, H, W) or (H, W)  y-component of velocity field
+    w : (B, H, W) or (H, W)   vorticity field (omega)
+    nu: viscosity (kinematic), scalar
+    f : optional forcing (2, H, W) or (H, W, 2). If None, g=0.
+    Lx,Ly: domain sizes for spectral derivatives (periodic)
+    return_terms: if True, also return a dict of terms.
+
+    Returns
+    -------
+    r : same shape as w (B, H, W) or (H, W)
+    (optionally terms dict)
+    """
+    # Handle input shapes - all should be (B, H, W) or (H, W)
+    squeeze_w = False
+    squeeze_ux = False
+    squeeze_uy = False
+    
+    if w.dim() == 2:  # (H, W)
+        w_ = w.unsqueeze(0)  # (1, H, W)
+        squeeze_w = True
+    elif w.dim() == 3:  # (B, H, W)
+        w_ = w
+    else:
+        raise ValueError("w must be (H,W) or (B,H,W)")
+    
+    if ux.dim() == 2:  # (H, W)
+        ux_ = ux.unsqueeze(0)
+        squeeze_ux = True
+    elif ux.dim() == 3:
+        ux_ = ux
+    else:
+        raise ValueError("ux must be (H,W) or (B,H,W)")
+    
+    if uy.dim() == 2:
+        uy_ = uy.unsqueeze(0)
+        squeeze_uy = True
+    elif uy.dim() == 3:
+        uy_ = uy
+    else:
+        raise ValueError("uy must be (H,W) or (B,H,W)")
+    
+    # Ensure batch dimensions match
+    if ux_.shape[0] != w_.shape[0] or uy_.shape[0] != w_.shape[0]:
+        raise ValueError(f"Batch size mismatch: ux {ux_.shape[0]}, uy {uy_.shape[0]}, w {w_.shape[0]}")
+    if ux_.shape[-2:] != w_.shape[-2:] or uy_.shape[-2:] != w_.shape[-2:]:
+        raise ValueError(f"Spatial size mismatch: ux {ux_.shape[-2:]}, uy {uy_.shape[-2:]}, w {w_.shape[-2:]}")
+    
+    B, H, W = w_.shape
+    
+    # Compute grad w (spectral)
+    dw_dx, dw_dy = spectral_grad_2d(w_, Lx=Lx, Ly=Ly)  # (B, H, W)
+    
+    # Advection term: u·∇w = ux * dw_dx + uy * dw_dy
+    adv = ux_ * dw_dx + uy_ * dw_dy  # (B, H, W)
+    
+    # Laplacian w
+    lapw = spectral_laplacian_2d(w_, Lx=Lx, Ly=Ly)  # (B, H, W)
+    
+    # g = curl f (if provided)
+    if f is None:
+        g = torch.zeros_like(w_)
+    else:
+        # Handle f shape: (2, H, W), (H, W, 2), or (B, H, W, 2)
+        if f.dim() == 2 and f.shape[0] == 2:  # (2, H, W)
+            fx = f[0].unsqueeze(0).expand(B, -1, -1)  # (B, H, W)
+            fy = f[1].unsqueeze(0).expand(B, -1, -1)  # (B, H, W)
+        elif f.dim() == 3 and f.shape[-1] == 2:  # (H, W, 2)
+            fx = f[..., 0].unsqueeze(0).expand(B, -1, -1)  # (B, H, W)
+            fy = f[..., 1].unsqueeze(0).expand(B, -1, -1)  # (B, H, W)
+        elif f.dim() == 4 and f.shape[-1] == 2:  # (B, H, W, 2)
+            fx = f[..., 0]  # (B, H, W)
+            fy = f[..., 1]  # (B, H, W)
+        else:
+            raise ValueError(f"f must be (2,H,W), (H,W,2), or (B,H,W,2), got shape {f.shape}")
+        
+        g = curl_f_to_g(fx, fy, Lx=Lx, Ly=Ly)  # (B, H, W)
+    
+    # Spatial residual: u·∇w - nu Δw - g
+    r = adv - float(nu) * lapw - g  # (B, H, W)
+    
+    # Squeeze batch dimension if input was 2D
+    if squeeze_w:
+        r_out = r.squeeze(0)
+    else:
+        r_out = r
+    
+    if return_terms:
+        terms = {
+            "advection": adv.squeeze(0) if squeeze_w else adv,
+            "laplacian": lapw.squeeze(0) if squeeze_w else lapw,
+            "g": g.squeeze(0) if squeeze_w else g,
+        }
+        return r_out, terms
+    return r_out
+
+@torch.no_grad()
 def vorticity_residual_2d(
     u: torch.Tensor,
     w: torch.Tensor,
@@ -1749,13 +1865,40 @@ class PDEResidualLoss(_WeightedLoss):
             y_grid = torch.linspace(0, Ly, W)
             f_y = -4 * torch.cos(4 * y_grid)
             f_x = torch.zeros_like(f_y)
-            f = torch.stack([f_x, f_y], dim=-1) # (H, W, 2)
+            # Store as (H, W, 2) for spatial-only version, or can be reshaped for temporal version
+            f = torch.stack([f_x, f_y], dim=-1) # (W, 2) -> but we need (H, W, 2) or (2, H, W)
+            # Expand to full spatial grid if needed (assuming forcing only depends on y)
+            if f.dim() == 2 and f.shape[0] == W:  # (W, 2)
+                f = f.unsqueeze(0).expand(H, -1, -1)  # (H, W, 2)
         self.f = f
     
-    def forward(self, u: torch.Tensor, w: torch.Tensor):
-        # u: (B,T,2,H,W), w: (B,T,H,W)
-        f = self.f.unsqueeze(0).unsqueeze(0).expand(u.shape[0], u.shape[1], -1, -1, -1)
-        r = vorticity_residual_2d(u, w, nu=self.nu, f=f, dt=self.dt, Lx=self.Lx, Ly=self.Ly, return_terms=True)
+    def forward(self, ux: torch.Tensor, uy: torch.Tensor, w: torch.Tensor):
+        """
+        Compute PDE residual for inputs at a single time snapshot.
+        
+        Parameters
+        ----------
+        ux : torch.Tensor
+            x-component of velocity, shape (B, H, W) or (H, W)
+        uy : torch.Tensor
+            y-component of velocity, shape (B, H, W) or (H, W)
+        w : torch.Tensor
+            vorticity field, shape (B, H, W) or (H, W)
+        
+        Returns
+        -------
+        score : torch.Tensor
+            RMS of spatial residual (scalar)
+        """
+        # Use spatial-only residual function for (B, H, W) inputs
+        r = vorticity_residual_spatial_2d(
+            ux, uy, w, 
+            nu=self.nu, 
+            f=self.f, 
+            Lx=self.Lx, 
+            Ly=self.Ly, 
+            return_terms=False
+        )
         score = rms_residual(r)
         return score
 # --------------------------

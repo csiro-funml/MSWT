@@ -135,6 +135,8 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
         # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
         Zk_true = compute_2d_enstropy_spectrum(ux_true, uy_true)  # (N, H, W)
         Zk_pred = compute_2d_enstropy_spectrum(ux_pred, uy_pred) # (N, H, W)
+
+        step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
         # print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
         # exit(-1)
     
