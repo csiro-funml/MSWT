@@ -489,8 +489,8 @@ class MeanEnergyAbsolutePercentageError(_WeightedLoss):
     def forward(self, Ek_pred, Ek_target):
         # pred: (B, H, W)
         # target: (B, H, W)
-        err = (Ek_pred - Ek_target) / Ek_target
-        return torch.mean(err)*100 # percentage error
+        err = torch.abs((Ek_pred - Ek_target) / Ek_target)
+        return torch.mean(err) # percentage error
 
 
 class MeanEnergyLogRatioError(_WeightedLoss):
@@ -500,7 +500,7 @@ class MeanEnergyLogRatioError(_WeightedLoss):
     def forward(self, Ek_pred, Ek_target):
         # pred: (B, H, W)
         # target: (B, H, W)
-        err = torch.log(Ek_pred / Ek_target)
+        err = torch.abs(torch.log(Ek_pred / Ek_target))
         return torch.mean(err) # average over frequency bins and over the samples
 
 
