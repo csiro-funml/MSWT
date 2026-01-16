@@ -133,8 +133,8 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
         Ek_true = compute_2d_spectral_energy(ux_true, uy_true) #(N, H, W//2)
         Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred) 
         # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
-        Zk_true = compute_2d_enstropy_spectrum(ux_true, uy_true)  # (N, H, W)
-        Zk_pred = compute_2d_enstropy_spectrum(ux_pred, uy_pred) # (N, H, W)
+        Zk_true = compute_2d_enstropy_spectrum(w_grid=truth_seq_t)  # (N, H, W)
+        Zk_pred = compute_2d_enstropy_spectrum(w_grid=pred_seq_t) # (N, H, W)
 
         step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
         print("ground truth pderesidual: ", step_pderesidual)

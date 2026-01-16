@@ -470,11 +470,42 @@ def compute_2d_spectral_energy(ux_grid, uy_grid):
     E_mode = 0.5 * (torch.abs(uxh)**2 + torch.abs(uyh)**2) / (N * N)
     return E_mode
 
-def compute_2d_enstropy_spectrum(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
+def compute_2d_enstropy_spectrum(ux_grid=None, uy_grid=None, w_grid=None, Lx=2*np.pi, Ly=2*np.pi):
     """
-    ux_grid and uy_grid need to be in shape (B, *, H, W)
+    Compute 2D enstropy spectrum.
+    
+    Can be called in two ways:
+    1. From velocity: compute_2d_enstropy_spectrum(ux_grid, uy_grid, ...)
+       ux_grid and uy_grid need to be in shape (B, *, H, W)
+    2. From vorticity: compute_2d_enstropy_spectrum(w_grid=vorticity)
+       w_grid should be in shape (B, *, H, W) - vorticity in physical space
+       This is simpler and more efficient if vorticity is already available.
+       
+    If w_grid is provided, computation is simplified (direct FFT of vorticity).
+    Otherwise, vorticity is computed from velocity components in spectral space.
     """
-    # Transform to spectral space (amplitude)
+    if w_grid is not None:
+        # Simplified path: vorticity provided directly in physical space
+        Nx, Ny = w_grid.shape[-2], w_grid.shape[-1]
+        N = Nx * Ny
+        
+        # Transform vorticity directly to spectral space
+        omegah = torch.fft.rfft2(w_grid)
+        Z_mode = (torch.abs(omegah)**2) / (N * N)
+        
+        # rfft symmetry weight: double ky>0 interior modes
+        weight = 2.0 * torch.ones_like(Z_mode)
+        weight[..., 0] = 1.0  # ky=0 is not doubled
+        if Ny % 2 == 0:
+            weight[..., -1] = 1.0  # Nyquist is real-valued
+        
+        Z_mode = Z_mode * weight
+        return Z_mode
+    
+    # Original path: compute vorticity from velocity components
+    if ux_grid is None or uy_grid is None:
+        raise ValueError("Either (ux_grid, uy_grid) or w_grid must be provided")
+    
     Nx, Ny = ux_grid.shape[-2], ux_grid.shape[-1]
     N = Nx * Ny
 
@@ -482,7 +513,7 @@ def compute_2d_enstropy_spectrum(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
     uxh = torch.fft.rfft2(ux_grid)
     uyh = torch.fft.rfft2(uy_grid)
 
-    # Vorticity in spectral space
+    # Vorticity in spectral space: omega = curl(u) = d(uy)/dx - d(ux)/dy
     kx = 2 * math.pi * torch.fft.fftfreq(Nx, d=Lx / Nx).to(ux_grid.device)
     ky = 2 * math.pi * torch.fft.rfftfreq(Ny, d=Ly / Ny).to(ux_grid.device)
     KX, KY = torch.meshgrid(kx, ky, indexing='ij')
@@ -491,9 +522,9 @@ def compute_2d_enstropy_spectrum(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
 
     # rfft symmetry weight: double ky>0 interior modes
     weight = 2.0 * torch.ones_like(Z_mode)
-    weight[:, 0] = 1.0  # ky=0 is not doubled
+    weight[..., 0] = 1.0  # ky=0 is not doubled
     if Ny % 2 == 0:
-        weight[:, -1] = 1.0  # Nyquist is real-valued
+        weight[..., -1] = 1.0  # Nyquist is real-valued
 
     Z_mode = Z_mode * weight
     return Z_mode
