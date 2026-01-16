@@ -483,11 +483,11 @@ def compute_2d_enstropy_spectrum(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
     uyh = torch.fft.rfft2(uy_grid)
 
     # Vorticity in spectral space
-    kx = 2 * np.pi * np.fft.fftfreq(Nx, d=Lx / Nx)
-    ky = 2 * np.pi * np.fft.rfftfreq(Ny, d=Ly / Ny)
-    KX, KY = np.meshgrid(kx, ky, indexing='ij')
+    kx = 2 * math.pi * torch.fft.fftfreq(Nx, d=Lx / Nx).to(ux_grid.device)
+    ky = 2 * math.pi * torch.fft.rfftfreq(Ny, d=Ly / Ny).to(ux_grid.device)
+    KX, KY = torch.meshgrid(kx, ky, indexing='ij')
     omegah = 1j * (KX * uyh - KY * uxh)
-    Z_mode = (np.abs(omegah)**2) / (N * N)
+    Z_mode = (torch.abs(omegah)**2) / (N * N)
     return Z_mode
 
 
