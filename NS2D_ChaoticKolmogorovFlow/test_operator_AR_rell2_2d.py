@@ -116,9 +116,10 @@ def evaluate_model(truth_seq, pred_seq):
         print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
         Ek_true = compute_2d_spectral_energy(ux_true, uy_true)
         Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred)
-
-        Zk_true = compute_2d_enstropy_spectrum(truth_seq)
-        Zk_pred = compute_2d_enstropy_spectrum(pred_seq)
+        print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
+        Zk_true = compute_2d_enstropy_spectrum(truth_seq[..., t])
+        Zk_pred = compute_2d_enstropy_spectrum(pred_seq[..., t])
+        print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
         exit(-1)
     
         first_step_l2 = lploss(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss

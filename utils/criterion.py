@@ -455,14 +455,12 @@ class LogEnstropyEnergyLoss(_WeightedLoss):
         return torch.mean(err) # average over frequency bins and over the samples
 
 
-def compute_2d_spectral_energy(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
+def compute_2d_spectral_energy(ux_grid, uy_grid):
     """ 
     ux_grid and uy_grid need to be in shape (B, *, H, W)
     """
     Nx, Ny = ux_grid.shape[-2], ux_grid.shape[-1]
     N = Nx * Ny
-    assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly"
-    k0 = 2 * np.pi / Lx
 
     # Transform to spectral space
     uxh = torch.fft.rfft2(ux_grid)
