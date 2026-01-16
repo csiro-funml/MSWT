@@ -120,8 +120,8 @@ def evaluate_model(truth_seq, pred_seq):
         Ek_true = compute_2d_spectral_energy(ux_true, uy_true) #(N, H, W//2)
         Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred) 
         # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
-        Zk_true = compute_2d_enstropy_spectrum(truth_seq_t)  # (N, H, W)
-        Zk_pred = compute_2d_enstropy_spectrum(pred_seq_t) # (N, H, W)
+        Zk_true = compute_2d_enstropy_spectrum(ux_true, uy_true)  # (N, H, W)
+        Zk_pred = compute_2d_enstropy_spectrum(ux_pred, uy_pred) # (N, H, W)
         # print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
         # exit(-1)
     

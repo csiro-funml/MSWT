@@ -470,16 +470,25 @@ def compute_2d_spectral_energy(ux_grid, uy_grid):
     E_mode = 0.5 * (torch.abs(uxh)**2 + torch.abs(uyh)**2) / (N * N)
     return E_mode
 
-def compute_2d_enstropy_spectrum(w):
+def compute_2d_enstropy_spectrum(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
     """
-    w needs to be in shape (B, *, H, W)
+    ux_grid and uy_grid need to be in shape (B, *, H, W)
     """
     # Transform to spectral space (amplitude)
-    Nx, Ny = w.shape[-2], w.shape[-1]
+    Nx, Ny = ux_grid.shape[-2], ux_grid.shape[-1]
     N = Nx * Ny
-  
-    Ez = (torch.abs(w)**2) / (N * N)
-    return Ez
+
+    # Transform to spectral space
+    uxh = torch.fft.rfft2(ux_grid)
+    uyh = torch.fft.rfft2(uy_grid)
+
+    # Vorticity in spectral space
+    kx = 2 * np.pi * np.fft.fftfreq(Nx, d=Lx / Nx)
+    ky = 2 * np.pi * np.fft.rfftfreq(Ny, d=Ly / Ny)
+    KX, KY = np.meshgrid(kx, ky, indexing='ij')
+    omegah = 1j * (KX * uyh - KY * uxh)
+    Z_mode = (np.abs(omegah)**2) / (N * N)
+    return Z_mode
 
 
 class MeanEnergyAbsolutePercentageError(_WeightedLoss):
@@ -500,7 +509,7 @@ class MeanEnergyLogRatioError(_WeightedLoss):
     def forward(self, Ek_pred, Ek_target):
         # pred: (B, H, W)
         # target: (B, H, W)
-        err = torch.abs(torch.log(Ek_pred / Ek_target))
+        err = torch.abs(torch.log(Ek_pred) - torch.log(Ek_target))
         return torch.mean(err) # average over frequency bins and over the samples
 
 
