@@ -488,6 +488,14 @@ def compute_2d_enstropy_spectrum(ux_grid, uy_grid, Lx=2*np.pi, Ly=2*np.pi):
     KX, KY = torch.meshgrid(kx, ky, indexing='ij')
     omegah = 1j * (KX * uyh - KY * uxh)
     Z_mode = (torch.abs(omegah)**2) / (N * N)
+
+    # rfft symmetry weight: double ky>0 interior modes
+    weight = 2.0 * torch.ones_like(Z_mode)
+    weight[:, 0] = 1.0  # ky=0 is not doubled
+    if Ny % 2 == 0:
+        weight[:, -1] = 1.0  # Nyquist is real-valued
+
+    Z_mode = Z_mode * weight
     return Z_mode
 
 
