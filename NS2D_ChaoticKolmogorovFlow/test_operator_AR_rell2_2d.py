@@ -126,10 +126,15 @@ def evaluate_model(truth_seq, pred_seq):
         # exit(-1)
     
         step_l2 = lploss(pred_seq_t, truth_seq_t).item() # first step loss
-        step_meape = meape(Ek_pred, Ek_true).item()
-        step_melr = melr(Ek_pred, Ek_true).item()
+        step_spectral_meape = meape(Ek_pred, Ek_true).item()
+        step_spectral_melr = melr(Ek_pred, Ek_true).item()
+        step_enstropy_meape = meape(Zk_pred, Zk_true).item()
+        step_enstropy_melr = melr(Zk_pred, Zk_true).item()
         
-        print("step: %d, step l2: %.4f, step meape: %.4f, step melr: %.4f" % (t, step_l2, step_meape, step_melr))
+        print("step: %d, step l2: %.4f, step spectral meape: %.4f,\
+             step spectral melr: %.4f,\
+             step enstropy meape: %.4f,\
+             step enstropy melr: %.4f" % (t, step_l2, step_spectral_meape, step_spectral_melr, step_enstropy_meape, step_enstropy_melr))
         
 
 
