@@ -24,7 +24,8 @@ if __name__ == "__main__":
                 # df_metric = df.iloc[0]
                 # only keep wno with seed 42 and abandon other seeeds for wno
                 if model_name == 'WNO':
-                    if df_metric['seed'] != 42:
+                    print(df_metric['seed'].values[0])
+                    if df_metric['seed'].values[0] != 42:
                         continue
                 # rename model with the model_name
                 df_metric['model'] = model_name
