@@ -110,30 +110,27 @@ def evaluate_model(truth_seq, pred_seq):
     time_idx = [0, 29, truth_seq.shape[-1] - 1]
 
     for t in time_idx:
+        truth_seq_t = truth_seq[..., t]
+        pred_seq_t = pred_seq[..., t]
         # convert the vorcitity to velocity
-        ux_true, uy_true = velocity_from_vorticity(truth_seq[..., t])
-        ux_pred, uy_pred = velocity_from_vorticity(pred_seq[..., t])
-        print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
-        Ek_true = compute_2d_spectral_energy(ux_true, uy_true)
-        Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred)
-        print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
-        Zk_true = compute_2d_enstropy_spectrum(truth_seq[..., t])
-        Zk_pred = compute_2d_enstropy_spectrum(pred_seq[..., t])
-        print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
-        exit(-1)
+        ux_true, uy_true = velocity_from_vorticity(truth_seq_t)
+        ux_pred, uy_pred = velocity_from_vorticity(pred_seq_t)
+        # print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
+        # (N, H, W)
+        Ek_true = compute_2d_spectral_energy(ux_true, uy_true) #(N, H, W//2)
+        Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred) 
+        # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
+        Zk_true = compute_2d_enstropy_spectrum(truth_seq_t)  # (N, H, W)
+        Zk_pred = compute_2d_enstropy_spectrum(pred_seq_t) # (N, H, W)
+        # print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
+        # exit(-1)
     
-        first_step_l2 = lploss(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
-        fist_step_log_en_err = log_en_err(pred_seq[..., 0], truth_seq[..., 0]).item() # first step loss
-
-        last_step_l2 = lploss(pred_seq[..., -1], truth_seq[..., -1]).item() # last step loss
-        last_step_log_en_err = log_en_err(pred_seq[..., -1], truth_seq[..., -1]).item() # last step loss
-
-        # reshape_pred_seq = rearrange(pred_seq, 'b h w t -> (b t) h w') # (B*T, H, W) 
-        # reshape_truth_seq = rearrange(truth_seq, 'b h w t -> (b t) h w')
-        # total_l2 = lploss(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
-        # total_log_en_err = log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
-        print("first rel l2, last rel l2, first step log en err, last step log en err: %.4f, %.4f, %.4f, %.4f" % (first_step_l2, last_step_l2, fist_step_log_en_err, last_step_log_en_err))
-        return first_step_l2, fist_step_log_en_err, last_step_l2, last_step_log_en_err
+        step_l2 = lploss(pred_seq_t, truth_seq_t).item() # first step loss
+        step_meape = meape(Ek_pred, Ek_true).item()
+        step_melr = melr(Ek_pred, Ek_true).item()
+        
+        print("step: %d, step l2: %.4f, step meape: %.4f, step melr: %.4f" % (t, step_l2, step_meape, step_melr))
+        
 
 
 def main():
