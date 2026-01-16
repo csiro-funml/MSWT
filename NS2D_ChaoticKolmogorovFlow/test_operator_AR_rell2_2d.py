@@ -110,7 +110,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
 
 
     time_idx = [0, 29, truth_seq.shape[-1] - 1]
-    metrics_name = ['l2', 'spectral_meape', 'spectral_melr', 'enstropy_meape', 'enstropy_melr']
+    metrics_name = ['l2', 'SML', 'EMLR', 'SMAE', 'EMAE']
     metrics_dict = {}
     
     # Initialize metrics_dict in desired column order:
@@ -150,17 +150,17 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
         step_enstropy_melr = melr(Zk_pred, Zk_true).item()
         
         print(f"{model_name} seed: {seed}, step: {t}, step l2: {step_l2:.4f}, \
-             step spectral meape: {step_spectral_meape:.4f},\
-             step spectral melr: {step_spectral_melr:.4f},\
-             step enstropy meape: {step_enstropy_meape:.4f},\
-             step enstropy melr: {step_enstropy_melr:.4f}")
+            step SMLR: {step_spectral_melr:.4f},\
+            step EMLR: {step_enstropy_melr:.4f},\
+            step EMAE: {step_spectral_meape:.4f},\
+            step SMAE: {step_enstropy_meape:.4f}")
             
         # Use consistent f-string formatting
         metrics_dict[f'l2_step{t+1}'] = step_l2
-        metrics_dict[f'spectral_meape_step{t+1}'] = step_spectral_meape
-        metrics_dict[f'spectral_melr_step{t+1}'] = step_spectral_melr
-        metrics_dict[f'enstropy_meape_step{t+1}'] = step_enstropy_meape
-        metrics_dict[f'enstropy_melr_step{t+1}'] = step_enstropy_melr
+        metrics_dict[f'SMLR_step{t+1}'] = step_spectral_melr
+        metrics_dict[f'EMLR_step{t+1}'] = step_enstropy_melr
+        metrics_dict[f'SMAE_step{t+1}'] = step_spectral_meape
+        metrics_dict[f'EMAE_step{t+1}'] = step_enstropy_meape
         
     df_metric = pd.Series(metrics_dict).to_frame().T
     # want df_metric to have 2 level of columns: the first level is the metric name, the second level is the step number
