@@ -26,8 +26,10 @@ if __name__ == "__main__":
 
     total_df_metric_grouped = total_df_metric.groupby('model')
     for model, group in total_df_metric_grouped:
-        print("model", model)
-        print("mean", group.mean())
-        print("std", group.std())
+        # print("model", model)
+        print("group shape", group.shape)
+        print("mean", group.mean(axis=0))
+        print("std", group.std(axis=0))
+        exit(-1)
     
     exit(-1)
