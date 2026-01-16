@@ -15,21 +15,21 @@ if __name__ == "__main__":
             for file in file_list:
                 if file.endswith('.csv'):
                     df_metric = pd.read_csv(os.path.join(path_folder, file))
-                    print(df_metric.head())
+                    # print(df_metric.head())
                     # df_metric = df.iloc[0]
                     total_df_metric = pd.concat([total_df_metric, df_metric], ignore_index=True)
 
-    # total_df_metric.to_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'), index=False)
+    total_df_metric.to_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'), index=False)
 
 
     # group by model, and computed the mean and std of the metrics
 
-    total_df_metric_grouped = total_df_metric.groupby('model')
-    for model, group in total_df_metric_grouped:
+    # total_df_metric_grouped = total_df_metric.groupby('model')
+    # for model, group in total_df_metric_grouped:
         # print("model", model)
-        print("group shape", group.shape)
-        print("mean", group.mean(axis=0))
-        print("std", group.std(axis=0))
-        exit(-1)
+        # print("group shape", group.shape)
+        # print("mean", group.mean(axis=0))
+        # print("std", group.std(axis=0))
+        # exit(-1)
     
     exit(-1)
