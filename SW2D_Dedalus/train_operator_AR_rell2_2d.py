@@ -222,9 +222,6 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                 ep,
                                 optimizer, scheduler)
                 if fixed_pred is not None:
-                    temp1 = fixed_pred.unsqueeze(-2)[...,[0]]
-                    temp2 = fixed_target.unsqueeze(-2)[..., [0]]
-                    print("temp1 shape:", temp1.shape, "temp2 shape:", temp2.shape)
                     log_tensorboard_images_and_spectra(writer,
                                                        fixed_pred.unsqueeze(-2)[...,[0]],  # the first channel is vorticity
                                                        fixed_target.unsqueeze(-2)[..., [0]],  # the first channel is vorticity
