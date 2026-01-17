@@ -175,7 +175,6 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             ramp = (t - warmup_frac) / (1.0 - warmup_frac)
             lambda_amp = lambda_amp_final * ramp
         for x, y in train_loader:
-            break
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
@@ -213,7 +212,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             print(f'Random test split relative L2: {test_l2:.6f}')
             if writer is not None:
                 writer.add_scalar('eval/test_l2', test_l2, ep + 1)
-                fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=300, t_idx=0)
+                fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=500, t_idx=0)
                 # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 
                 save_checkpoint(config['train']['save_dir'],
