@@ -221,10 +221,10 @@ def compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, mod
         Ek_pred_np = Ek_pred.detach().cpu().numpy()[valid_mask]
         Zk_true_np = Zk_true[valid_mask]
         Zk_pred_np = Zk_pred[valid_mask]
-        save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_energy_spectra_t{t_raw}.npz')
+        save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_energy_spectra_t{t_raw+1}.npz')
         np.savez(save_path, k_np=k_np, Ek_true_np=Ek_true_np, Ek_pred_np=Ek_pred_np, Zk_true_np=Zk_true_np, Zk_pred_np=Zk_pred_np)
         print(f"Saved energy spectra to {save_path}")
-        return save_path
+    return save_path
 
 
 def main():
