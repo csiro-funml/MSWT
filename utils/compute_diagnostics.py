@@ -192,6 +192,40 @@ def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
     return k_bins, Ek
 
 
+def compute_enstropy_torch(w_grid, Lx, Ly):
+    """
+    Compute enstropy from vorticity field.
+    """
+    Nx, Ny = w_grid.shape[-2], w_grid.shape[-1]
+    N = Nx * Ny
+    
+    k0 = 2 * np.pi / Lx
+    w_hat = torch.fft.rfft2(w_grid)
+    Z_mode = (torch.abs(w_hat)**2) / (N * N)
+    Z_mode = Z_mode.detach().cpu().numpy()
+
+    # rfft symmetry weight: double ky>0 interior modes
+    weight = 2.0 * np.ones_like(Z_mode)
+    weight[:, 0] = 1.0  # ky=0 is not doubled
+    if Ny % 2 == 0:
+        weight[:, -1] = 1.0  # Nyquist is real-valued
+
+    Z_mode *= weight
+
+    # Shell indices (integer radius in index space)
+    ix = np.fft.fftfreq(Nx, d=1.0 / Nx)
+    iy = np.arange(0, Ny // 2 + 1)
+    IX, IY = np.meshgrid(ix, iy, indexing='ij')
+    shell_idx = np.floor(np.sqrt(IX**2 + IY**2)).astype(int)
+
+    # Bin into shells
+    mmax = shell_idx.max()
+    Zk = np.bincount(shell_idx.ravel(), weights=Z_mode.ravel(), minlength=mmax + 1)
+
+    k_bins = np.arange(mmax + 1) * k0
+    return k_bins, Zk
+
+
 def get_args():
     """Parse command-line arguments."""
     ap = argparse.ArgumentParser(

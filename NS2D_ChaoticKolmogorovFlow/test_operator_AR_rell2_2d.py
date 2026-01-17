@@ -18,7 +18,7 @@ from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
 from utils.criterion import LpLoss, LogEnstropyEnergyLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, compute_2d_spectral_energy, compute_2d_enstropy_spectrum, PDEResidualLoss
-from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
+from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch, compute_enstropy_torch
 from utils.utilities import torch2dgrid_2d
 import pandas as pd
 
@@ -169,6 +169,63 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     df_metric.to_csv(os.path.join(save_folder, f'{model_name}_seed{seed}_metrics.csv'), index=False)
     return metrics_dict
 
+
+def save_ground_truth_and_predictions(truth_seq, pred_seq, time_indices, save_dir, model_name, seed):
+    """
+    truth_seq: (B, H, W, T)
+    pred_seq: (B, H, W, T)
+    time_indices: list of time indices
+    save_dir: directory to save the ground truth and predictions
+    """
+    save_dir = os.path.join(save_dir, 'saved_plots')
+    os.makedirs(save_dir, exist_ok=True)
+    for t in time_indices:
+        truth_seq_t = truth_seq[0,..., t].detach().cpu()
+        pred_seq_t = pred_seq[0,..., t].detach().cpu()
+        error_seq_t = pred_seq_t - truth_seq_t
+        save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_prediction_t{t+1}.npz')
+        np.savez(save_path, truth_seq_t=truth_seq_t, pred_seq_t=pred_seq_t, error_seq_t=error_seq_t)
+        print(f"Saved ground truth and predictions to {save_path}")
+    return save_path
+
+
+def compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed):
+    """
+    truth_seq: (B, H, W, T)
+    pred_seq: (B, H, W, T)
+    time_indices: list of time indices
+    save_dir: directory to save the energy spectra
+    model_name: name of the model
+    seed: seed for the random test split
+    """
+    save_dir = os.path.join(save_dir, 'saved_plots')
+    os.makedirs(save_dir, exist_ok=True)
+    for t_raw in time_indices:
+        pred_frame = pred_seq.detach().cpu()[0, ..., t_raw]
+        truth_frame = truth_seq.detach().cpu()[0, ..., t_raw]
+       
+        # Spectral energy comparison 
+        ux_pred, uy_pred = velocity_from_vorticity(pred_frame.float())
+        ux_true, uy_true = velocity_from_vorticity(truth_frame.float())
+        
+        k_bins, Ek_pred = compute_spectra_torch(ux_pred, uy_pred, 2 * math.pi, 2 * math.pi)
+        _, Ek_true = compute_spectra_torch(ux_true, uy_true, 2 * math.pi, 2 * math.pi)
+        
+        _, Zk_true = compute_enstropy_torch(truth_frame.float(), 2 * math.pi, 2 * math.pi)
+        _, Zk_pred = compute_enstropy_torch(pred_frame.float(), 2 * math.pi, 2 * math.pi)
+        
+        valid_mask = range(1, min(len(k_np), truth_frame.shape[-1] // 2))
+        k_np = k_bins.detach().cpu().numpy()[valid_mask]
+        Ek_true_np = Ek_true.detach().cpu().numpy()[valid_mask]
+        Ek_pred_np = Ek_pred.detach().cpu().numpy()[valid_mask]
+        Zk_true_np = Zk_true[valid_mask]
+        Zk_pred_np = Zk_pred[valid_mask]
+        save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_energy_spectra_t{t_raw}.npz')
+        np.savez(save_path, k_np=k_np, Ek_true_np=Ek_true_np, Ek_pred_np=Ek_pred_np, Zk_true_np=Zk_true_np, Zk_pred_np=Zk_pred_np)
+        print(f"Saved energy spectra to {save_path}")
+        return save_path
+
+
 def main():
     parser = ArgumentParser(description='Evaluate 2D operator autoregressively')
     parser.add_argument('--config_path', type=str, help='Path to the configuration file')
@@ -297,71 +354,86 @@ def main():
     
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
     
+    
+    
+    # for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
+    time_indices = [0, 29, truth_seq.shape[-1] - 1]
+    save_path = save_ground_truth_and_predictions(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    
+    temp = np.load(save_path)
+    for key in temp.keys():
+        print(key, temp[key].shape)
 
-    example = {'truth': truth_seq.detach().cpu(), 'pred': pred_seq.detach().cpu()}
-    # Save prediction and energy plots for the first example
-    if example['truth'] is not None:
-        plot_dir = config.get('train', {}).get('save_dir')
-        pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions', f'seed{args.test_seed}')
-        spec_dir = os.path.join(plot_dir, 'saved_plots', 'energy', f'seed{args.test_seed}')
-        os.makedirs(pred_dir, exist_ok=True)
-        os.makedirs(spec_dir, exist_ok=True)
+    # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
+    compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
 
-        truth = example['truth'][0]  # (S, S, T-1)
-        pred = example['pred'][0]
-        T_pred = pred.shape[-1]
-        time_indices = range(0, T_pred, 5)
-        for t_raw in time_indices:
-            pred_frame = pred[..., t_raw]
-            truth_frame = truth[..., t_raw]
-            err_frame = pred_frame - truth_frame
-            truth_min = truth_frame.min().item()
-            truth_max = truth_frame.max().item()
-            abs_lim = max(abs(truth_min), abs(truth_max))
-            vmin = -abs_lim
-            vmax = abs_lim
 
-            fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-            titles = ['Truth', 'Prediction', 'Error']
-            data_to_plot = [truth_frame, pred_frame, err_frame]
-            for ax, title, data in zip(axes, titles, data_to_plot):
-                if title in ['Truth', 'Prediction']:
-                    im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=vmin, vmax=vmax)
-                else:
-                    err_abs = max(abs(data.min().item()), abs(data.max().item()), 1e-8)
-                    im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=-err_abs, vmax=err_abs)
-                ax.set_title(f'{title} (T={t_raw})')
-                ax.set_xticks([])
-                ax.set_yticks([])
-                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            plt.tight_layout()
-            pred_plot_path = os.path.join(pred_dir, f'ns_prediction_t{t_raw}.png')
-            fig.savefig(pred_plot_path, dpi=150, bbox_inches='tight')
-            plt.close(fig)
 
-            # Spectral energy comparison
+
+    # example = {'truth': truth_seq.detach().cpu(), 'pred': pred_seq.detach().cpu()}
+    # # Save prediction and energy plots for the first example
+    # if example['truth'] is not None:
+    #     plot_dir = config.get('train', {}).get('save_dir')
+    #     pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions', f'seed{args.test_seed}')
+    #     spec_dir = os.path.join(plot_dir, 'saved_plots', 'energy', f'seed{args.test_seed}')
+    #     os.makedirs(pred_dir, exist_ok=True)
+    #     os.makedirs(spec_dir, exist_ok=True)
+
+    #     truth = example['truth'][0]  # (S, S, T-1)
+    #     pred = example['pred'][0]
+    #     T_pred = pred.shape[-1]
+    #     time_indices = range(0, T_pred, 5)
+    #     for t_raw in time_indices:
+    #         pred_frame = pred[..., t_raw]
+    #         truth_frame = truth[..., t_raw]
+    #         err_frame = pred_frame - truth_frame
+    #         truth_min = truth_frame.min().item()
+    #         truth_max = truth_frame.max().item()
+    #         abs_lim = max(abs(truth_min), abs(truth_max))
+    #         vmin = -abs_lim
+    #         vmax = abs_lim
+
+    #         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    #         titles = ['Truth', 'Prediction', 'Error']
+    #         data_to_plot = [truth_frame, pred_frame, err_frame]
+    #         for ax, title, data in zip(axes, titles, data_to_plot):
+    #             if title in ['Truth', 'Prediction']:
+    #                 im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=vmin, vmax=vmax)
+    #             else:
+    #                 err_abs = max(abs(data.min().item()), abs(data.max().item()), 1e-8)
+    #                 im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=-err_abs, vmax=err_abs)
+    #             ax.set_title(f'{title} (T={t_raw})')
+    #             ax.set_xticks([])
+    #             ax.set_yticks([])
+    #             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    #         plt.tight_layout()
+    #         pred_plot_path = os.path.join(pred_dir, f'ns_prediction_t{t_raw}.png')
+    #         fig.savefig(pred_plot_path, dpi=150, bbox_inches='tight')
+    #         plt.close(fig)
+
+    #         # Spectral energy comparison
             
-            ux_pred, uy_pred = velocity_from_vorticity(pred_frame.float())
-            ux_true, uy_true = velocity_from_vorticity(truth_frame.float())
-            k_bins, Ek_pred = compute_spectra_torch(ux_pred, uy_pred, 2 * math.pi, 2 * math.pi)
-            _, Ek_true = compute_spectra_torch(ux_true, uy_true, 2 * math.pi, 2 * math.pi)
+    #         ux_pred, uy_pred = velocity_from_vorticity(pred_frame.float())
+    #         ux_true, uy_true = velocity_from_vorticity(truth_frame.float())
+    #         k_bins, Ek_pred = compute_spectra_torch(ux_pred, uy_pred, 2 * math.pi, 2 * math.pi)
+    #         _, Ek_true = compute_spectra_torch(ux_true, uy_true, 2 * math.pi, 2 * math.pi)
 
-            k_np = k_bins.cpu().numpy()
-            Ek_pred_np = Ek_pred.cpu().numpy()
-            Ek_true_np = Ek_true.cpu().numpy()
+    #         k_np = k_bins.cpu().numpy()
+    #         Ek_pred_np = Ek_pred.cpu().numpy()
+    #         Ek_true_np = Ek_true.cpu().numpy()
 
-            valid_mask = range(1, min(len(k_np), S_data // 2))
-            fig_spec, ax_spec = plt.subplots(1, 1, figsize=(6, 4))
-            ax_spec.loglog(k_np[valid_mask], Ek_true_np[valid_mask], label='Truth', linewidth=1)
-            ax_spec.loglog(k_np[valid_mask], Ek_pred_np[valid_mask], '--', label='Prediction', linewidth=1)
-            ax_spec.set_xlabel('Wavenumber k')
-            ax_spec.set_ylabel('Energy E(k)')
-            ax_spec.set_title(f'Spectral Energy (T={t_raw})')
-            ax_spec.grid(True, which='both', alpha=0.3)
-            ax_spec.legend()
-            spec_plot_path = os.path.join(spec_dir, f'ns_spectral_energy_t{t_raw}.png')
-            fig_spec.savefig(spec_plot_path, dpi=150, bbox_inches='tight')
-            plt.close(fig_spec)
+    #         valid_mask = range(1, min(len(k_np), S_data // 2))
+    #         fig_spec, ax_spec = plt.subplots(1, 1, figsize=(6, 4))
+    #         ax_spec.loglog(k_np[valid_mask], Ek_true_np[valid_mask], label='Truth', linewidth=1)
+    #         ax_spec.loglog(k_np[valid_mask], Ek_pred_np[valid_mask], '--', label='Prediction', linewidth=1)
+    #         ax_spec.set_xlabel('Wavenumber k')
+    #         ax_spec.set_ylabel('Energy E(k)')
+    #         ax_spec.set_title(f'Spectral Energy (T={t_raw})')
+    #         ax_spec.grid(True, which='both', alpha=0.3)
+    #         ax_spec.legend()
+    #         spec_plot_path = os.path.join(spec_dir, f'ns_spectral_energy_t{t_raw}.png')
+    #         fig_spec.savefig(spec_plot_path, dpi=150, bbox_inches='tight')
+    #         plt.close(fig_spec)
             # except Exception as exc:  # noqa: BLE001
             #     print(f'Warning: failed to create spectral energy plot at T={t_raw}: {exc}')
 
