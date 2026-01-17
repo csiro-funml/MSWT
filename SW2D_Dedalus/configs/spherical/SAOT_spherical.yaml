@@ -25,7 +25,7 @@ model:
 
 
 train:
-  batchsize: 32
+  batchsize: 16
   epochs: 500
   milestones: [100, 200, 300, 400]
   base_lr: 0.001
