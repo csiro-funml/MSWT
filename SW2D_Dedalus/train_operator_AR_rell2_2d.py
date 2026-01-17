@@ -132,6 +132,9 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
             pred = pred.squeeze(-2)
         if pred.dim() == 4:
             pred = pred.squeeze(-1)
+    # rotate the H and W by 90 degrees
+    pred = torch.rot90(pred, k=1, dims=[1, 2])
+    y = torch.rot90(y, k=1, dims=[0, 1])
     return pred, y.unsqueeze(0)
 
 def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
@@ -210,8 +213,8 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             print(f'Random test split relative L2: {test_l2:.6f}')
             if writer is not None:
                 writer.add_scalar('eval/test_l2', test_l2, ep + 1)
-                fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=0, t_idx=0)
-                print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
+                fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=300, t_idx=0)
+                # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 
                 save_checkpoint(config['train']['save_dir'],
                                 config['train']['save_name'],
@@ -219,6 +222,9 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                 ep,
                                 optimizer, scheduler)
                 if fixed_pred is not None:
+                    temp1 = fixed_pred.unsqueeze(-2)[...,[0]]
+                    temp2 = fixed_target.unsqueeze(-2)[..., [0]]
+                    print("temp1 shape:", temp1.shape, "temp2 shape:", temp2.shape)
                     log_tensorboard_images_and_spectra(writer,
                                                        fixed_pred.unsqueeze(-2)[...,[0]],  # the first channel is vorticity
                                                        fixed_target.unsqueeze(-2)[..., [0]],  # the first channel is vorticity
