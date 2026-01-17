@@ -5,27 +5,17 @@ data:
   nx: 256
   ny: 128
   shuffle: True
-  grid_form: linear
+  grid_form: spherical
 
 model:
-  name: saot
-  space_dim: 2
-  n_layers: 5
-  n_hidden: 256
-  dropout: 0.0
-  n_head: 4
-  Time_Input: False
-  mlp_ratio: 1
-  fun_dim: 2
-  out_dim: 2
-  slice_num: 32
-  ref: 8
-  unified_pos: 0
-  is_filter: True
-
+  name: wno
+  in_chans: 6
+  out_chans: 2
+  width: 64
+  level: 3
 
 train:
-  batchsize: 32
+  batchsize: 100
   epochs: 500
   milestones: [100, 200, 300, 400]
   base_lr: 0.001
@@ -33,10 +23,11 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/SAOT2d_linear/
-  save_name: SAOT2d-nlayers5-nhidden256.pt
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/WNO2d_spherical/
+  save_name: WNO2d-width64-level3.pt
   data_iter: 1
   eqn_iter: 0
+
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'

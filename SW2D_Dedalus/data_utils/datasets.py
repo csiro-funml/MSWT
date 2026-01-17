@@ -117,6 +117,10 @@ class SWLoader2D(Dataset):
         # Permute data once here: (N, C, H, W) -> (N, H, W, C) for easier access in __getitem__
         self.X_data = self.X_data.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
         self.y_data = self.y_data.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
+
+         # swap the first and second channel (I want the fitst channel to be the vorticity)
+        self.X_data = self.X_data[..., [1, 0]]
+        self.y_data = self.y_data[..., [1, 0]]
         print(f"Permuted data to (N, H, W, C) - final shape: {self.X_data.shape}")
         
     def __len__(self):

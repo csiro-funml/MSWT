@@ -1,20 +1,11 @@
 data:
-  datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_train.npy'
-  normalizer_path: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/normstats.pt'
-  name: SW2D
-  total_num: 4000
-  offset: 0
-  n_sample: 100
-  time_interval: 1
-  nx: 96
-  ny: 192
-  nt: 87
-  sub: 1
-  sub_t: 1
+  datapath: '/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater'
+  normalizer_path: '/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater/normstat.pt'
+  name: SW2D_Dedalus
+  nx: 256
+  ny: 128
   shuffle: True
-  S2: 96
-  T2: 88
-  grid_form: periodic
+  grid_form: spherical
   
 model:
   name: multiscale_wavelet2d_periodic
@@ -30,14 +21,14 @@ model:
 
 train:
   batchsize: 100
-  epochs: 10_000
-  milestones: [2_000, 4_000, 6_000, 8_000]
+  epochs: 500
+  milestones: [100, 200, 300, 400]
   base_lr: 0.001
   scheduler_gamma: 0.5
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_PDA/MSWT_periodic/
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/MSWT_spherical/
   save_name: MultiscaleWavelet2d_periodic-dim64-nlayers4.pt
   data_iter: 1
   eqn_iter: 0
