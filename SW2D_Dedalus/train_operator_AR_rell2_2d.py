@@ -110,7 +110,7 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     Grab a deterministic (x_t, x_{t+1}) pair from the test data without relying on
     the test loader's random timestep selection.
     """
-    sample = test_source[sample_idx]
+    sample = _get_base_dataset(test_source)[sample_idx]
     x = sample[0].to(device)
     y = sample[1].to(device)
     if grid is not None:
