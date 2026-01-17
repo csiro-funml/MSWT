@@ -9,16 +9,22 @@ import h5py
 from tqdm import tqdm
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
-def load_sw_data(datapath):
+def load_sw_data_split_and_save(datapath):
     data = np.load(os.path.join(datapath, 'sw2d_dataset.npz'))
     print(data)
     X_train, X_val, X_test, y_train, y_val, y_test = data['X_train'], data['X_val'], data['X_test'], data['Y_train'], data['Y_val'], data['Y_test']
-    print("X_train shape: ", X_train.shape)
-    print("X_val shape: ", X_val.shape)
-    print("X_test shape: ", X_test.shape)
+    print("X_train shape: ", X_train.shape) # (N, C, H, W)  (28720, 2, 256, 128)  # 80 realizations of 360 steps
+    print("X_val shape: ", X_val.shape) # (N, C, H, W)  # 10 realizations of 360 steps
+    print("X_test shape: ", X_test.shape) # (N, C, H, W)  # 10 realizations of 360 steps
     print("y_train shape: ", y_train.shape)
     print("y_val shape: ", y_val.shape)
     print("y_test shape: ", y_test.shape)
+
+    # save the training/ val /test set in separate npz files
+    np.savez(os.path.join(datapath, 'sw2d_train_dataset.npz'), X_train=X_train, y_train=y_train)
+    np.savez(os.path.join(datapath, 'sw2d_val_dataset.npz'), X_val=X_val, y_val=y_val)
+    np.savez(os.path.join(datapath, 'sw2d_test_dataset.npz'), X_test=X_test, y_test=y_test)
+    print("Training/ val /test set saved to: ", os.path.join(datapath, 'sw2d_train_dataset.npz'), os.path.join(datapath, 'sw2d_val_dataset.npz'), os.path.join(datapath, 'sw2d_test_dataset.npz'))
     # print("data shape: ", data.shape)
     return data
 
@@ -130,7 +136,7 @@ if __name__ == '__main__':
     #                     n_samples=100, offset=0,
     #                     train=True)
     # print(data.shape)
-    load_sw_data('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
+    load_sw_data_split_and_save('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
     # data = SWLoader2D(datapath1='pdearena/sw2d_pda/train/sw2d_pda_data_train.npy',
     #                     nx=96, ny=192, nt=87, nc=2,
     #                     sub=1, sub_t=1,
