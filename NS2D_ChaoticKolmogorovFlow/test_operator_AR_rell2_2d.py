@@ -214,8 +214,9 @@ def compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, mod
         _, Zk_true = compute_enstropy_torch(truth_frame.float(), 2 * math.pi, 2 * math.pi)
         _, Zk_pred = compute_enstropy_torch(pred_frame.float(), 2 * math.pi, 2 * math.pi)
         
+        k_np = k_bins.detach().cpu().numpy()
         valid_mask = range(1, min(len(k_np), truth_frame.shape[-1] // 2))
-        k_np = k_bins.detach().cpu().numpy()[valid_mask]
+        k_np = k_np[valid_mask]
         Ek_true_np = Ek_true.detach().cpu().numpy()[valid_mask]
         Ek_pred_np = Ek_pred.detach().cpu().numpy()[valid_mask]
         Zk_true_np = Zk_true[valid_mask]
@@ -360,12 +361,13 @@ def main():
     time_indices = [0, 29, truth_seq.shape[-1] - 1]
     save_path = save_ground_truth_and_predictions(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
-    temp = np.load(save_path)
+    
+    # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
+    save_path_energy = compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    temp = np.load(save_path_energy)
     for key in temp.keys():
         print(key, temp[key].shape)
-
-    # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
-    compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    # exit(-1)
 
 
 
