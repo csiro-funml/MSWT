@@ -289,7 +289,7 @@ def train_2d(args, config):
                             train=True,
                             save_normalizer_path=data_config.get('normalizer_path', None)
                         )
-        S_data = full_dataset.S
+        S_data = train_set.S
     
     
     # split dataset into training and validation sets by test_ratio
