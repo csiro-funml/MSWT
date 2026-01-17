@@ -35,6 +35,7 @@ train:
   save_name: PDERefiner2d-dim16-nblocks3.pt
   data_iter: 1
   eqn_iter: 0
+  eval_step: 10
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pino_ns2d/NS_Re500_s256_T100_test.npy'

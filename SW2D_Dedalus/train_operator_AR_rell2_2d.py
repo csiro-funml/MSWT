@@ -110,20 +110,9 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     Grab a deterministic (x_t, x_{t+1}) pair from the test data without relying on
     the test loader's random timestep selection.
     """
-    base_ds = _get_base_dataset(test_source)
-    if not hasattr(base_ds, 'data'):
-        return None, None
-    data = base_ds.data
-    if sample_idx >= data.shape[0]:
-        sample_idx = data.shape[0] - 1
-    max_t = data.shape[-2] - 1
-    if max_t <= 0:
-        return None, None
-    t_idx = min(t_idx, max_t - 1)
-
-    sample = data[sample_idx]
-    x = sample[..., t_idx, :].to(device)
-    y = sample[..., t_idx + 1, :].to(device)
+    sample = test_source[sample_idx]
+    x = sample[0].to(device)
+    y = sample[1].to(device)
     if grid is not None:
         grid_b = grid.to(device)
         if grid_b.dim() == 3:
@@ -558,6 +547,7 @@ def train_2d(args, config):
                         config,
                         device,
                         grid,
+                        eval_step=config['train']['eval_step'],
                         test_loader=test_loader,
                         writer=writer,
                         model_name=model_name,

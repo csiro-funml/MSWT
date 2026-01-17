@@ -33,6 +33,7 @@ train:
   save_name: MultiscaleWavelet2d_patching-dim64-nlayers3.pt
   data_iter: 1
   eqn_iter: 0
+  eval_step: 10
 
 
 test_data:

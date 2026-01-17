@@ -29,6 +29,7 @@ train:
   save_name: MultiscaleWavelet2d-dim64-nlayers4.pt
   data_iter: 1
   eqn_iter: 0
+  eval_step: 10
 
 
 test_data:

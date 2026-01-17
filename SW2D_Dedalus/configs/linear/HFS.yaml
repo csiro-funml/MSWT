@@ -26,6 +26,7 @@ train:
   save_name: HFS2d-small-nlayer5-bottleneck512.pt
   data_iter: 1
   eqn_iter: 0
+  eval_step: 10
 
 
 test_data:

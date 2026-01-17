@@ -29,6 +29,7 @@ train:
   save_name: FNO2d-mode16-dim64-layer4.pt
   data_iter: 1
   eqn_iter: 0
+  eval_step: 10
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'

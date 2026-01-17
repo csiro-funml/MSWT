@@ -37,6 +37,7 @@ train:
   save_name: SAOT2d-nlayers5-nhidden256.pt
   data_iter: 1
   eqn_iter: 0
+  eval_step: 10
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'
