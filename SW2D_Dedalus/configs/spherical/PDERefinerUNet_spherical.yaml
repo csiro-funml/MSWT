@@ -8,18 +8,15 @@ data:
   grid_form: spherical
 
 model:
-  name: multiscale_wavelet2d_periodic_patching
-  wave: haar
-  dims: [64, 64, 128, 512]
-  in_chans: 6
-  out_chans: 2
-  use_efficient_attention: True
-  efficient_layers: [0, 1, 2]
-  add_periodic_grid: false
-  local_attention_size: 8
-  external_grid: false
-  patch_size: 3
-
+  name: refiner_unet
+  time_history: 0
+  time_future: 1
+  in_channels: 5
+  out_channels: 2
+  activation: 'gelu'
+  hidden_channels: 16
+  n_blocks: 3
+  
 
 train:
   batchsize: 100
@@ -30,11 +27,11 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/MSWT_patching_spherical/
-  save_name: MultiscaleWavelet2d_periodic_patching-dim64-nlayers4.pt
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/PDERefinerUNet2d_spherical/
+  save_name: PDERefinerUNet2d-dim16-nblocks3.pt
   data_iter: 1
   eqn_iter: 0
-  num_workers: 16
+
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'

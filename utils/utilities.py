@@ -603,7 +603,19 @@ def torch2dgrid_2d(num_x, num_y, form='linear', device=None, dtype=None):
             torch.cos(two_pi * yy),
         ]
         mesh =torch.stack(feats, dim=-1)
-    else:
+    elif form == 'spherical':
+        nlat, nlon = num_x, num_y
+        # latitude: [-pi/2, pi/2], longitude: [0, 2pi)
+        lat = torch.linspace(-0.5 * math.pi, 0.5 * math.pi, nlat, device=device, dtype=dtype)
+        lon = torch.linspace(0.0, 2.0 * math.pi, nlon, device=device, dtype=dtype)
+
+        # meshgrid: lat varies along axis 0, lon along axis 1
+        phi, lam = torch.meshgrid(lat, lon, indexing="ij")
+        x = torch.cos(phi) * torch.cos(lam)
+        y = torch.cos(phi) * torch.sin(lam)
+        z = torch.sin(phi)
+        mesh = torch.stack([x, y, z], dim=-1)  # (nlat, nlon, 3)
+    else:    
         raise ValueError(f"Invalid form: {form}")
     return mesh
 

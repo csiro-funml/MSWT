@@ -9,7 +9,7 @@ data:
 
 model:
   name: saot
-  space_dim: 4
+  space_dim: 3
   n_layers: 5
   n_hidden: 256
   dropout: 0.0

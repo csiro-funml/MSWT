@@ -8,12 +8,16 @@ data:
   grid_form: spherical
 
 model:
-  name: refiner_unet
-  time_history: 0
+  name: pderefiner
+  basemodel_name: Unetmod-64
+  time_history: 1
   time_future: 1
-  in_channels: 6
+  n_spatial_dim: 2
+  in_channels: 5
   out_channels: 2
+  trajlen: 64
   activation: 'gelu'
+  criterion: 'mse'
   hidden_channels: 16
   n_blocks: 3
   
@@ -27,11 +31,10 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/PDERefinerUNet2d_spherical/
-  save_name: PDERefinerUNet2d-dim16-nblocks3.pt
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/PDERefiner2d_spherical/
+  save_name: PDERefiner2d-dim16-nblocks3.pt
   data_iter: 1
   eqn_iter: 0
-
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'

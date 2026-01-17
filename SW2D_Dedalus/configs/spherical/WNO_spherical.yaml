@@ -8,13 +8,11 @@ data:
   grid_form: spherical
 
 model:
-  layers: [64, 64, 64, 64, 64, 64]
-  modes1: [16, 16, 16, 16]
-  modes2: [16, 16, 16, 16]
-  fc_dim: 128
-  act: gelu
-  in_dim: 6
-  out_dim: 2
+  name: wno
+  in_chans: 5
+  out_chans: 2
+  width: 64
+  level: 3
 
 train:
   batchsize: 100
@@ -25,10 +23,11 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/FNO2d_spherical/
-  save_name: FNO2d-mode16-dim64-layer4.pt
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/WNO2d_spherical/
+  save_name: WNO2d-width64-level3.pt
   data_iter: 1
   eqn_iter: 0
+
 
 test_data:
   datapath: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/sw2d_pda_data_val.npy'
