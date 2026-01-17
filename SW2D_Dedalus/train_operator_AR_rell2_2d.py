@@ -172,6 +172,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             ramp = (t - warmup_frac) / (1.0 - warmup_frac)
             lambda_amp = lambda_amp_final * ramp
         for x, y in train_loader:
+            break
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
