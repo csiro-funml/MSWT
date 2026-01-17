@@ -30,93 +30,104 @@ def load_sw_data_split_and_save(datapath):
 
 
 class SWLoader2D(Dataset):
-    def __init__(self, datapath1,
-                 nx, ny, nt,
-                 datapath2=None, sub=1, sub_t=1,
-                 N=None, t_interval=1.0,
-                 n_samples=None, offset=0,
-                 train=True,
-                 normalizer_path=None):
+    def __init__(self, datapath, state='train', train=True, normalizer_path=None, save_normalizer_path=None):
         '''
-        Load data from npy and reshape to (N, X, Y, T, C)
+        Load data from npz files (sw2d_train_dataset.npz, sw2d_val_dataset.npz, sw2d_test_dataset.npz)
         Args:
-            datapath1: path to data
-            nx:
-            ny:
-            nt:
-            nc:
-            datapath2: path to second part of data, default None
-            sub:
-            sub_t:
-            N:
-            t_interval:
-            n_samples: number of trajectories to keep (defaults to N)
-            offset: starting index for slicing
+            datapath: path to directory containing the npz files
+            state: 'train', 'val', or 'test'
+            train: if True, data is for training (random sampling), else deterministic
+            normalizer_path: path to saved normalizer file (required for val/test, optional for train)
+            save_normalizer_path: path to save normalizer after computing from training set
         '''
-        S1 = nx // sub
-        S2 = ny // sub
-        self.S = (S1, S2)
-        self.T = (int(nt * t_interval) // sub_t + 1, 1)
-        self.time_scale = t_interval
         self.train = train
-        data1 = np.load(datapath1)
-        data1 = torch.tensor(data1, dtype=torch.float)[..., ::sub, ::sub, ::sub_t, :]
+        self.state = state
+        
+        # Load data from npz file
+        npz_filename = f'sw2d_{state}_dataset.npz'
+        npz_path = os.path.join(datapath, npz_filename)
+        
+        if not os.path.exists(npz_path):
+            raise FileNotFoundError(f"Dataset file not found: {npz_path}")
+        
+        data_dict = np.load(npz_path)
+        # Keys match the state: X_train/y_train for train, X_val/y_val for val, X_test/y_test for test
+        X_key = f'X_{state}'
+        y_key = f'y_{state}'
+        
+        # Fallback: try to find any X/y keys if state-specific ones don't exist
+        if X_key not in data_dict or y_key not in data_dict:
+            keys = list(data_dict.keys())
+            X_key = [k for k in keys if k.startswith('X')][0] if any(k.startswith('X') for k in keys) else None
+            y_key = [k for k in keys if k.startswith('y')][0] if any(k.startswith('y') for k in keys) else None
+            if X_key is None or y_key is None:
+                raise KeyError(f"Could not find X and y keys in {npz_path}. Expected X_{state}/y_{state}. Available keys: {keys}")
+        
+        X_data = data_dict[X_key]
+        y_data = data_dict[y_key]
+        
+        # X_data and y_data are (N, C, H, W) = (N, 2, 256, 128)
+        # Stack X and y: (N, C, H, W) -> (N*2, C, H, W) if we want pairs, or just use X and y separately
+        # For now, we'll use X as input and y as target
+        self.X_data = torch.tensor(X_data, dtype=torch.float32)  # (N, C, H, W)
+        self.y_data = torch.tensor(y_data, dtype=torch.float32)  # (N, C, H, W)
+        self.S = (self.X_data.shape[-2], self.X_data.shape[-1]) # (H, W)
+        
+        self.num_samples = self.X_data.shape[0]
+        print(f"Loaded {state} dataset: {self.num_samples} samples, shape: {self.X_data.shape}")
+        
+        # Normalize the data
+        self.normalize(normalizer_path, save_normalizer_path)
+        print(f"Normalized data - mean shape: {self.mean.shape}, std shape: {self.std.shape}")
 
-        if datapath2 is not None:
-            data2 = np.load(datapath2)
-            data2 = torch.tensor(data2, dtype=torch.float)[..., ::sub, ::sub, ::sub_t, :]
-        if t_interval == 0.5:
-            data1 = self.extract(data1)
-            if datapath2 is not None:
-                data2 = self.extract(data2)
-
-        if datapath2 is not None:
-            self.data = torch.cat((data1, data2), dim=0)
-        else:
-            self.data = data1
-        total = self.data.shape[0]
-        if offset >= total:
-            raise ValueError(f'Offset {offset} exceeds dataset size {total}.')
-        n_samples = total
-
-        start = max(0, offset)
-        end = total if n_samples is None else min(total, start + n_samples)
-        self.data = self.data[start:end] # (N, X, Y, T)
-        self.num_samples = self.data.shape[0]
-        self.max_time_index = self.data.shape[-2] - 1
-
-        self.normalize(normalizer_path)
-        print("normalized data", "mean shape: ", self.mean.shape, "std shape: ", self.std.shape)
-
-    def normalize(self, normalizer_path=None):
-        #todo: will load the normalizer from the saved path if normalizer_path is not None
-        # if stored, the shape is (1, H, W) for different channels, need to concatenate them to (1, H, W, C)
-        if normalizer_path is not None:
+    def normalize(self, normalizer_path=None, save_normalizer_path=None):
+        '''
+        Normalize data with mean and std of shape (C, H, W) = (2, 256, 128)
+        For training set: compute and save normalizer
+        For val/test sets: load saved normalizer
+        '''
+        if normalizer_path is not None and os.path.exists(normalizer_path):
+            # Load saved normalizer
             normalizer = torch.load(normalizer_path)
-            vars = ['vor', 'pres']
-            mean = []
-            std = []
-            for var in vars:
-                mean.append(normalizer[var]['mean'].squeeze()) # (1, H, W)
-                std.append(normalizer[var]['std'].squeeze()) # (1, H, W)
-            mean = torch.stack(mean, dim=0) # (C, H, W)
-            std = torch.stack(std, dim=0) # (C, H, W)
-            self.mean = mean.permute(1, 2, 0)[None, :, :, None, :] # (C, H, W) -> (1, H, W, 1, C)
-            self.std = std.permute(1, 2, 0)[None, :, :, None, :] # (C, H, W) -> (1, H, W, 1, C)
+            self.mean = normalizer['mean']  # (C, H, W)
+            self.std = normalizer['std']    # (C, H, W)
+            print(f"Loaded normalizer from {normalizer_path}")
+        elif self.state == 'train':
+            # Compute normalizer from training data
+            # Compute mean and std over all samples (N dimension), keeping (C, H, W)
+            self.mean = self.X_data.mean(dim=0)  # (C, H, W)
+            self.std = self.X_data.std(dim=0)    # (C, H, W)
+            print(f"Computed normalizer from training data - mean shape: {self.mean.shape}, std shape: {self.std.shape}")
             
+            # Save normalizer if path provided
+            if save_normalizer_path is not None:
+                os.makedirs(os.path.dirname(save_normalizer_path) if os.path.dirname(save_normalizer_path) else '.', exist_ok=True)
+                torch.save({
+                    'mean': self.mean,
+                    'std': self.std
+                }, save_normalizer_path)
+                print(f"Saved normalizer to {save_normalizer_path}")
         else:
-            self.mean = self.data.mean()
-            self.std = self.data.std()
-        self.data = (self.data - self.mean) / self.std # average over spatial and temporal dimensions
-        return self.data
-
+            raise ValueError(f"normalizer_path must be provided for {self.state} set")
+        
+        # Normalize the data: (N, C, H, W) with (C, H, W) mean/std
+        self.X_data = (self.X_data - self.mean) / (self.std + 1e-8)
+        self.y_data = (self.y_data - self.mean) / (self.std + 1e-8)
+        
+        # Permute data once here: (N, C, H, W) -> (N, H, W, C) for easier access in __getitem__
+        self.X_data = self.X_data.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
+        self.y_data = self.y_data.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
+        print(f"Permuted data to (N, H, W, C) - final shape: {self.X_data.shape}")
+        
     def __len__(self):
         return self.num_samples
 
     def __getitem__(self, idx):
-        sample = self.data[idx]
-        t = np.random.randint(0, self.max_time_index) if self.train else  0
-        return sample[..., t, :], sample[..., t + 1, :]
+        '''
+        Returns input and target with shape (H, W, C)
+        '''
+        # Data is already in (N, H, W, C) format, so just return slices
+        return self.X_data[idx], self.y_data[idx]  # (H, W, C), (H, W, C)
 
 
 

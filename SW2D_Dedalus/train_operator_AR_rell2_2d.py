@@ -17,11 +17,6 @@ from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
 from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention, MSWT_DeNoAttn_StackLayers
 from models.periodic_mswt import PeriodicMultiscaleWaveletTransformer2D, PeriodicMSWT2D_Patching
-from models.periodic_mswt_bases import (
-    PeriodicMultiscaleWaveletTransformer2D_DB2,
-    PeriodicMultiscaleWaveletTransformer2D_DB4,
-    PeriodicMultiscaleWaveletTransformer2D_SYM4,
-)
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
@@ -247,9 +242,9 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
     """Create a random dataset that mimics NSLoader/NSLoader2D output."""
     sub = data_config.get('sub', 1)
     sub_t = data_config.get('sub_t', 1)
-    nx = data_config.get('nx', 96)
-    ny = data_config.get('ny', 192)
-    nt = data_config.get('nt', 87)
+    nx = data_config.get('nx', 256)
+    ny = data_config.get('ny', 128)
+    nt = data_config.get('nt', 10)
     nc = data_config.get('nc', 2)
     time_scale = data_config.get('time_interval', 1.0)
     S1 = nx // sub
@@ -288,16 +283,12 @@ def train_2d(args, config):
         full_dataset, S_data, _ = build_synthetic_dataset(
             data_config, args.synthetic_samples, step_ahead=True)
     else:
-        full_dataset = SWLoader2D(datapath1=data_config['datapath'],
-                                    nx=data_config['nx'], 
-                                    ny=data_config['ny'],
-                                    nt=data_config['nt'],
-                                    sub=data_config['sub'], sub_t=data_config['sub_t'],
-                                    N=data_config['total_num'],
-                                    t_interval=data_config['time_interval'],
-                                    n_samples=data_config.get('n_sample', data_config.get('n_samples', data_config['total_num'])),
-                                    offset=data_config.get('offset', 0),
-                                    normalizer_path=data_config.get('normalizer_path', None))
+        train_set = SWLoader2D(
+                            datapath=data_config['datapath'],
+                            state='train',
+                            train=True,
+                            save_normalizer_path=data_config.get('normalizer_path', None)
+                        )
         S_data = full_dataset.S
     
     
@@ -318,13 +309,19 @@ def train_2d(args, config):
                                  shuffle=False,
                                  num_workers=config['train'].get('num_workers', 1))
     else:
-        train_set = full_dataset
-        test_loader = None
+        test_set = SWLoader2D(datapath=data_config['datapath'],
+                                state='val',
+                                train=False,
+                                normalizer_path=data_config.get('normalizer_path', None))
+        test_loader = DataLoader(test_set,
+                                 batch_size=config['train']['batchsize'],
+                                 shuffle=False,
+                                 num_workers=config['train'].get('num_workers', 1))
 
     train_loader = DataLoader(train_set,
                               batch_size=config['train']['batchsize'],
                               shuffle=data_config['shuffle'],
-                              num_workers=config['train'].get('num_workers', 1))
+                              num_workers=config['train'].get('num_workers', 16))
     # create model
     print("device: ", device)
     model_cfg = config['model']
