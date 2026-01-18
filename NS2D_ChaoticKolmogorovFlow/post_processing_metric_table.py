@@ -305,13 +305,23 @@ def plot_error_energy():
         global_min = float('inf')
         error_max = float('-inf')
         error_min = float('inf')
+        truth = None  # Will be set once from first model
+        k_np = None  # Will be set once from first model
+        spectral_true = None  # Will be set once from first model
+        
         for i, model_name in enumerate(model_name_list):
-            pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
+            pred, truth_i, error, k_np_i, spectral_pred, spectral_true_i, enstropy_pred, enstropy_true_i, l2_err = \
             load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
+            
+            # Use truth from first model (should be same for all models)
+            if truth is None:
+                truth = truth_i
+                k_np = k_np_i
+                spectral_true = spectral_true_i
             
             pred_dict[model_name] = pred
             error_dict[model_name] = error
-            k_np_dict[model_name] = k_np
+            k_np_dict[model_name] = k_np_i
             l2_err_dict[model_name] = l2_err
             spectral_pred_dict[model_name] = spectral_pred
             enstropy_pred_dict[model_name] = enstropy_pred
@@ -329,6 +339,21 @@ def plot_error_energy():
         global_min = -global_max # make it symmetrical around zero
         error_max = max(error_max, np.abs(error_min))
         error_min = -error_max # make it symmetrical around zero
+        
+        # Debug: Verify error computation and check if predictions actually differ from truth
+        # This helps understand why predictions might look similar despite large errors
+        print(f"\nDebug for step {step}:")
+        print(f"Truth range: [{truth.min():.2f}, {truth.max():.2f}]")
+        for model_name in model_name_list:
+            pred = pred_dict[model_name]
+            err = error_dict[model_name]
+            computed_error = pred - truth
+            # Check if saved error matches computed error
+            error_diff = np.abs(err - computed_error).max()
+            print(f"{model_name}: pred range [{pred.min():.2f}, {pred.max():.2f}], "
+                  f"error range [{err.min():.2f}, {err.max():.2f}], "
+                  f"L2={l2_err_dict[model_name]:.4f}, "
+                  f"max|error_diff|={error_diff:.2e}")
         
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
