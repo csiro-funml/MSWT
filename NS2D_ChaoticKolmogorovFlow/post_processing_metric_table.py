@@ -375,7 +375,7 @@ def plot_error_energy():
         cbar.set_label('Error', fontsize=10, rotation=90, labelpad=10)
         # Set ticks on the right side
         cbar.ax.yaxis.set_label_position('right')
-        cbar.ax.yaxis.tick_right()  
+        cbar.ax.yaxis.tick_left()  
         
         ref_ax = axes[0, 0] 
         ax = axes[1, 0]
