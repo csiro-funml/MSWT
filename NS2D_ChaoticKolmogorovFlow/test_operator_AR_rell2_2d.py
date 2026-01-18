@@ -67,12 +67,14 @@ def autoregressive_predict(model, sequences, device, grid):
     S = sequences.shape[1]
     T = sequences.shape[-1]
     total_pred = []
+    initial_condition = []
     loader = DataLoader(TensorDataset(sequences), batch_size=1, shuffle=False)
     with torch.no_grad():
         for (seq,) in loader:
             seq = seq.to(device)  # (1, S, S, T)
             preds = []  # predicted rollout
             prev = seq[..., 0]  # initial condition
+            initial_condition.append(prev)
             for t in range(T - 1):
                 x_in = torch.cat((prev.unsqueeze(-1), grid.unsqueeze(0).expand(prev.shape[0], -1, -1, -1)), dim=-1)
                 if isinstance(model, PDERefiner):
@@ -92,8 +94,9 @@ def autoregressive_predict(model, sequences, device, grid):
             pred_seq = torch.stack(preds, dim=-1)       # (1, S, S, T-1)
             total_pred.append(pred_seq)
         total_pred = torch.stack(total_pred, dim=0)
-    print("total_pred shape: ", total_pred.shape, "sequences.shape: ", sequences.shape)
-    return total_pred.squeeze(1), sequences[..., 1:].to(device)
+        initial_condition = torch.stack(initial_condition, dim=0)
+    print("total_pred shape: ", total_pred.shape, "sequences.shape: ", sequences.shape, "initial_condition shape: ", initial_condition.shape)
+    return initial_condition, total_pred.squeeze(1), sequences[..., 1:].to(device)
 
 
 def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
@@ -170,7 +173,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     return metrics_dict
 
 
-def save_ground_truth_and_predictions(truth_seq, pred_seq, time_indices, save_dir, model_name, seed):
+def save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed):
     """
     truth_seq: (B, H, W, T)
     pred_seq: (B, H, W, T)
@@ -179,12 +182,13 @@ def save_ground_truth_and_predictions(truth_seq, pred_seq, time_indices, save_di
     """
     save_dir = os.path.join(save_dir, 'saved_plots')
     os.makedirs(save_dir, exist_ok=True)
+    initial_condition = initial_condition.detach().cpu()
     for t in time_indices:
         truth_seq_t = truth_seq[0,..., t].detach().cpu()
         pred_seq_t = pred_seq[0,..., t].detach().cpu()
         error_seq_t = pred_seq_t - truth_seq_t
         save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_prediction_t{t+1}.npz')
-        np.savez(save_path, truth_seq_t=truth_seq_t, pred_seq_t=pred_seq_t, error_seq_t=error_seq_t)
+        np.savez(save_path, initial_condition=initial_condition, truth_seq_t=truth_seq_t, pred_seq_t=pred_seq_t, error_seq_t=error_seq_t)
         print(f"Saved ground truth and predictions to {save_path}")
     return save_path
 
@@ -351,7 +355,7 @@ def main():
 
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
-    pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
+    initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
     
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
     
@@ -359,7 +363,7 @@ def main():
     
     # for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
     time_indices = [0, 29, truth_seq.shape[-1] - 1]
-    save_path = save_ground_truth_and_predictions(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
     
     # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
