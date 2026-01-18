@@ -63,7 +63,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     # pderesidual = PDEResidualLoss()
 
 
-    time_idx = [0, truth_seq.shape[-2]//2, truth_seq.shape[-2] - 1]
+    time_idx = [0, 40, truth_seq.shape[-2] - 1]
     metrics_name = ['l2', 'SMLR', 'EMLR', 'SMAE', 'EMAE']
     metrics_dict = {}
     
@@ -369,7 +369,7 @@ def main():
 
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
 
-    time_indices = [0, truth_seq.shape[-2]//2, truth_seq.shape[-2] - 1]
+    time_indices = [0, 40, truth_seq.shape[-2] - 1]
     save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
     
