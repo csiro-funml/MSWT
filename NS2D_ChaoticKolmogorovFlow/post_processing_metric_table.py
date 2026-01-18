@@ -294,7 +294,7 @@ def plot_error_energy():
     seed = 42
     grid_form = 'linear'
     for step in steps:
-        fig, axes = plt.subplots(2, 6, figsize=(12, 8))
+        fig, axes = plt.subplots(2, 6, figsize=(12, 8), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         pred_dict = {}
         error_dict = {}
         l2_err_dict = {}
@@ -338,11 +338,23 @@ def plot_error_energy():
         
         # plot the spectral energy first:
         ax = axes[1, 0]
-        im = ax.plot(k_np, spectral_true, label='Ground Truth', linewidth=1)
+        im = ax.loglog(k_np, spectral_true, label='Ground Truth', linewidth=1)
         ax.set_xlabel('Wavenumber k')
         ax.set_ylabel('Energy E(k)')
         ax.set_title('Spectral Energy')
         ax.legend()
+        # Make the loglog plot subplot have the same box size as other subplots
+        # Get the position of a reference imshow subplot to match its box aspect
+        ref_ax = axes[0, 1] if len(model_name_list) > 0 else axes[0, 0]
+        try:
+            # Try to match box aspect (matplotlib 3.5+)
+            box_aspect = ref_ax.get_box_aspect()
+            if box_aspect is not None:
+                ax.set_box_aspect(box_aspect)
+        except (AttributeError, TypeError):
+            # For older matplotlib versions or if box_aspect is None, 
+            # ensure equal aspect ratio by matching position/bbox
+            pass
         
         
         for i, model_name in enumerate(model_name_list):
@@ -354,15 +366,22 @@ def plot_error_energy():
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
             ax = axes[1, i+1]
-            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_max, vmax=error_min)
             ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.4f})')
             ax.set_xticks([])
             ax.set_yticks([])
             
+            ax = axes[1, 0]
+            im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=1)
+            ax.set_xlabel('Wavenumber k')
+            ax.set_ylabel('Energy E(k)')
+            ax.set_title('Spectral Energy')
+            ax.legend()
         # set the colorbar at the bottom of the figure
         cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
         # cbar.set_label('Velocity')
-        plt.tight_layout()
+        # Adjust layout to ensure all subplots have equal size
+        plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
         
 
