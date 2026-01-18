@@ -241,10 +241,10 @@ def aggregate_metric_table(grid_form='linear'):
 
 
 
-def load_pred_truth_error_spectral(model_name, seed, step, save_folder, grid_form):
+def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, step, save_folder, grid_form):
     
-    pred_path = os.path.join(save_folder, f'{model_name}_{grid_form}/saved_plots', f'{model_name}_seed{seed}_prediction_t{step}.npz')
-    energy_path = os.path.join(save_folder, f'{model_name}_{grid_form}/saved_plots', f'{model_name}_seed{seed}_energy_spectra_t{step}.npz')
+    pred_path = os.path.join(save_folder, f'{model_folder_name}_{grid_form}/saved_plots', f'{saved_model_name}_seed{seed}_prediction_t{step}.npz')
+    energy_path = os.path.join(save_folder, f'{model_folder_name}_{grid_form}/saved_plots', f'{saved_model_name}_seed{seed}_energy_spectra_t{step}.npz')
     
     pred_data = np.load(pred_path)
     pred = pred_data['pred_seq_t']
@@ -293,7 +293,8 @@ def plot_error_energy():
         spectral_pred_dict = {}
         enstropy_pred_dict = {}
         for i, model_name in enumerate(model_name_list):
-            pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true = load_pred_truth_error_spectral(saved_model_name_list[i], seed, step, save_folder, grid_form)
+            pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true = \
+            load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
             pred_dict[model_name] = pred
             error_dict[model_name] = error
             k_np_dict[model_name] = k_np
