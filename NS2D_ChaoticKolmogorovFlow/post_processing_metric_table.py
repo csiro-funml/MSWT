@@ -279,6 +279,7 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
 
 def plot_error_energy():
     import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
     # 2 rows ,6 columns
     # the first column is ground truth and energy plot,
     # from the secon column, shows the prediction and error plot
@@ -364,18 +365,17 @@ def plot_error_energy():
             ax.set_xticks([])
             ax.set_yticks([])
             
-        # add colorbar of error min and error max on the left side of axes[1, 0]
-        # Position colorbar on the left side with wider bar and more ticks
-        # fraction: width of colorbar as fraction of axes (default 0.15, smaller = narrower)
-        # pad: spacing between colorbar and axes (default 0.15)
-        # aspect: height/width ratio for vertical colorbar (higher = taller/thinner, lower = shorter/wider)
-        # shrink: scale the length of the colorbar (default 1.0, <1 makes it shorter)
-        # To make wider: increase fraction OR decrease aspect
-        cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.1, pad=0.04, location='right', aspect=15, shrink=0.8)
-        cbar.set_label('Error', fontsize=10)
-        # Move label to the right side of colorbar (since it's on the right)
+        # add colorbar of error min and max centered inside axes[1, 0]
+        # Position colorbar in the center-right of the subplot to avoid blocking adjacent axes
+        # Using inset_axes to place colorbar inside the plot area
+
+        cbar_ax = inset_axes(axes[1, 0], width="4%", height="50%", loc='center',
+                             borderpad=0)
+        cbar = plt.colorbar(im, cax=cbar_ax, aspect=15)
+        cbar.set_label('Error', fontsize=10, rotation=90, labelpad=10)
+        # Set ticks on the right side
         cbar.ax.yaxis.set_label_position('right')
-        cbar.ax.yaxis.tick_right()
+        cbar.ax.yaxis.tick_right()  
         
         ref_ax = axes[0, 0] 
         ax = axes[1, 0]
