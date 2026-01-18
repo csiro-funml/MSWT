@@ -360,7 +360,7 @@ def plot_error_energy():
             ax = axes[1, i+1]
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'Error (Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10)
+            ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10)
             ax.set_xticks([])
             ax.set_yticks([])
             
