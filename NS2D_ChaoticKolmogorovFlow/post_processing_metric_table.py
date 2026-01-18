@@ -335,85 +335,94 @@ def plot_error_energy():
         # global_error_min = min(error_dict.values())
     #     global_error_max = max(error_dict.values())
         
-        global_max = max(global_max, np.abs(global_min))
-        global_min = -global_max # make it symmetrical around zero
-        error_max = max(error_max, np.abs(error_min))
-        error_min = -error_max # make it symmetrical around zero
-        
-        # Debug: Verify error computation and check if predictions actually differ from truth
-        # This helps understand why predictions might look similar despite large errors
-        print(f"\nDebug for step {step}:")
-        print(f"Truth range: [{truth.min():.2f}, {truth.max():.2f}]")
-        for model_name in model_name_list:
-            pred = pred_dict[model_name]
-            err = error_dict[model_name]
-            computed_error = pred - truth
-            # Check if saved error matches computed error
-            error_diff = np.abs(err - computed_error).max()
-            print(f"{model_name}: pred range [{pred.min():.2f}, {pred.max():.2f}], "
-                  f"error range [{err.min():.2f}, {err.max():.2f}], "
-                  f"L2={l2_err_dict[model_name]:.4f}, "
-                  f"max|error_diff|={error_diff:.2e}")
-        
-        # plot the truth first at axes [0, 0]
-        ax = axes[0, 0]
-        im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-        ax.set_title('Ground Truth')
-        ax.set_xticks([])
-        ax.set_yticks([])
-        
-        # plot the spectral energy first:
-        ax = axes[1, 0]
-        im = ax.loglog(k_np, spectral_true, label='Ground Truth', linewidth=1)
-        ax.set_xlabel('Wavenumber k')
-        ax.set_ylabel('Energy E(k)')
-        ax.set_title('Spectral Energy')
-        ax.legend()
-        # Make the loglog plot subplot have the same box size as other subplots
-        # Get the position of a reference imshow subplot to match its box aspect
-        
-        
-        for i, model_name in enumerate(model_name_list):
-            ax = axes[0, i+1]
-            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-            ax.set_title(f'{plot_model_name_list[i]}')
-            ax.set_xticks([])
-            ax.set_yticks([])
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
-            ax = axes[1, i+1]
-            im = ax.imshow(pred_dict[model_name]-truth, cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.4f})')
-            ax.set_xticks([])
-            ax.set_yticks([])
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            
-            ax = axes[1, 0]
-            im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=0.5)
-            ax.set_xlabel('Wavenumber k')
-            ax.set_ylabel('Energy E(k)')
-            ax.set_title('Spectral Energy')
-            ax.legend()
-        # set the colorbar at the bottom of the figure
-        # cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
-        # cbar.set_label('Velocity')
-        # Adjust layout to ensure all subplots have equal size
+        fig, axes = plt.subplots(2, 2, gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         
-        ref_ax = axes[0, 0] 
-        ax = axes[1, 0]
-        try:
-            # Try to match box aspect (matplotlib 3.5+)
-            box_aspect = ref_ax.get_box_aspect()
-            if box_aspect is not None:
-                ax.set_box_aspect(box_aspect)
-        except (AttributeError, TypeError):
-            # For older matplotlib versions or if box_aspect is None, 
-            # ensure equal aspect ratio by matching position/bbox
-            pass
+        axes[0, 0].imshow(truth, cmap='RdBu_r', origin='lower')
+        axes[0, 0].set_title('Ground Truth')
+        axes[0, 0].set_xticks([])
+        axes[0, 0].set_yticks([])
         
-        plt.tight_layout(rect=[0, 0, 1, 1])
+        axes[1, 0].loglog(k_np, spectral_true, label='Ground Truth', linewidth=1)
+        axes[1, 0].set_xlabel('Wavenumber k')
+        axes[1, 0].set_ylabel('Energy E(k)')
+       
+
+        axes[0, 1].imshow(pred_dict['FNO'], cmap='RdBu_r', origin='lower')
+        axes[0, 1].set_title(f'{plot_model_name_list[0]}')
+        axes[0, 1].set_xticks([])
+        axes[0, 1].set_yticks([])
+        
+        axes[1, 1].imshow(pred_dict['FNO']-truth, cmap='RdBu_r', origin='lower')
+        axes[1, 1].set_title(f'(Rel $L^2$: {l2_err_dict['FNO']:.4f})')
+        axes[1, 1].set_xticks([])
+        axes[1, 1].set_yticks([])
+        
         plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
+        # global_max = max(global_max, np.abs(global_min))
+        # global_min = -global_max # make it symmetrical around zero
+        # error_max = max(error_max, np.abs(error_min))
+        # error_min = -error_max # make it symmetrical around zero
+        
+        # # plot the truth first at axes [0, 0]
+        # ax = axes[0, 0]
+        # im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        # ax.set_title('Ground Truth')
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        
+        # # plot the spectral energy first:
+        # ax = axes[1, 0]
+        # im = ax.loglog(k_np, spectral_true, label='Ground Truth', linewidth=1)
+        # ax.set_xlabel('Wavenumber k')
+        # ax.set_ylabel('Energy E(k)')
+        # ax.set_title('Spectral Energy')
+        # ax.legend()
+        # # Make the loglog plot subplot have the same box size as other subplots
+        # # Get the position of a reference imshow subplot to match its box aspect
+        
+        
+        # for i, model_name in enumerate(model_name_list):
+        #     ax = axes[0, i+1]
+        #     im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        #     ax.set_title(f'{plot_model_name_list[i]}')
+        #     ax.set_xticks([])
+        #     ax.set_yticks([])
+        #     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+        #     ax = axes[1, i+1]
+        #     im = ax.imshow(pred_dict[model_name]-truth, cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+        #     # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+        #     ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.4f})')
+        #     ax.set_xticks([])
+        #     ax.set_yticks([])
+        #     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            
+        #     ax = axes[1, 0]
+        #     im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=0.5)
+        #     ax.set_xlabel('Wavenumber k')
+        #     ax.set_ylabel('Energy E(k)')
+        #     ax.set_title('Spectral Energy')
+        #     ax.legend()
+        # # set the colorbar at the bottom of the figure
+        # # cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
+        # # cbar.set_label('Velocity')
+        # # Adjust layout to ensure all subplots have equal size
+        
+        # ref_ax = axes[0, 0] 
+        # ax = axes[1, 0]
+        # try:
+        #     # Try to match box aspect (matplotlib 3.5+)
+        #     box_aspect = ref_ax.get_box_aspect()
+        #     if box_aspect is not None:
+        #         ax.set_box_aspect(box_aspect)
+        # except (AttributeError, TypeError):
+        #     # For older matplotlib versions or if box_aspect is None, 
+        #     # ensure equal aspect ratio by matching position/bbox
+        #     pass
+        
+        # plt.tight_layout(rect=[0, 0, 1, 1])
+        # plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
         
 
     # pred_frame = pred[..., t_raw]
