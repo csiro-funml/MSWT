@@ -38,7 +38,7 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/MSWT_patching_periodic/
+  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/MSWT_patching2d_periodic/
   save_name: MultiscaleWavelet2d_periodic_patching-dim64-nlayers4.pt
   data_iter: 1
   eqn_iter: 0

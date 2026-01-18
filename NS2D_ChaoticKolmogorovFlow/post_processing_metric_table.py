@@ -177,6 +177,7 @@ def aggregate_metric_table(grid_form='linear'):
 
     model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
     renamed_name_list = ['FNO', 'Unet', 'WNO', 'SAOT', 'HFS', 'MSWT']
+    MSWT_patching_periodic
     
     seeds = [42, 43, 44, 45, 46]
     total_df_metric = pd.DataFrame()
@@ -239,18 +240,99 @@ def aggregate_metric_table(grid_form='linear'):
     avg_df.to_csv(os.path.join(save_folder, f'avg_evaluation_metrics_{grid_form}.csv'))
 
 
+
+
+def load_pred_truth_error_spectral(model_name, seed, step):
+    
+    return pred, truth, error, spectral, enstropy
+
+
 def plot_error_energy():
+    import matplotlib.pyplot as plt
     # 2 rows ,6 columns
     # the first column is ground truth and energy plot,
     # from the secon column, shows the prediction and error plot
     # generate the color map from below
     steps = [1, 30, 64]
     model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
+    seed = 42
+    for step in step:
+        fig, axes = plt.subplots(2, 6, figsize=(12, 8))
+        pred_dict = {}
+        error_dict = {}
+        spectral_dict = {}
+        enstropy_dict = {}
+        for model_name in model_name_list:
+            pred, truth, error, spectral, enstropy = load_pred_truth_error_spectral(model_name, seed, step)
+            pred_dict[model_name] = pred
+            error_dict[model_name] = error
+            spectral_dict[model_name] = spectral
+            enstropy_dict[model_name] = enstropy
+        
+        # I want to get the global error range and then plot
+        global_error_min = min(error_dict.values())
+        global_error_max = max(error_dict.values())
+        
+        
+        # plot the truth first at axes [0, 0]
+        ax = axes[0, 0]
+        im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=vmin, vmax=vmax)
+        
+
+    pred_frame = pred[..., t_raw]
+    truth_frame = truth[..., t_raw]
+    err_frame = pred_frame - truth_frame
+    truth_min = truth_frame.min().item()
+    truth_max = truth_frame.max().item()
+    abs_lim = max(abs(truth_min), abs(truth_max))
+    vmin = -abs_lim
+    vmax = abs_lim
+
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    titles = ['Truth', 'Prediction', 'Error']
+    data_to_plot = [truth_frame, pred_frame, err_frame]
+    for ax, title, data in zip(axes, titles, data_to_plot):
+        if title in ['Truth', 'Prediction']:
+            im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=vmin, vmax=vmax)
+        else:
+            err_abs = max(abs(data.min().item()), abs(data.max().item()), 1e-8)
+            im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=-err_abs, vmax=err_abs)
+        ax.set_title(f'{title} (T={t_raw})')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    pred_plot_path = os.path.join(pred_dir, f'ns_prediction_t{t_raw}.png')
+    fig.savefig(pred_plot_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+    # Spectral energy comparison
     
+    ux_pred, uy_pred = velocity_from_vorticity(pred_frame.float())
+    ux_true, uy_true = velocity_from_vorticity(truth_frame.float())
+    k_bins, Ek_pred = compute_spectra_torch(ux_pred, uy_pred, 2 * math.pi, 2 * math.pi)
+    _, Ek_true = compute_spectra_torch(ux_true, uy_true, 2 * math.pi, 2 * math.pi)
+
+    k_np = k_bins.cpu().numpy()
+    Ek_pred_np = Ek_pred.cpu().numpy()
+    Ek_true_np = Ek_true.cpu().numpy()
+
+    valid_mask = range(1, min(len(k_np), S_data // 2))
+    fig_spec, ax_spec = plt.subplots(1, 1, figsize=(6, 4))
+    ax_spec.loglog(k_np[valid_mask], Ek_true_np[valid_mask], label='Truth', linewidth=1)
+    ax_spec.loglog(k_np[valid_mask], Ek_pred_np[valid_mask], '--', label='Prediction', linewidth=1)
+    ax_spec.set_xlabel('Wavenumber k')
+    ax_spec.set_ylabel('Energy E(k)')
+    ax_spec.set_title(f'Spectral Energy (T={t_raw})')
+    ax_spec.grid(True, which='both', alpha=0.3)
+    ax_spec.legend()
+    spec_plot_path = os.path.join(spec_dir, f'ns_spectral_energy_t{t_raw}.png')
+    fig_spec.savefig(spec_plot_path, dpi=150, bbox_inches='tight')
+    plt.close(fig_spec)
     return 
 
 
 
 if __name__ == "__main__":
-    aggregate_metric_table(grid_form='linear')
+    # aggregate_metric_table(grid_form='linear')
     aggregate_metric_table(grid_form='periodic')
