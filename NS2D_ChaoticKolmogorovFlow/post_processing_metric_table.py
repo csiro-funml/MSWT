@@ -387,7 +387,7 @@ def plot_error_energy():
             ax.set_title(f'{plot_model_name_list[i]}')
             ax.set_xticks([])
             ax.set_yticks([])
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
             ax = axes[1, i+1]
             im = ax.imshow(pred_dict[model_name]-truth, cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
@@ -395,7 +395,7 @@ def plot_error_energy():
             ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.4f})')
             ax.set_xticks([])
             ax.set_yticks([])
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             
             # ax = axes[1, 0]
             # im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=0.5)
