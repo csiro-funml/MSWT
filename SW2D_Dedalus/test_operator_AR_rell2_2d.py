@@ -79,7 +79,7 @@ def autoregressive_predict(model, test_loader, device, grid):
     total_truth = torch.cat(total_truth, dim=0)[..., 0] # (N, H, W, T)
     initial_condition = torch.cat(initial_condition, dim=0)[..., 0] # (N, H, W)
     print("total_pred shape:", total_pred.shape, "total_truth shape:", total_truth.shape, "initial_condition shape:", initial_condition.shape)        
-    return initial_condition, pred_seq, truth_seq
+    return initial_condition, total_pred, total_truth
 
 
 def main():
@@ -227,10 +227,10 @@ def main():
     os.makedirs(pred_dir, exist_ok=True)
     time_indices = range(0, pred_seq.shape[-1], 10)
     for t_raw in time_indices:
-        print("t_raw:", t_raw)
+        # print("t_raw:", t_raw)
         pred_frame = pred_seq[0, ..., t_raw].cpu()
         truth_frame = truth_seq[0, ..., t_raw].cpu()
-        print("pred_frame shape:", pred_frame.shape, "truth_frame shape:", truth_frame.shape, "pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
+        # print("pred_frame shape:", pred_frame.shape, "truth_frame shape:", truth_frame.shape, "pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
         err_frame = pred_frame - truth_frame
         truth_min = truth_frame.min().item()
         truth_max = truth_frame.max().item()
