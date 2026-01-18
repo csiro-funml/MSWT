@@ -297,7 +297,7 @@ def plot_error_energy():
     seed = 42
     grid_form = 'linear'
     for step in steps:
-        fig, axes = plt.subplots(2, 6, figsize=(12, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 6, figsize=(12, 4), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         pred_dict = {}
         error_dict = {}
         l2_err_dict = {}
