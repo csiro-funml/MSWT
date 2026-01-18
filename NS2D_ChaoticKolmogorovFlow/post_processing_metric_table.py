@@ -294,7 +294,7 @@ def plot_error_energy():
     seed = 42
     grid_form = 'linear'
     for step in steps:
-        fig, axes = plt.subplots(2, 6, figsize=(12, 8), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 6, figsize=(12, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         pred_dict = {}
         error_dict = {}
         l2_err_dict = {}
@@ -315,6 +315,7 @@ def plot_error_energy():
             l2_err_dict[model_name] = l2_err
             spectral_pred_dict[model_name] = spectral_pred
             enstropy_pred_dict[model_name] = enstropy_pred
+            
             global_max = max(global_max, truth.max().item(), pred.max().item())
             global_min = min(global_min, truth.min().item(), pred.min().item())
             error_max = max(error_max, error.max().item())
@@ -324,9 +325,9 @@ def plot_error_energy():
         # global_error_min = min(error_dict.values())
     #     global_error_max = max(error_dict.values())
         
-        global_max = max(global_max, np.abs(global_max))
+        global_max = max(global_max, np.abs(global_min))
         global_min = -global_max # make it symmetrical around zero
-        error_max = max(error_max, np.abs(error_max))
+        error_max = max(error_max, np.abs(error_min))
         error_min = -error_max # make it symmetrical around zero
         
         # plot the truth first at axes [0, 0]
@@ -345,21 +346,11 @@ def plot_error_energy():
         ax.legend()
         # Make the loglog plot subplot have the same box size as other subplots
         # Get the position of a reference imshow subplot to match its box aspect
-        ref_ax = axes[0, 1] if len(model_name_list) > 0 else axes[0, 0]
-        try:
-            # Try to match box aspect (matplotlib 3.5+)
-            box_aspect = ref_ax.get_box_aspect()
-            if box_aspect is not None:
-                ax.set_box_aspect(box_aspect)
-        except (AttributeError, TypeError):
-            # For older matplotlib versions or if box_aspect is None, 
-            # ensure equal aspect ratio by matching position/bbox
-            pass
         
         
         for i, model_name in enumerate(model_name_list):
             ax = axes[0, i+1]
-            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower')
             ax.set_title(f'{plot_model_name_list[i]}')
             ax.set_xticks([])
             ax.set_yticks([])
@@ -381,6 +372,19 @@ def plot_error_energy():
         # cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
         # cbar.set_label('Velocity')
         # Adjust layout to ensure all subplots have equal size
+        
+        ref_ax = axes[0, 0] 
+        ax = axes[1, 0]
+        try:
+            # Try to match box aspect (matplotlib 3.5+)
+            box_aspect = ref_ax.get_box_aspect()
+            if box_aspect is not None:
+                ax.set_box_aspect(box_aspect)
+        except (AttributeError, TypeError):
+            # For older matplotlib versions or if box_aspect is None, 
+            # ensure equal aspect ratio by matching position/bbox
+            pass
+        
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
         
