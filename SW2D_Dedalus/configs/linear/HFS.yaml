@@ -6,7 +6,8 @@ data:
   ny: 128
   shuffle: True
   grid_form: linear
-
+  nt: 359
+  
 model:
   name: hfs
   target_params: small
