@@ -351,7 +351,7 @@ def main():
 
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
-    truth_seq, pred_seq = autoregressive_predict(model, sequences, device, grid)
+    pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
     
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
     
