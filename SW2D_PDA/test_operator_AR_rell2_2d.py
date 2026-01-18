@@ -52,8 +52,8 @@ def load_sw_sequences(data_config):
 
 def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     """ 
-    truth_seq: (B, H, W, T)
-    pred_seq: (B, H, W, T)
+    truth_seq: (B, H, W, T, C)
+    pred_seq: (B, H, W, T, C)
     """
     lploss = LpLoss(size_average=True)
     
@@ -63,7 +63,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     # pderesidual = PDEResidualLoss()
 
 
-    time_idx = [0, truth_seq.shape[-1]//2, truth_seq.shape[-1] - 1]
+    time_idx = [0, truth_seq.shape[-2]//2, truth_seq.shape[-2] - 1]
     metrics_name = ['l2', 'SMLR', 'EMLR', 'SMAE', 'EMAE']
     metrics_dict = {}
     
@@ -193,10 +193,11 @@ def autoregressive_predict(model, sequences, device, grid=None):
 
     with torch.no_grad():
         for (seq,) in loader:
-            seq = seq.to(device)  # (1, S1, S2, T, C)
+            seq = seq.to(device)  # (B, S1, S2, T, C) where B is batch size
             preds = []  # predicted rollout
             prev = seq[..., 0, :]  # initial condition (B, S1, S2, C)
-            initial_condition.extend(prev)
+            # Append the full batch tensor to the list (handles variable batch sizes)
+            initial_condition.append(prev)
             for _ in range(T - 1):
                 if grid is not None:
                     x_in = torch.cat((prev, grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
@@ -222,13 +223,15 @@ def autoregressive_predict(model, sequences, device, grid=None):
                     pred = pred
                 preds.append(pred)
                 prev = pred
-            pred_seq = torch.stack(preds, dim=-2)       # (1, S1, S2, T-1, C)
-            truth_seq = seq[..., 1:, :]                 # align with predictions
-            pred_seq_list.extend(pred_seq)
-            truth_seq_list.extend(truth_seq)
-    initial_condition = torch.stack(initial_condition, dim=0) # (B, S1, S2, C)
-    pred_seq = torch.stack(pred_seq_list, dim=0) # (B, S1, S2, T-1, C)
-    truth_seq = torch.stack(truth_seq_list, dim=0) # (B, S1, S2, T-1, C)
+            pred_seq = torch.stack(preds, dim=-2)       # (B, S1, S2, T-1, C)
+            truth_seq = seq[..., 1:, :]                 # (B, S1, S2, T-1, C) align with predictions
+            # Append the full batch tensors to the list (handles variable batch sizes)
+            pred_seq_list.append(pred_seq)
+            truth_seq_list.append(truth_seq)
+    # Concatenate all batches along the first dimension to get (N, H, W, ...)
+    initial_condition = torch.cat(initial_condition, dim=0)  # (N, S1, S2, C)
+    pred_seq = torch.cat(pred_seq_list, dim=0)              # (N, S1, S2, T-1, C)
+    truth_seq = torch.cat(truth_seq_list, dim=0)            # (N, S1, S2, T-1, C)
     print("initial_condition shape:", initial_condition.shape, "pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
             
     return initial_condition, pred_seq, truth_seq
@@ -366,7 +369,7 @@ def main():
 
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
 
-    time_indices = [0, truth_seq.shape[-1]//2, truth_seq.shape[-1] - 1]
+    time_indices = [0, truth_seq.shape[-2]//2, truth_seq.shape[-2] - 1]
     save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
     
