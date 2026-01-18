@@ -316,8 +316,6 @@ def plot_error_energy():
             pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
             load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
             
-            # Use truth from first model (should be same for all models)
-            
             pred_dict[model_name] = pred
             error_dict[model_name] = error
             k_np_dict[model_name] = k_np
