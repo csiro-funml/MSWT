@@ -85,6 +85,7 @@ def autoregressive_predict(model, test_loader, device, grid):
 def main():
     parser = ArgumentParser(description='Evaluate 2D operator autoregressively')
     parser.add_argument('--config_path', type=str, help='Path to the configuration file')
+    parser.add_argument('--test_seed', type=int, help='Seed for the test set')
     args = parser.parse_args()
 
     with open(args.config_path, 'r') as stream:
