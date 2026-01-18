@@ -6,6 +6,7 @@ data:
   ny: 128
   shuffle: True
   grid_form: spherical
+  nt: 359
 
 model:
   name: multiscale_wavelet2d_periodic_patching
