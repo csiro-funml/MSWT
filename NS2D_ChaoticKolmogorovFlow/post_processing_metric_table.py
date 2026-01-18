@@ -406,8 +406,11 @@ def plot_error_energy():
 
         # plot the spectral energy and enstropy spectrum
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
-        color_list = ['orange', 'blue', 'darkgray', 'pink', 'lightgreen', 'purple']
-        linestyle_list = ['-', '--', '-.', ':', '--', '-.']
+        # Highlight Ground Truth (first) and MSWT_patching (last) with bold colors and solid lines
+        # Ground Truth: bold orange/red; MSWT_patching: bold purple
+        # Middle models: muted colors with dashes
+        color_list = ['#E65100', '#6BAED6', '#969696', '#FDB462', '#74C476', '#7B1FA2']  # orange-red, light blue, gray, peach, light green, bold purple
+        linestyle_list = ['-', '--', '-.', ':', '--', '-']  # Solid for Ground Truth and MSWT_patching
         ax.loglog(k_np, spectral_true, label='Truth', linewidth=3, color=color_list[0], linestyle=linestyle_list[0])
         for i, model_name in enumerate(model_name_list):
             ax.loglog(k_np_dict[model_name], spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 3, color=color_list[i+1], linestyle=linestyle_list[i+1])
