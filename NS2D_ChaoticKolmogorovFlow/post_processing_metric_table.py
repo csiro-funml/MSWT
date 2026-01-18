@@ -250,6 +250,7 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     energy_path = os.path.join(save_folder, f'{model_folder_name}2d_{grid_form}/saved_plots', f'{saved_model_name}_seed{seed}_energy_spectra_t{step}.npz')
     
     pred_data = np.load(pred_path)
+    initial_condition = pred_data['initial_condition']
     pred = pred_data['pred_seq_t']
     truth = pred_data['truth_seq_t']
     error = pred_data['error_seq_t']
@@ -261,6 +262,7 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     enstropy_true = energy_data['Zk_true_np']
     k_np = energy_data['k_np']
 
+    print("initial_condition shape", initial_condition.shape)
     print("pred shape", pred.shape)
     print("truth shape", truth.shape)
     print("error shape", error.shape)
@@ -274,7 +276,7 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     l2_loss = LpLoss(size_average=True)
     l2_err = l2_loss(torch.from_numpy(pred).unsqueeze(0), torch.from_numpy(truth).unsqueeze(0)).item()
     
-    return pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err
+    return initial_condition, pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err
 
 
 def plot_error_energy():
@@ -316,10 +318,8 @@ def plot_error_energy():
         spectral_true = None  # Will be set once from first model
         
         for i, model_name in enumerate(model_name_list):
-            _, truth_initial, _, _, _, _, _, _, _ = \
-            load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, 1, save_folder, grid_form) # step =1
 
-            pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
+            initial_condition, pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
             load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
             
             pred_dict[model_name] = pred
@@ -334,8 +334,8 @@ def plot_error_energy():
             error_min = min(error_min, error.min().item())
         
 
-        global_max =  max(truth.max().item(), truth_initial.max().item()) * 1.1 # allow  10% more than the truth max
-        global_min = min(truth.min().item(), truth_initial.min().item()) * 1.1 # allow 10% less than the truth min
+        global_max =  max(truth.max().item(), initial_condition.max().item()) * 1.1 # allow  10% more than the truth max
+        global_min = min(truth.min().item(), initial_condition.min().item()) * 1.1 # allow 10% less than the truth min
         
         # plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
         global_max = max(global_max, np.abs(global_min))
@@ -345,7 +345,7 @@ def plot_error_energy():
         
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
-        im = ax.imshow(truth_initial, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
         ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
         ax.set_xticks([])
         ax.set_yticks([])
