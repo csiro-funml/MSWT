@@ -288,9 +288,12 @@ def plot_error_energy():
     else:
         save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
     steps = [1, 30, 64]
-    model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
-    saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
-    plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
+    # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
+    model_name_list = ['FNO']
+    saved_model_name_list = ['fno2d']
+    plot_model_name_list = ['FNO']
     seed = 42
     grid_form = 'linear'
     for step in steps:
@@ -326,7 +329,7 @@ def plot_error_energy():
             global_min = min(global_min, truth.min().item(), pred.min().item())
             error_max = max(error_max, error.max().item())
             error_min = min(error_min, error.min().item())
-            
+            # break
     #     # I want to get the global error range and then plot
         # global_error_min = min(error_dict.values())
     #     global_error_max = max(error_dict.values())
@@ -344,12 +347,12 @@ def plot_error_energy():
         axes[1, 0].set_ylabel('Energy E(k)')
        
 
-        axes[0, 1].imshow(pred_dict['HFS'], cmap='RdBu_r', origin='lower')
+        axes[0, 1].imshow(pred_dict['FNO'], cmap='RdBu_r', origin='lower')
         axes[0, 1].set_title(f'{plot_model_name_list[0]}')
         axes[0, 1].set_xticks([])
         axes[0, 1].set_yticks([])
         
-        axes[1, 1].imshow(pred_dict['HFS']-truth, cmap='RdBu_r', origin='lower')
+        axes[1, 1].imshow(pred_dict['FNO']-truth, cmap='RdBu_r', origin='lower')
         axes[1, 1].set_title(f'(Rel $L^2$: {l2_err_dict['FNO']:.4f})')
         axes[1, 1].set_xticks([])
         axes[1, 1].set_yticks([])
