@@ -303,6 +303,8 @@ def plot_error_energy():
         enstropy_pred_dict = {}
         global_max = float('-inf')
         global_min = float('inf')
+        error_max = float('-inf')
+        error_min = float('inf')
         for i, model_name in enumerate(model_name_list):
             pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
             load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
@@ -313,8 +315,10 @@ def plot_error_energy():
             l2_err_dict[model_name] = l2_err
             spectral_pred_dict[model_name] = spectral_pred
             enstropy_pred_dict[model_name] = enstropy_pred
-            global_max = max(global_max, truth.max().item(), pred.max().item(), error.max().item())
-            global_min = min(global_min, truth.min().item(), pred.min().item(), error.min().item())
+            global_max = max(global_max, truth.max().item(), pred.max().item())
+            global_min = min(global_min, truth.min().item(), pred.min().item())
+            error_max = max(error_max, error.max().item())
+            error_min = min(error_min, error.min().item())
             
     #     # I want to get the global error range and then plot
         # global_error_min = min(error_dict.values())
@@ -322,11 +326,25 @@ def plot_error_energy():
         
         global_max = max(global_max, np.abs(global_max))
         global_min = -global_max # make it symmetrical around zero
+        error_max = max(error_max, np.abs(error_max))
+        error_min = -error_max # make it symmetrical around zero
         
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
         im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-
+        ax.set_title('Ground Truth')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        
+        # plot the spectral energy first:
+        ax = axes[1, 0]
+        im = ax.plot(k_np, spectral_true, label='Ground Truth', linewidth=1)
+        ax.set_xlabel('Wavenumber k')
+        ax.set_ylabel('Energy E(k)')
+        ax.set_title('Spectral Energy')
+        ax.legend()
+        
+        
         for i, model_name in enumerate(model_name_list):
             ax = axes[0, i+1]
             im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
