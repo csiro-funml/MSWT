@@ -282,7 +282,7 @@ def plot_error_energy():
         save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
     steps = [1, 30, 64]
     model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
-    saved_model_name_list = ['fno2d', 'refiner_unet', 'wno', 'saot', 'hfs', 'multisacle_wavelet2d_periodic_patching']
+    saved_model_name_list = ['fno2d', 'refiner_unet', 'wno', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
     seed = 42
     grid_form = 'linear'
     for step in steps:
