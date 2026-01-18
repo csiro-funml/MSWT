@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 
-def process_metric_table(CSV_PATH):
+def process_metric_table_to_latex(CSV_PATH):
     # -----------------------------
     # Config
     # -----------------------------
@@ -168,7 +168,7 @@ def process_metric_table(CSV_PATH):
     print("Wrote: table_smae_emae.tex")
 
 
-if __name__ == "__main__":
+def aggregate_metric_table(grid_form='linear'):
     if torch.cuda.is_available():
         save_folder = "/scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/"
     else:
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     seeds = [42, 43, 44, 45, 46]
     total_df_metric = pd.DataFrame()
     for model_name in model_name_list:
-        path_folder = os.path.join(save_folder, f'{model_name}2d_linear/evaluation_metrics')
+        path_folder = os.path.join(save_folder, f'{model_name}2d_{grid_form}/evaluation_metrics')
         file_list = os.listdir(path_folder)
         for file in file_list:
             if file.endswith('.csv'):
@@ -197,8 +197,8 @@ if __name__ == "__main__":
                 df_metric['model'] = model_name
                 total_df_metric = pd.concat([total_df_metric, df_metric], ignore_index=True)
 
-    total_df_metric.to_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'), index=False)
-    # total_df_metric = pd.read_csv(os.path.join(save_folder, 'total_evaluation_metrics.csv'))
+    total_df_metric.to_csv(os.path.join(save_folder, f'total_evaluation_metrics_{grid_form}.csv'), index=False)
+    # total_df_metric = pd.read_csv(os.path.join(save_folder, f'total_evaluation_metrics_{grid_form}.csv'))
 
     # group by model, and computed the mean and std of the metrics
     
@@ -236,4 +236,21 @@ if __name__ == "__main__":
     
     # avg_df = avg_df[new_columns]
     print(avg_df)
-    avg_df.to_csv(os.path.join(save_folder, 'avg_evaluation_metrics.csv'))
+    avg_df.to_csv(os.path.join(save_folder, f'avg_evaluation_metrics_{grid_form}.csv'))
+
+
+def plot_error_energy():
+    # 2 rows ,6 columns
+    # the first column is ground truth and energy plot,
+    # from the secon column, shows the prediction and error plot
+    # generate the color map from below
+    steps = [1, 30, 64]
+    model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
+    
+    return 
+
+
+
+if __name__ == "__main__":
+    aggregate_metric_table(grid_form='linear')
+    aggregate_metric_table(grid_form='periodic')
