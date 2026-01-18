@@ -177,7 +177,6 @@ def aggregate_metric_table(grid_form='linear'):
 
     model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
     renamed_name_list = ['FNO', 'Unet', 'WNO', 'SAOT', 'HFS', 'MSWT']
-    MSWT_patching_periodic
     
     seeds = [42, 43, 44, 45, 46]
     total_df_metric = pd.DataFrame()
