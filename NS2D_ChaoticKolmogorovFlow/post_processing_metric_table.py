@@ -296,8 +296,8 @@ def plot_error_energy():
     # saved_model_name_list = ['fno2d']
     # plot_model_name_list = ['FNO']
     seed = 42
-    # grid_form = 'linear'
-    grid_form = 'periodic'
+    grid_form = 'linear'
+    # grid_form = 'periodic'
     for step in steps:
         fig, axes = plt.subplots(2, 6, figsize=(12, 4), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         pred_dict = {}
