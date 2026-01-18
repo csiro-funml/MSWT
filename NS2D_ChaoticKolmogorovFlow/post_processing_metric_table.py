@@ -344,17 +344,9 @@ def plot_error_energy():
         ax.set_xticks([])
         ax.set_yticks([])
         
-        # plot the spectral energy first:
+        # make the axis disapprear completly
         ax = axes[1, 0]
-        # im = ax.loglog(k_np, spectral_true, label='Ground Truth', linewidth=1)
-        # ax.set_xlabel('Wavenumber k')
-        # ax.set_ylabel('Energy E(k)')
-        # ax.set_title('Spectral Energy')
-        ax.set_xticks([])
-        ax.set_yticks([])
-        # ax.legend()
-        # Make the loglog plot subplot have the same box size as other subplots
-        # Get the position of a reference imshow subplot to match its box aspect
+        ax.axis('off')
         
         
         for i, model_name in enumerate(model_name_list):
@@ -363,14 +355,21 @@ def plot_error_energy():
             ax.set_title(f'{plot_model_name_list[i]}')
             ax.set_xticks([])
             ax.set_yticks([])
+            if i == len(model_name_list) - 1:
+                # add the colorbar at the right of the axis, but put it outside the axes
+                cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                cbar.ax.set_position([0.95, 0.15, 0.02, 0.7])
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
             ax = axes[1, i+1]
-            im = ax.imshow(pred_dict[model_name]-truth, cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.4f})')
+            ax.set_title(f'Error (Rel $L^2$: {l2_err_dict[model_name]:.2f})')
             ax.set_xticks([])
             ax.set_yticks([])
+            if i == len(model_name_list) - 1:
+                cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                cbar.ax.set_position([0.95, 0.15, 0.02, 0.7])
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             
             # ax = axes[1, 0]
