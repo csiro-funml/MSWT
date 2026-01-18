@@ -406,11 +406,11 @@ def plot_error_energy():
 
         # plot the spectral energy and enstropy spectrum
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
-        color_list = ['orange', 'blue', 'green', 'red', 'purple', 'black']
+        color_list = ['orange', 'blue', 'green', 'red', 'purple', 'red']
         linestyle_list = ['-.', '--', '-.', ':', '--', '-']
         ax.loglog(k_np, spectral_true, label='Truth', linewidth=2, color=color_list[0], linestyle=linestyle_list[0])
         for i, model_name in enumerate(model_name_list):
-            ax.loglog(k_np_dict[model_name], spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=1 if model_name != 'MSWT' else 2, color=color_list[i+1], linestyle=linestyle_list[i+1])
+            ax.loglog(k_np_dict[model_name], spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=1 if model_name != 'MSWT_patching' else 2, color=color_list[i+1], linestyle=linestyle_list[i+1])
         ax.set_xlabel('Wavenumber k')
         ax.set_ylabel('Spectral Energy Spectrum E(k)')
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
@@ -422,7 +422,7 @@ def plot_error_energy():
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         ax.loglog(k_np, enstropy_true, label='Ground Truth', linewidth=2, color=color_list[0], linestyle=linestyle_list[0])
         for i, model_name in enumerate(model_name_list):
-            ax.loglog(k_np_dict[model_name], enstropy_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=1 if model_name != 'MSWT' else 2, color=color_list[i+1], linestyle=linestyle_list[i+1])
+            ax.loglog(k_np_dict[model_name], enstropy_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=1 if model_name != 'MSWT_patching' else 2, color=color_list[i+1], linestyle=linestyle_list[i+1])
         ax.set_xlabel('Wavenumber k')
         ax.set_ylabel('Enstropy Z(k)')
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
