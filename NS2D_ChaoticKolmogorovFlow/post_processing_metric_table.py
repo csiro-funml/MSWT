@@ -370,11 +370,13 @@ def plot_error_energy():
         
         # plot the spectral energy first:
         ax = axes[1, 0]
-        im = ax.loglog(k_np, spectral_true, label='Ground Truth', linewidth=1)
-        ax.set_xlabel('Wavenumber k')
-        ax.set_ylabel('Energy E(k)')
-        ax.set_title('Spectral Energy')
-        ax.legend()
+        # im = ax.loglog(k_np, spectral_true, label='Ground Truth', linewidth=1)
+        # ax.set_xlabel('Wavenumber k')
+        # ax.set_ylabel('Energy E(k)')
+        # ax.set_title('Spectral Energy')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        # ax.legend()
         # Make the loglog plot subplot have the same box size as other subplots
         # Get the position of a reference imshow subplot to match its box aspect
         
@@ -395,12 +397,12 @@ def plot_error_energy():
             ax.set_yticks([])
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             
-            ax = axes[1, 0]
-            im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=0.5)
-            ax.set_xlabel('Wavenumber k')
-            ax.set_ylabel('Energy E(k)')
-            ax.set_title('Spectral Energy')
-            ax.legend()
+            # ax = axes[1, 0]
+            # im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=0.5)
+            # ax.set_xlabel('Wavenumber k')
+            # ax.set_ylabel('Energy E(k)')
+            # ax.set_title('Spectral Energy')
+            # ax.legend()
         # set the colorbar at the bottom of the figure
         # cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
         # cbar.set_label('Velocity')
