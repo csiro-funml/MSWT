@@ -243,8 +243,8 @@ def aggregate_metric_table(grid_form='linear'):
 
 def load_pred_truth_error_spectral(model_name, seed, step, save_folder, grid_form):
     
-    pred_path = os.path.join(save_folder, f'{model_name}_{grid_form}/evaluation_metrics/saved_plots', f'{model_name}_seed{seed}_prediction_t{step}.npz')
-    energy_path = os.path.join(save_folder, f'{model_name}_{grid_form}/evaluation_metrics/saved_plots', f'{model_name}_seed{seed}_energy_spectra_t{step}.npz')
+    pred_path = os.path.join(save_folder, f'{model_name}_{grid_form}/saved_plots', f'{model_name}_seed{seed}_prediction_t{step}.npz')
+    energy_path = os.path.join(save_folder, f'{model_name}_{grid_form}/saved_plots', f'{model_name}_seed{seed}_energy_spectra_t{step}.npz')
     
     pred_data = np.load(pred_path)
     pred = pred_data['pred_seq_t']
