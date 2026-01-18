@@ -14,79 +14,35 @@ from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
-from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention
-from models.periodic_mswt import PeriodicMultiscaleWaveletTransformer2D, PeriodicMSWT2D_Patching
-from models.periodic_mswt_bases import (
-    PeriodicMultiscaleWaveletTransformer2D_DB2,
-    PeriodicMultiscaleWaveletTransformer2D_DB4,
-    PeriodicMultiscaleWaveletTransformer2D_SYM4,
-)
+from models.periodic_mswt import  PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
 from utils.criterion import LpLoss, LogEnstropyEnergyLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
 from utils.utilities import torch2dgrid_2d
+from data_utils.datasets import SWLoader2D
 
 
-def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
-    x_bot, y_bot = bot
-    x_top, y_top = top
-    x_arr = torch.linspace(x_bot, x_top, steps=num_x)
-    y_arr = torch.linspace(y_bot, y_top, steps=num_y)
-    xx, yy = torch.meshgrid(x_arr, y_arr, indexing='ij')
-    mesh = torch.stack([xx, yy], dim=2)
-    return mesh
-
-def load_sw_sequences(data_config):
-    """Load normalized (N, H, W, T, C) sequences using the same pipeline as training."""
-    dataset = np.load(data_config['test_data']['datapath'])
-    sequences = torch.tensor(dataset, dtype=torch.float)
-    # normalize the data
-    normalizer_path = data_config['data']['normalizer_path']
-    normalizer = torch.load(normalizer_path)
-    vars = ['vor', 'pres']
-    mean = []
-    std = []
-    for var in vars:
-        mean.append(normalizer[var]['mean'].squeeze()) # (1, H, W)
-        std.append(normalizer[var]['std'].squeeze()) # (1, H, W)
-    mean = torch.stack(mean, dim=0) # (C, H, W)
-    std = torch.stack(std, dim=0) # (C, H, W)
-    mean = mean.permute(1, 2, 0)[None, :, :, None, :] # (C, H, W) -> (1, H, W, 1, C)
-    std = std.permute(1, 2, 0)[None, :, :, None, :] # (C, H, W) -> (1, H, W, 1, C)
-    
-    sequences = (sequences - mean) / std
-
-    S1, S2 = data_config['test_data']['nx'], data_config['test_data']['ny']
-    T = data_config['test_data']['nt']
-    print("final data shape: ", sequences.shape)  # (N, H, W, T, C)
-    return sequences, (S1, S2), T
-
-
-def autoregressive_eval(model, sequences, device, use_external_grid=True, grid=None):
+def autoregressive_predict(model, test_loader, device, grid):
     """Run autoregressive rollout on full sequences."""
-    lploss = LpLoss(size_average=True)
-    log_en_err = LogEnstropyEnergyLoss()
+    
     model.eval()
-    S1, S2 = sequences.shape[1], sequences.shape[2]
-    T = sequences.shape[-2]
-    # grid = None
-    # if use_external_grid:
-        # grid = torch2dgrid(S1, S2).to(device).unsqueeze(0)  # 1 x S1 x S2 x 2
-    total_l2 = 0.0
-    step_l2 = 0.0
-    total_log_en_err = 0.0
-    step_log_en_err = 0.0
-    batches = 0
-    example = {'truth': None, 'pred': None}
-    loader = DataLoader(TensorDataset(sequences), batch_size=1, shuffle=False)
+    
+    total_pred = []
+    total_truth = []
+    initial_condition = []
+
     with torch.no_grad():
-        for (seq,) in loader:
-            seq = seq.to(device)  # (1, S1, S2, T, C)
+        for (seq, truth) in test_loader:
+            seq = seq.to(device)  # (N, T, H, W, C) 
+            truth = truth.to(device) # (N, T, H, W, C)
             preds = []  # predicted rollout
+            trues = []
             prev = seq[..., 0, :]  # initial condition (B, S1, S2, C)
-            for _ in range(T - 1):
+            initial_condition.append(prev)
+            T = seq.shape[-2]
+            for t in range(T):
                 if grid is not None:
                     x_in = torch.cat((prev, grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
                 else:
@@ -110,26 +66,20 @@ def autoregressive_eval(model, sequences, device, use_external_grid=True, grid=N
                 if pred.dim() == 4:
                     pred = pred
                 preds.append(pred)
+                trues.append(truth[..., t, :])
                 prev = pred
+                
             pred_seq = torch.stack(preds, dim=-2)       # (1, S1, S2, T-1, C)
-            truth_seq = seq[..., 1:, :]                 # align with predictions
-            # print("pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
-            
-            
-            step_l2 += lploss(pred_seq[..., :1, :], truth_seq[..., :1, :]).item() # first step loss
-            total_l2 += lploss(pred_seq, truth_seq).item() # overall step loss
-            
-            step_log_en_err += log_en_err(pred_seq[..., 0, 1], truth_seq[..., 0, 1]).item() # first step loss
-            reshape_pred_seq = rearrange(pred_seq[..., 1], 'b h w t -> (b t) h w') # (B*T, H, W) 
-            reshape_truth_seq = rearrange(truth_seq[..., 1], 'b h w t -> (b t) h w')
-            total_log_en_err += log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
-            
-            batches += 1
-            if example['truth'] is None:
-                example['truth'] = truth_seq.detach().cpu()
-                example['pred'] = pred_seq.detach().cpu()
-    return total_l2 / max(1, batches), step_l2 / max(1, batches), total_log_en_err / max(1, batches), step_log_en_err / max(1, batches), example
+            truth_seq = torch.stack(trues, dim=-2)               # align with predictions
+            total_pred.append(pred_seq)
+            total_truth.append(truth_seq)
+            print("pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
 
+    total_pred = torch.stack(total_pred, dim=0)
+    total_truth = torch.stack(total_truth, dim=0)
+    initial_condition = torch.stack(initial_condition, dim=0)
+    print("total_pred shape:", total_pred.shape, "total_truth shape:", total_truth.shape, "initial_condition shape:", initial_condition.shape)        
+    return initial_condition, pred_seq, truth_seq
 
 
 def main():
@@ -139,11 +89,24 @@ def main():
 
     with open(args.config_path, 'r') as stream:
         config = yaml.load(stream, yaml.FullLoader)
+        config['train']['save_name'] = config['train']['save_name'].replace('.pt', f'_seed{args.test_seed}.pt')
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model_cfg = config['model']
-    sequences, S_data, T_data = load_sw_sequences(config)
-
+    
+    data_config = config['data']
+    test_set = SWLoader2D(datapath=data_config['datapath'],
+                                state='test',
+                                train=False,
+                                normalizer_path=data_config.get('normalizer_path', None))
+                                
+    test_set.transform_rollout(T=data_config['nt']) # convert (N*T, H, W, C) to (N, T, H, W, C) for autoregressive rollout
+    test_loader = DataLoader(test_set,
+                                 batch_size=config['train']['batchsize'],
+                                 shuffle=False,
+                                 num_workers=config['train'].get('num_workers', 1))
+    S_data = test_set.S # (H, W)
+    T_data = test_set.T # T
     model_name = model_cfg.get('name', 'fno2d').lower()
     
     if model_name == 'fno2d':
@@ -177,6 +140,16 @@ def main():
                 hidden_channels=model_cfg.get('hidden_channels', 16),
                 n_blocks=model_cfg.get('n_blocks', 3),
     ).to(device)
+    elif model_name in ['refiner_unet']:
+        model = UNetRefiner(
+            input_channels=model_cfg.get('in_channels', 3),
+            output_channels=model_cfg.get('out_channels', 1),
+            time_history=model_cfg.get('time_history', 0),
+            time_future=model_cfg.get('time_future', 0),
+            hidden_channels=model_cfg.get('hidden_channels', 16),
+            activation=model_cfg.get('activation', 'gelu'),
+            n_blocks=model_cfg.get('n_blocks', 3),
+        ).to(device)
     elif model_name in ['wno', 'wno2d']:
         dummy = torch.zeros(1, 1, S_data[0], S_data[1], device=device)
         model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
@@ -200,16 +173,6 @@ def main():
                         ref=model_cfg.get('ref', 8),
                         unified_pos=model_cfg.get('unified_pos', 0),
                         is_filter=model_cfg.get('is_filter', True)).to(device)
-    elif model_name in ['refiner_unet']:
-        model = UNetRefiner(
-            input_channels=model_cfg.get('in_channels', 3),
-            output_channels=model_cfg.get('out_channels', 1),
-            time_history=model_cfg.get('time_history', 0),
-            time_future=model_cfg.get('time_future', 0),
-            hidden_channels=model_cfg.get('hidden_channels', 16),
-            activation=model_cfg.get('activation', 'gelu'),
-            n_blocks=model_cfg.get('n_blocks', 3),
-        ).to(device)
     elif model_name in ['multiscale_wavelet', 'multiscale_wavelet2d', 'multiscale_wavelet_transformer2d']:
         model = MultiscaleWaveletTransformer2D(
             wave=model_cfg.get('wave', 'haar'),
@@ -220,88 +183,6 @@ def main():
             patch_size= model_cfg.get('patch_size', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_nodecoderattn']:
-        model = MultiscaleWaveletTransformer2DDecoderNoAttention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_attn05124_group4']:
-        model = MultiscaleWaveletTransformer2DEfficient(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_double_attn']:
-        model = MultiscaleWaveletDoubleAttention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic', 'mswt_periodic', 'periodic_mswt']:
-        model = PeriodicMultiscaleWaveletTransformer2D(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic_db2', 'mswt_periodic_db2', 'periodic_mswt_db2']:
-        model = PeriodicMultiscaleWaveletTransformer2D_DB2(
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', 8),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic_db4', 'mswt_periodic_db4', 'periodic_mswt_db4']:
-        model = PeriodicMultiscaleWaveletTransformer2D_DB4(
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', 8),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic_sym4', 'mswt_periodic_sym4', 'periodic_mswt_sym4']:
-        model = PeriodicMultiscaleWaveletTransformer2D_SYM4(
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', 8),
         ).to(device)
     elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
         model = PeriodicMSWT2D_Patching(
@@ -332,9 +213,18 @@ def main():
     else:
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
 
-    print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data[0]}x{S_data[1]} for {T_data} steps.')
+    print(f'Evaluating on {len(test_set)} samples at resolution {S_data[0]}x{S_data[1]} for {T_data} steps.')
     use_external_grid = model_cfg.get('external_grid', True)
     grid = torch2dgrid_2d(S_data[0], S_data[1], form=config['data']['grid_form'], device=device, dtype=torch.float32)
+    
+    
+    # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
+    initial_condition, pred_seq, truth_seq = autoregressive_predict(model, test_loader, device, grid)
+    exit(-1)
+    
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
+    
+    
     total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(
         model,
         sequences,

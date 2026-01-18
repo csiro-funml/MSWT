@@ -7,6 +7,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 import h5py
 from tqdm import tqdm
+from einops import rearrange
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
 def load_sw_data_split_and_save(datapath):
@@ -133,7 +134,20 @@ class SWLoader2D(Dataset):
         # Data is already in (N, H, W, C) format, so just return slices
         return self.X_data[idx], self.y_data[idx]  # (H, W, C), (H, W, C)
 
-
+    
+    def transform_rollout(self, T=359) :
+        """
+        reshape self.X_data and self.y_data from (N, H, W, C) to (N, T, H, W, C)
+        """
+        assert self.X_data.shape[0] % T == 0, "Number of samples must be divisible by T"
+        n_traj = self.X_data.shape[0] // T
+        
+        self.X_data = rearrange(self.X_data,   '(n t) h w c -> n h w t c', t=T)
+        self.y_data = rearrange(self.y_data,   '(n t) h w c -> n h w t c', t=T)
+        self.num_samples = n_traj
+        self.T = T
+        print(f"Reshaped data to (N, T, H, W, C) - final shape: {self.X_data.shape}")
+        return self.X_data, self.y_data
 
 if __name__ == '__main__':
     # if torch.cuda.is_available():
