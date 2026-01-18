@@ -355,33 +355,21 @@ def plot_error_energy():
             ax.set_title(f'{plot_model_name_list[i]}')
             ax.set_xticks([])
             ax.set_yticks([])
-            if i == len(model_name_list) - 1:
-                # add the colorbar at the right of the axis, but put it outside the axes
-                cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-                cbar.ax.set_position([0.95, 0.15, 0.02, 0.7])
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
             ax = axes[1, i+1]
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'Error (Rel $L^2$: {l2_err_dict[model_name]:.2f})')
+            ax.set_title(f'Error (Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10)
             ax.set_xticks([])
             ax.set_yticks([])
-            if i == len(model_name_list) - 1:
-                cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-                cbar.ax.set_position([0.95, 0.15, 0.02, 0.7])
-            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             
-            # ax = axes[1, 0]
-            # im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=0.5)
-            # ax.set_xlabel('Wavenumber k')
-            # ax.set_ylabel('Energy E(k)')
-            # ax.set_title('Spectral Energy')
-            # ax.legend()
-        # set the colorbar at the bottom of the figure
-        # cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
-        # cbar.set_label('Velocity')
-        # Adjust layout to ensure all subplots have equal size
+        # add colobar of error min and error max at the right hand side  of the entire figure, with the text notation: error
+        # but do not want to change the size of any axes at all, just the colorbar
+        cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.046, pad=0.04)
+        cbar.set_label('Error')
+        cbar.ax.set_ylabel('Error', fontsize=10)
+        cbar.ax.set_ylabel('Error', fontsize=10)
         
         ref_ax = axes[0, 0] 
         ax = axes[1, 0]
