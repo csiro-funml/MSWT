@@ -390,7 +390,7 @@ def plot_error_energy():
             pass
         
         plt.tight_layout(rect=[0, 0, 1, 1])
-        plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
+        plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=150, bbox_inches='tight')
         
 
     # pred_frame = pred[..., t_raw]
