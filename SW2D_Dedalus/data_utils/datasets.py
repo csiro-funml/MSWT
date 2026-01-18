@@ -147,6 +147,7 @@ class SWLoader2D(Dataset):
         self.y_data = rearrange(self.y_data,   'n h w c -> 1 n h w c')
         # self.y_data = rearrange(self.y_data,   '(t n) h w c -> n h w t c', t=T)
         # self.num_samples = n_traj
+        self.num_samples = 1
         self.T = T
         print(f"Reshaped data to (N, T, H, W, C) - final shape: {self.X_data.shape}")
         return self.X_data, self.y_data
