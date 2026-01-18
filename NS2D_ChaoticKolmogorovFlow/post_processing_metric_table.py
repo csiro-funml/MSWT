@@ -346,13 +346,13 @@ def plot_error_energy():
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
         im = ax.imshow(truth_initial, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-        ax.set_title('Initial Condition', fontsize=14, fontweight='bold')
+        ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
         ax.set_xticks([])
         ax.set_yticks([])
         
         ax = axes[0, 1]
         im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-        ax.set_title('Ground Truth', fontsize=14, fontweight='bold')
+        ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
         ax.set_xticks([])
         ax.set_yticks([])
         
@@ -367,7 +367,7 @@ def plot_error_energy():
         for i, model_name in enumerate(model_name_list):
             ax = axes[0, i+2]
             im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-            ax.set_title(f'{plot_model_name_list[i]}', fontsize=14, fontweight='bold')
+            ax.set_title(f'{plot_model_name_list[i]}', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -375,7 +375,7 @@ def plot_error_energy():
             ax = axes[1, i+2]
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=12, fontweight='bold')
+            ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
             
@@ -386,7 +386,7 @@ def plot_error_energy():
         cbar_ax = inset_axes(axes[1, 1], width="4%", height="90%", loc='center',
                              borderpad=0)
         cbar = plt.colorbar(im, cax=cbar_ax, aspect=15)
-        cbar.set_label('Error', fontsize=12, fontweight='bold', rotation=90, labelpad=10)
+        cbar.set_label('Error', fontsize=10, fontweight='bold', rotation=90, labelpad=10)
         # Set ticks on the right side and make them bold and larger
         cbar.ax.yaxis.set_label_position('right')
         cbar.ax.yaxis.tick_left()
