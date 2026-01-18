@@ -14,29 +14,16 @@ from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
-from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention
-from models.periodic_mswt import PeriodicMultiscaleWaveletTransformer2D, PeriodicMSWT2D_Patching
-from models.periodic_mswt_bases import (
-    PeriodicMultiscaleWaveletTransformer2D_DB2,
-    PeriodicMultiscaleWaveletTransformer2D_DB4,
-    PeriodicMultiscaleWaveletTransformer2D_SYM4,
-)
+from models.periodic_mswt import PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
-from utils.criterion import LpLoss, LogEnstropyEnergyLoss
-from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
+from utils.criterion import LpLoss, LogEnstropyEnergyLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, compute_2d_spectral_energy, compute_2d_enstropy_spectrum, PDEResidualLoss
+from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch, compute_enstropy_torch
 from utils.utilities import torch2dgrid_2d
+import pandas as pd
 
 
-def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
-    x_bot, y_bot = bot
-    x_top, y_top = top
-    x_arr = torch.linspace(x_bot, x_top, steps=num_x)
-    y_arr = torch.linspace(y_bot, y_top, steps=num_y)
-    xx, yy = torch.meshgrid(x_arr, y_arr, indexing='ij')
-    mesh = torch.stack([xx, yy], dim=2)
-    return mesh
 
 def load_sw_sequences(data_config):
     """Load normalized (N, H, W, T, C) sequences using the same pipeline as training."""
@@ -63,29 +50,153 @@ def load_sw_sequences(data_config):
     print("final data shape: ", sequences.shape)  # (N, H, W, T, C)
     return sequences, (S1, S2), T
 
-
-def autoregressive_eval(model, sequences, device, use_external_grid=True, grid=None):
-    """Run autoregressive rollout on full sequences."""
+def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
+    """ 
+    truth_seq: (B, H, W, T)
+    pred_seq: (B, H, W, T)
+    """
     lploss = LpLoss(size_average=True)
-    log_en_err = LogEnstropyEnergyLoss()
+    
+    # log_en_err = LogEnstropyEnergyLoss()
+    meape = MeanEnergyAbsolutePercentageError()
+    melr = MeanEnergyLogRatioError()
+    # pderesidual = PDEResidualLoss()
+
+
+    time_idx = [0, truth_seq.shape[-1]//2, truth_seq.shape[-1] - 1]
+    metrics_name = ['l2', 'SMLR', 'EMLR', 'SMAE', 'EMAE']
+    metrics_dict = {}
+    
+    # Initialize metrics_dict in desired column order:
+    # First all metrics (l2, spectral_meape, etc.) grouped by metric, then seed and model
+    for metric in metrics_name:
+       for t in time_idx:
+           metrics_dict[metric+f'_step{t+1}'] = 0
+    metrics_dict['seed'] = seed
+    metrics_dict['model'] = model_name
+    
+    # Compute actual metric values
+    for t in time_idx:
+        truth_seq_t = truth_seq[..., t, 0] # the first channel for vorticity
+        pred_seq_t = pred_seq[..., t, 0] # the first channel for vorticity
+        # convert the vorcitity to velocity
+        ux_true, uy_true = velocity_from_vorticity(truth_seq_t)
+        ux_pred, uy_pred = velocity_from_vorticity(pred_seq_t)
+        # print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
+        # (N, H, W)
+        Ek_true = compute_2d_spectral_energy(ux_true, uy_true) #(N, H, W//2)
+        Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred) 
+        # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
+        Zk_true = compute_2d_enstropy_spectrum(w_grid=truth_seq_t)  # (N, H, W)
+        Zk_pred = compute_2d_enstropy_spectrum(w_grid=pred_seq_t) # (N, H, W)
+
+        # step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
+        # print("ground truth pderesidual: ", step_pderesidual)
+        # step_pderesidual_pred = pderesidual(ux_pred, uy_pred, pred_seq_t).item()
+        # print("predicted pderesidual: ", step_pderesidual_pred)
+        # print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
+        # exit(-1)s
+    
+        step_l2 = lploss(pred_seq_t, truth_seq_t).item() # first step loss
+        step_spectral_meape = meape(Ek_pred, Ek_true).item()
+        step_spectral_melr = melr(Ek_pred, Ek_true).item()
+        step_enstropy_meape = meape(Zk_pred, Zk_true).item()
+        step_enstropy_melr = melr(Zk_pred, Zk_true).item()
+        
+        print(f"{model_name} seed: {seed}, step: {t}, step l2: {step_l2:.4f}, \
+            step SMLR: {step_spectral_melr:.4f},\
+            step EMLR: {step_enstropy_melr:.4f},\
+            step EMAE: {step_spectral_meape:.4f},\
+            step SMAE: {step_enstropy_meape:.4f}")
+            
+        # Use consistent f-string formatting
+        metrics_dict[f'l2_step{t+1}'] = step_l2
+        metrics_dict[f'SMLR_step{t+1}'] = step_spectral_melr
+        metrics_dict[f'EMLR_step{t+1}'] = step_enstropy_melr
+        metrics_dict[f'SMAE_step{t+1}'] = step_spectral_meape
+        metrics_dict[f'EMAE_step{t+1}'] = step_enstropy_meape
+        
+    df_metric = pd.Series(metrics_dict).to_frame().T
+    # want df_metric to have 2 level of columns: the first level is the metric name, the second level is the step number
+    save_folder = os.path.join(save_dir, 'evaluation_metrics')
+    os.makedirs(save_folder, exist_ok=True)
+    df_metric.to_csv(os.path.join(save_folder, f'{model_name}_seed{seed}_metrics.csv'), index=False)
+    return metrics_dict
+
+
+def save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed):
+    """
+    truth_seq: (B, H, W, T)
+    pred_seq: (B, H, W, T)
+    time_indices: list of time indices
+    save_dir: directory to save the ground truth and predictions
+    """
+    save_dir = os.path.join(save_dir, 'saved_plots')
+    os.makedirs(save_dir, exist_ok=True)
+    initial_condition = initial_condition.detach().cpu()
+    for t in time_indices:
+        truth_seq_t = truth_seq[0,..., t, 0].detach().cpu()
+        pred_seq_t = pred_seq[0,..., t, 0].detach().cpu()
+        error_seq_t = pred_seq_t - truth_seq_t
+        save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_prediction_t{t+1}.npz')
+        np.savez(save_path, initial_condition=initial_condition, truth_seq_t=truth_seq_t, pred_seq_t=pred_seq_t, error_seq_t=error_seq_t)
+        print(f"Saved ground truth and predictions to {save_path}")
+    return save_path
+
+
+def compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed):
+    """
+    truth_seq: (B, H, W, T)
+    pred_seq: (B, H, W, T)
+    time_indices: list of time indices
+    save_dir: directory to save the energy spectra
+    model_name: name of the model
+    seed: seed for the random test split
+    """
+    save_dir = os.path.join(save_dir, 'saved_plots')
+    os.makedirs(save_dir, exist_ok=True)
+    for t_raw in time_indices:
+        pred_frame = pred_seq.detach().cpu()[0, ..., t_raw, 0]
+        truth_frame = truth_seq.detach().cpu()[0, ..., t_raw, 0]
+       
+        # Spectral energy comparison 
+        ux_pred, uy_pred = velocity_from_vorticity(pred_frame.float())
+        ux_true, uy_true = velocity_from_vorticity(truth_frame.float())
+        
+        k_bins, Ek_pred = compute_spectra_torch(ux_pred, uy_pred, 2 * math.pi, 2 * math.pi)
+        _, Ek_true = compute_spectra_torch(ux_true, uy_true, 2 * math.pi, 2 * math.pi)
+        
+        _, Zk_true = compute_enstropy_torch(truth_frame.float(), 2 * math.pi, 2 * math.pi)
+        _, Zk_pred = compute_enstropy_torch(pred_frame.float(), 2 * math.pi, 2 * math.pi)
+        
+        k_np = k_bins.detach().cpu().numpy()
+        valid_mask = range(1, min(len(k_np), truth_frame.shape[-1] // 2))
+        k_np = k_np[valid_mask]
+        Ek_true_np = Ek_true.detach().cpu().numpy()[valid_mask]
+        Ek_pred_np = Ek_pred.detach().cpu().numpy()[valid_mask]
+        Zk_true_np = Zk_true[valid_mask]
+        Zk_pred_np = Zk_pred[valid_mask]
+        save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_energy_spectra_t{t_raw+1}.npz')
+        np.savez(save_path, k_np=k_np, Ek_true_np=Ek_true_np, Ek_pred_np=Ek_pred_np, Zk_true_np=Zk_true_np, Zk_pred_np=Zk_pred_np)
+        print(f"Saved energy spectra to {save_path}")
+    return save_path
+
+
+def autoregressive_predict(model, sequences, device, grid=None):
+    """Run autoregressive rollout on full sequences."""
     model.eval()
-    S1, S2 = sequences.shape[1], sequences.shape[2]
     T = sequences.shape[-2]
-    # grid = None
-    # if use_external_grid:
-        # grid = torch2dgrid(S1, S2).to(device).unsqueeze(0)  # 1 x S1 x S2 x 2
-    total_l2 = 0.0
-    step_l2 = 0.0
-    total_log_en_err = 0.0
-    step_log_en_err = 0.0
-    batches = 0
-    example = {'truth': None, 'pred': None}
-    loader = DataLoader(TensorDataset(sequences), batch_size=1, shuffle=False)
+    loader = DataLoader(TensorDataset(sequences), batch_size=16, shuffle=False)
+    initial_condition = []
+    pred_seq = []
+    truth_seq = []
+
     with torch.no_grad():
         for (seq,) in loader:
             seq = seq.to(device)  # (1, S1, S2, T, C)
             preds = []  # predicted rollout
             prev = seq[..., 0, :]  # initial condition (B, S1, S2, C)
+            initial_condition.append(prev)
             for _ in range(T - 1):
                 if grid is not None:
                     x_in = torch.cat((prev, grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
@@ -113,32 +224,27 @@ def autoregressive_eval(model, sequences, device, use_external_grid=True, grid=N
                 prev = pred
             pred_seq = torch.stack(preds, dim=-2)       # (1, S1, S2, T-1, C)
             truth_seq = seq[..., 1:, :]                 # align with predictions
-            # print("pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
+            pred_seq.append(pred_seq)
+            truth_seq.append(truth_seq)
+    initial_condition = torch.stack(initial_condition, dim=0) # (B, S1, S2, C)
+    pred_seq = torch.stack(pred_seq, dim=0) # (B, S1, S2, T-1, C)
+    truth_seq = torch.stack(truth_seq, dim=0) # (B, S1, S2, T-1, C)
+    print("initial_condition shape:", initial_condition.shape, "pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
             
-            
-            step_l2 += lploss(pred_seq[..., :1, :], truth_seq[..., :1, :]).item() # first step loss
-            total_l2 += lploss(pred_seq, truth_seq).item() # overall step loss
-            
-            step_log_en_err += log_en_err(pred_seq[..., 0, 1], truth_seq[..., 0, 1]).item() # first step loss
-            reshape_pred_seq = rearrange(pred_seq[..., 1], 'b h w t -> (b t) h w') # (B*T, H, W) 
-            reshape_truth_seq = rearrange(truth_seq[..., 1], 'b h w t -> (b t) h w')
-            total_log_en_err += log_en_err(reshape_pred_seq, reshape_truth_seq).item() # overall step loss
-            
-            batches += 1
-            if example['truth'] is None:
-                example['truth'] = truth_seq.detach().cpu()
-                example['pred'] = pred_seq.detach().cpu()
-    return total_l2 / max(1, batches), step_l2 / max(1, batches), total_log_en_err / max(1, batches), step_log_en_err / max(1, batches), example
+    return initial_condition, pred_seq, truth_seq
+    # return total_l2 / max(1, batches), step_l2 / max(1, batches), total_log_en_err / max(1, batches), step_log_en_err / max(1, batches), example
 
 
 
 def main():
     parser = ArgumentParser(description='Evaluate 2D operator autoregressively')
     parser.add_argument('--config_path', type=str, help='Path to the configuration file')
+    parser.add_argument('--test_seed', type=int, help='Seed for the test set')
     args = parser.parse_args()
 
     with open(args.config_path, 'r') as stream:
         config = yaml.load(stream, yaml.FullLoader)
+        config['train']['save_name'] = config['train']['save_name'].replace('.pt', f'_seed{args.test_seed}.pt')
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model_cfg = config['model']
@@ -177,6 +283,16 @@ def main():
                 hidden_channels=model_cfg.get('hidden_channels', 16),
                 n_blocks=model_cfg.get('n_blocks', 3),
     ).to(device)
+    elif model_name in ['refiner_unet']:
+        model = UNetRefiner(
+            input_channels=model_cfg.get('in_channels', 3),
+            output_channels=model_cfg.get('out_channels', 1),
+            time_history=model_cfg.get('time_history', 0),
+            time_future=model_cfg.get('time_future', 0),
+            hidden_channels=model_cfg.get('hidden_channels', 16),
+            activation=model_cfg.get('activation', 'gelu'),
+            n_blocks=model_cfg.get('n_blocks', 3),
+        ).to(device)
     elif model_name in ['wno', 'wno2d']:
         dummy = torch.zeros(1, 1, S_data[0], S_data[1], device=device)
         model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
@@ -200,16 +316,6 @@ def main():
                         ref=model_cfg.get('ref', 8),
                         unified_pos=model_cfg.get('unified_pos', 0),
                         is_filter=model_cfg.get('is_filter', True)).to(device)
-    elif model_name in ['refiner_unet']:
-        model = UNetRefiner(
-            input_channels=model_cfg.get('in_channels', 3),
-            output_channels=model_cfg.get('out_channels', 1),
-            time_history=model_cfg.get('time_history', 0),
-            time_future=model_cfg.get('time_future', 0),
-            hidden_channels=model_cfg.get('hidden_channels', 16),
-            activation=model_cfg.get('activation', 'gelu'),
-            n_blocks=model_cfg.get('n_blocks', 3),
-        ).to(device)
     elif model_name in ['multiscale_wavelet', 'multiscale_wavelet2d', 'multiscale_wavelet_transformer2d']:
         model = MultiscaleWaveletTransformer2D(
             wave=model_cfg.get('wave', 'haar'),
@@ -220,88 +326,6 @@ def main():
             patch_size= model_cfg.get('patch_size', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_nodecoderattn']:
-        model = MultiscaleWaveletTransformer2DDecoderNoAttention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_attn05124_group4']:
-        model = MultiscaleWaveletTransformer2DEfficient(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_double_attn']:
-        model = MultiscaleWaveletDoubleAttention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic', 'mswt_periodic', 'periodic_mswt']:
-        model = PeriodicMultiscaleWaveletTransformer2D(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic_db2', 'mswt_periodic_db2', 'periodic_mswt_db2']:
-        model = PeriodicMultiscaleWaveletTransformer2D_DB2(
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', 8),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic_db4', 'mswt_periodic_db4', 'periodic_mswt_db4']:
-        model = PeriodicMultiscaleWaveletTransformer2D_DB4(
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', 8),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic_sym4', 'mswt_periodic_sym4', 'periodic_mswt_sym4']:
-        model = PeriodicMultiscaleWaveletTransformer2D_SYM4(
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', 8),
         ).to(device)
     elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
         model = PeriodicMSWT2D_Patching(
@@ -323,7 +347,7 @@ def main():
 
     print("total number of parameters: ", sum(p.numel() for p in model.parameters()))
 
-
+    save_dir = config.get('train', {}).get('save_dir')
     ckpt_path = os.path.join(config.get('train', {}).get('save_dir'), config.get('train', {}).get('save_name'))
     if os.path.exists(ckpt_path):
         ckpt = torch.load(ckpt_path, map_location=device)
@@ -335,6 +359,24 @@ def main():
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data[0]}x{S_data[1]} for {T_data} steps.')
     use_external_grid = model_cfg.get('external_grid', True)
     grid = torch2dgrid_2d(S_data[0], S_data[1], form=config['data']['grid_form'], device=device, dtype=torch.float32)
+    
+    
+    initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
+
+
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
+
+    time_indices = [0, truth_seq.shape[-1]//2, truth_seq.shape[-1] - 1]
+    save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    
+    
+    # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
+    save_path_energy = compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    temp = np.load(save_path_energy)
+    for key in temp.keys():
+        print(key, temp[key].shape)
+
+    exit(-1)
     total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(
         model,
         sequences,
