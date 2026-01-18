@@ -300,7 +300,7 @@ def plot_error_energy():
     grid_form = 'linear'
     # grid_form = 'periodic'
     for step in steps:
-        fig, axes = plt.subplots(2, 6, figsize=(12, 4), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 7, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         pred_dict = {}
         error_dict = {}
         l2_err_dict = {}
@@ -316,6 +316,9 @@ def plot_error_energy():
         spectral_true = None  # Will be set once from first model
         
         for i, model_name in enumerate(model_name_list):
+            _, truth_initial, _, _, _, _, _, _, _ = \
+            load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, 1, save_folder, grid_form) # step =1
+
             pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
             load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
             
@@ -331,8 +334,8 @@ def plot_error_energy():
             error_min = min(error_min, error.min().item())
         
 
-        global_max =  truth.max().item() * 1.1 # allow  10% more than the truth max
-        global_min = truth.min().item() * 1.1 # allow 10% less than the truth min
+        global_max =  max(truth.max().item(), truth_initial.max().item()) * 1.1 # allow  10% more than the truth max
+        global_min = min(truth.min().item(), truth_initial.min().item()) * 1.1 # allow 10% less than the truth min
         
         # plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
         global_max = max(global_max, np.abs(global_min))
@@ -342,6 +345,12 @@ def plot_error_energy():
         
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
+        im = ax.imshow(truth_initial, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        ax.set_title('Initial Condition', fontsize=14, fontweight='bold')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        
+        ax = axes[0, 1]
         im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
         ax.set_title('Ground Truth', fontsize=14, fontweight='bold')
         ax.set_xticks([])
@@ -350,17 +359,20 @@ def plot_error_energy():
         # make the axis disapprear completly
         ax = axes[1, 0]
         ax.axis('off')
+
+        ax = axes[1, 1]
+        ax.axis('off')
         
         
         for i, model_name in enumerate(model_name_list):
-            ax = axes[0, i+1]
+            ax = axes[0, i+2]
             im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
             ax.set_title(f'{plot_model_name_list[i]}', fontsize=14, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
-            ax = axes[1, i+1]
+            ax = axes[1, i+2]
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=12, fontweight='bold')
@@ -371,7 +383,7 @@ def plot_error_energy():
         # Position colorbar in the center-right of the subplot to avoid blocking adjacent axes
         # Using inset_axes to place colorbar inside the plot area
 
-        cbar_ax = inset_axes(axes[1, 0], width="4%", height="90%", loc='center',
+        cbar_ax = inset_axes(axes[1, 1], width="4%", height="90%", loc='center',
                              borderpad=0)
         cbar = plt.colorbar(im, cax=cbar_ax, aspect=15)
         cbar.set_label('Error', fontsize=12, fontweight='bold', rotation=90, labelpad=10)
@@ -382,18 +394,6 @@ def plot_error_energy():
         # Make tick labels bold
         for label in cbar.ax.get_yticklabels():
             label.set_fontweight('bold')  
-        
-        ref_ax = axes[0, 0] 
-        ax = axes[1, 0]
-        try:
-            # Try to match box aspect (matplotlib 3.5+)
-            box_aspect = ref_ax.get_box_aspect()
-            if box_aspect is not None:
-                ax.set_box_aspect(box_aspect)
-        except (AttributeError, TypeError):
-            # For older matplotlib versions or if box_aspect is None, 
-            # ensure equal aspect ratio by matching position/bbox
-            pass
         
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_spectral_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
