@@ -382,6 +382,10 @@ def plot_error_energy():
         # add colorbar of error min and max centered inside axes[1, 0]
         # Position colorbar in the center-right of the subplot to avoid blocking adjacent axes
         # Using inset_axes to place colorbar inside the plot area
+        # put some texts "rollout %d steps" in the middle of axes[1, 0]
+        ax = axes[1, 0]
+        ax.text(0.5, 0.5, f'rollout {step} time step'+'s' if step > 1 else '', fontsize=10, fontweight='bold', ha='center', va='center')
+        ax.axis('off')
 
         cbar_ax = inset_axes(axes[1, 1], width="4%", height="90%", loc='center',
                              borderpad=0)
