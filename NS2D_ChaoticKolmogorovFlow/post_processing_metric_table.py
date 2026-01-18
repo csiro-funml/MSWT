@@ -402,7 +402,35 @@ def plot_error_energy():
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_spectral_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
         
+        
 
+        # plot the spectral energy and enstropy spectrum
+        fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        color_list = ['black', 'blue', 'green', 'red', 'purple', 'orange']
+        linestyle_list = ['-', '--', '-.', ':', '--', '-']
+        ax.loglog(k_np, spectral_true, label='Truth', linewidth=1, color=color_list[0], linestyle=linestyle_list[0])
+        for i, model_name in enumerate(model_name_list):
+            ax.loglog(k_np_dict[model_name], spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=1, color=color_list[i+1], linestyle=linestyle_list[i+1])
+        ax.set_xlabel('Wavenumber k')
+        ax.set_ylabel('Energy E(k)')
+        ax.set_title('Spectral Energy Spectrum')
+        ax.grid(True, which='both', alpha=0.3)
+        ax.legend(fontsize=10, loc='upper right')
+        plt.tight_layout(rect=[0, 0, 1, 1])
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+
+
+        fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        ax.loglog(k_np, enstropy_true, label='Truth', linewidth=1, color=color_list[0], linestyle=linestyle_list[0])
+        for i, model_name in enumerate(model_name_list):
+            ax.loglog(k_np_dict[model_name], enstropy_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=1, color=color_list[i+1], linestyle=linestyle_list[i+1])
+        ax.set_xlabel('Wavenumber k')
+        ax.set_ylabel('Enstropy Z(k)')
+        ax.set_title('Enstropy Spectrum')
+        ax.grid(True, which='both', alpha=0.3)
+        ax.legend(fontsize=10, loc='upper right')
+        plt.tight_layout(rect=[0, 0, 1, 1])
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
     # pred_frame = pred[..., t_raw]
     # truth_frame = truth[..., t_raw]
     # err_frame = pred_frame - truth_frame
