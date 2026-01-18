@@ -369,7 +369,7 @@ def plot_error_energy():
         # Position colorbar in the center-right of the subplot to avoid blocking adjacent axes
         # Using inset_axes to place colorbar inside the plot area
 
-        cbar_ax = inset_axes(axes[1, 0], width="4%", height="50%", loc='center',
+        cbar_ax = inset_axes(axes[1, 0], width="4%", height="90%", loc='center',
                              borderpad=0)
         cbar = plt.colorbar(im, cax=cbar_ax, aspect=15)
         cbar.set_label('Error', fontsize=10, rotation=90, labelpad=10)
