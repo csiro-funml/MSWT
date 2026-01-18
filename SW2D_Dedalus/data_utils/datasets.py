@@ -140,11 +140,13 @@ class SWLoader2D(Dataset):
         reshape self.X_data and self.y_data from (N, H, W, C) to (N, T, H, W, C)
         """
         assert self.X_data.shape[0] % T == 0, "Number of samples must be divisible by T"
-        n_traj = self.X_data.shape[0] // T
+        # n_traj = self.X_data.shape[0] // T
         
-        self.X_data = rearrange(self.X_data,   '(t n) h w c -> n h w t c', t=T)
-        self.y_data = rearrange(self.y_data,   '(t n) h w c -> n h w t c', t=T)
-        self.num_samples = n_traj
+        # self.X_data = rearrange(self.X_data,   '(t n) h w c -> n h w t c', t=T)
+        self.X_data = rearrange(self.X_data,   'n h w c -> 1 n h w c')
+        self.y_data = rearrange(self.y_data,   'n h w c -> 1 n h w c')
+        # self.y_data = rearrange(self.y_data,   '(t n) h w c -> n h w t c', t=T)
+        # self.num_samples = n_traj
         self.T = T
         print(f"Reshaped data to (N, T, H, W, C) - final shape: {self.X_data.shape}")
         return self.X_data, self.y_data

@@ -78,9 +78,9 @@ def autoregressive_predict(model, test_loader, device, grid):
     total_pred = torch.cat(total_pred, dim=0)[..., 0] # (N, H, W, T)
     total_truth = torch.cat(total_truth, dim=0)[..., 0] # (N, H, W, T)
     initial_condition = torch.cat(initial_condition, dim=0)[..., 0] # (N, H, W)
-    total_pred = torch.rot90(total_pred, k=1, dims=[-2, -1])
-    total_truth = torch.rot90(total_truth, k=1, dims=[-2, -1])
-    initial_condition = torch.rot90(initial_condition, k=1, dims=[-2, -1])
+    # total_pred = torch.rot90(total_pred, k=1, dims=[-2, -1])
+    # total_truth = torch.rot90(total_truth, k=1, dims=[-2, -1])
+    # initial_condition = torch.rot90(initial_condition, k=1, dims=[-2, -1])
     print("total_pred shape:", total_pred.shape, "total_truth shape:", total_truth.shape, "initial_condition shape:", initial_condition.shape)        
     return initial_condition, total_pred, total_truth
 
