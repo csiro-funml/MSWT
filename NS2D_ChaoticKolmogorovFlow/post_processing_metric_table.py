@@ -364,12 +364,13 @@ def plot_error_energy():
             ax.set_xticks([])
             ax.set_yticks([])
             
-        # add colobar of error min and error max at the right hand side  of the entire figure, with the text notation: error
-        # but do not want to change the size of any axes at all, just the colorbar
-        cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.046, pad=0.04)
-        cbar.set_label('Error')
-        cbar.ax.set_ylabel('Error', fontsize=10)
-        cbar.ax.set_ylabel('Error', fontsize=10)
+        # add colorbar of error min and error max on the left side of axes[1, 0]
+        # Position colorbar on the left side
+        cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.046, pad=0.04, location='left')
+        cbar.set_label('Error', fontsize=10)
+        # Move label to the left side of colorbar
+        cbar.ax.yaxis.set_label_position('left')
+        cbar.ax.yaxis.tick_left()
         
         ref_ax = axes[0, 0] 
         ax = axes[1, 0]
