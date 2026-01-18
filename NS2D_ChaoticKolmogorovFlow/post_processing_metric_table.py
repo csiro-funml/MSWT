@@ -372,13 +372,13 @@ def plot_error_energy():
             ax.set_yticks([])
             
             ax = axes[1, 0]
-            im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=1)
+            im = ax.loglog(k_np, spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=0.5)
             ax.set_xlabel('Wavenumber k')
             ax.set_ylabel('Energy E(k)')
             ax.set_title('Spectral Energy')
             ax.legend()
         # set the colorbar at the bottom of the figure
-        cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
+        # cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
         # cbar.set_label('Velocity')
         # Adjust layout to ensure all subplots have equal size
         plt.tight_layout(rect=[0, 0, 1, 1])
