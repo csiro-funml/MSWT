@@ -344,12 +344,12 @@ def plot_error_energy():
         axes[1, 0].set_ylabel('Energy E(k)')
        
 
-        axes[0, 1].imshow(pred_dict['FNO'], cmap='RdBu_r', origin='lower')
+        axes[0, 1].imshow(pred_dict['HFS'], cmap='RdBu_r', origin='lower')
         axes[0, 1].set_title(f'{plot_model_name_list[0]}')
         axes[0, 1].set_xticks([])
         axes[0, 1].set_yticks([])
         
-        axes[1, 1].imshow(pred_dict['FNO']-truth, cmap='RdBu_r', origin='lower')
+        axes[1, 1].imshow(pred_dict['HFS']-truth, cmap='RdBu_r', origin='lower')
         axes[1, 1].set_title(f'(Rel $L^2$: {l2_err_dict['FNO']:.4f})')
         axes[1, 1].set_xticks([])
         axes[1, 1].set_yticks([])
