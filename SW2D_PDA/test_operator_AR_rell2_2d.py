@@ -188,8 +188,8 @@ def autoregressive_predict(model, sequences, device, grid=None):
     T = sequences.shape[-2]
     loader = DataLoader(TensorDataset(sequences), batch_size=16, shuffle=False)
     initial_condition = []
-    pred_seq = []
-    truth_seq = []
+    pred_seq_list = []
+    truth_seq_list = []
 
     with torch.no_grad():
         for (seq,) in loader:
@@ -224,11 +224,11 @@ def autoregressive_predict(model, sequences, device, grid=None):
                 prev = pred
             pred_seq = torch.stack(preds, dim=-2)       # (1, S1, S2, T-1, C)
             truth_seq = seq[..., 1:, :]                 # align with predictions
-            pred_seq.append(pred_seq)
-            truth_seq.append(truth_seq)
+            pred_seq_list.append(pred_seq)
+            truth_seq_list.append(truth_seq)
     initial_condition = torch.stack(initial_condition, dim=0) # (B, S1, S2, C)
-    pred_seq = torch.stack(pred_seq, dim=0) # (B, S1, S2, T-1, C)
-    truth_seq = torch.stack(truth_seq, dim=0) # (B, S1, S2, T-1, C)
+    pred_seq = torch.stack(pred_seq_list, dim=0) # (B, S1, S2, T-1, C)
+    truth_seq = torch.stack(truth_seq_list, dim=0) # (B, S1, S2, T-1, C)
     print("initial_condition shape:", initial_condition.shape, "pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
             
     return initial_condition, pred_seq, truth_seq
