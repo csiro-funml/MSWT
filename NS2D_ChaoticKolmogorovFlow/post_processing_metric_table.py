@@ -366,10 +366,15 @@ def plot_error_energy():
             
         # add colorbar of error min and error max on the left side of axes[1, 0]
         # Position colorbar on the left side with wider bar and more ticks
-        cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.046, pad=0.04, location='right', aspect=40, shrink=0.8)
+        # fraction: width of colorbar as fraction of axes (default 0.15, smaller = narrower)
+        # pad: spacing between colorbar and axes (default 0.15)
+        # aspect: height/width ratio for vertical colorbar (higher = taller/thinner, lower = shorter/wider)
+        # shrink: scale the length of the colorbar (default 1.0, <1 makes it shorter)
+        # To make wider: increase fraction OR decrease aspect
+        cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.1, pad=0.04, location='right', aspect=15, shrink=0.8)
         cbar.set_label('Error', fontsize=10)
-        # Move label to the left side of colorbar
-        cbar.ax.yaxis.set_label_position('left')
+        # Move label to the right side of colorbar (since it's on the right)
+        cbar.ax.yaxis.set_label_position('right')
         cbar.ax.yaxis.tick_right()
         
         ref_ax = axes[0, 0] 
