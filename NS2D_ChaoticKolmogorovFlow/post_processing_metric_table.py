@@ -5,6 +5,9 @@ import numpy as np
 import re
 import numpy as np
 import pandas as pd
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.criterion import LpLoss
 
 
 def process_metric_table_to_latex(CSV_PATH):
@@ -266,8 +269,12 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     print("spectral_true shape", spectral_true.shape)
     print("enstropy_true shape", enstropy_true.shape)
     print("k_np shape", k_np.shape)
+
+    # compute the l2 error
+    l2_loss = LpLoss(size_average=True)
+    l2_err = l2_loss(torch.from_numpy(pred).unsqueeze(0), torch.from_numpy(truth).unsqueeze(0)).item()
     
-    return pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true
+    return pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err
 
 
 def plot_error_energy():
@@ -281,35 +288,64 @@ def plot_error_energy():
     else:
         save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
     steps = [1, 30, 64]
-    model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
-    saved_model_name_list = ['fno2d', 'refiner_unet', 'wno', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
     seed = 42
     grid_form = 'linear'
     for step in steps:
         fig, axes = plt.subplots(2, 6, figsize=(12, 8))
         pred_dict = {}
         error_dict = {}
+        l2_err_dict = {}
         k_np_dict = {}
         spectral_pred_dict = {}
         enstropy_pred_dict = {}
+        global_max = float('-inf')
+        global_min = float('inf')
         for i, model_name in enumerate(model_name_list):
-            pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true = \
+            pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
             load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
+            
             pred_dict[model_name] = pred
             error_dict[model_name] = error
             k_np_dict[model_name] = k_np
+            l2_err_dict[model_name] = l2_err
             spectral_pred_dict[model_name] = spectral_pred
             enstropy_pred_dict[model_name] = enstropy_pred
+            global_max = max(global_max, truth.max().item(), pred.max().item(), error.max().item())
+            global_min = min(global_min, truth.min().item(), pred.min().item(), error.min().item())
             
     #     # I want to get the global error range and then plot
-    #     global_error_min = min(error_dict.values())
+        # global_error_min = min(error_dict.values())
     #     global_error_max = max(error_dict.values())
         
-    #     global_min =
+        global_max = max(global_max, np.abs(global_max))
+        global_min = -global_max # make it symmetrical around zero
         
-    #     # plot the truth first at axes [0, 0]
-    #     ax = axes[0, 0]
-    #     im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=vmin, vmax=vmax)
+        # plot the truth first at axes [0, 0]
+        ax = axes[0, 0]
+        im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+
+        for i, model_name in enumerate(model_name_list):
+            ax = axes[0, i+1]
+            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+            ax.set_title(f'{plot_model_name_list[i]}')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+            ax = axes[1, i+1]
+            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+            ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.4f})')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            
+        # set the colorbar at the bottom of the figure
+        cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
+        # cbar.set_label('Velocity')
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
         
 
     # pred_frame = pred[..., t_raw]
