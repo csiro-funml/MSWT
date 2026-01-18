@@ -75,9 +75,9 @@ def autoregressive_predict(model, test_loader, device, grid):
             total_truth.append(truth_seq)
             print("pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
 
-    total_pred = torch.stack(total_pred, dim=0)
-    total_truth = torch.stack(total_truth, dim=0)
-    initial_condition = torch.stack(initial_condition, dim=0)
+    total_pred = torch.cat(total_pred, dim=0)[..., 0] # (N, H, W, T)
+    total_truth = torch.cat(total_truth, dim=0)[..., 0] # (N, H, W, T)
+    initial_condition = torch.cat(initial_condition, dim=0)[..., 0] # (N, H, W)
     print("total_pred shape:", total_pred.shape, "total_truth shape:", total_truth.shape, "initial_condition shape:", initial_condition.shape)        
     return initial_condition, pred_seq, truth_seq
 
@@ -221,18 +221,45 @@ def main():
     
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     initial_condition, pred_seq, truth_seq = autoregressive_predict(model, test_loader, device, grid)
-    exit(-1)
     
+    plot_dir = config.get('train', {}).get('save_dir')
+    pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions')
+    os.makedirs(pred_dir, exist_ok=True)
+    time_indices = range(0, pred_seq.shape[-1], 10)
+    for t_raw in time_indices:
+        pred_frame = pred_seq[..., t_raw]
+        truth_frame = truth_seq[..., t_raw]
+        err_frame = pred_frame - truth_frame
+        truth_min = truth_frame.min().item()
+        truth_max = truth_frame.max().item()
+        abs_lim = max(abs(truth_min), abs(truth_max))
+        vmin = -abs_lim
+        vmax = abs_lim
+
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+        titles = ['Truth', 'Prediction', 'Error']
+        data_to_plot = [truth_frame, pred_frame, err_frame]
+        for ax, title, data in zip(axes, titles, data_to_plot):
+            if title in ['Truth', 'Prediction']:
+                im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=vmin, vmax=vmax)
+            else:
+                err_abs = max(abs(data.min().item()), abs(data.max().item()), 1e-8)
+                im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=-err_abs, vmax=err_abs)
+            ax.set_title(f'{title} (T={t_raw})')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        plt.tight_layout()
+        pred_plot_path = os.path.join(pred_dir, f'ns_prediction_t{t_raw}.png')
+        fig.savefig(pred_plot_path, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+    exit(-1)  
+    
+    
+
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
     
     
-    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(
-        model,
-        sequences,
-        device,
-        use_external_grid=use_external_grid,
-        grid=grid,
-    )
     print(f'Relative L2  rollout avg: {total_l2:.6f}')
     print(f'Relative L2 over first step: {step_l2:.6f}')
     print(f'Log energy error rollout avg: {total_log_en_err:.6f}')
