@@ -227,8 +227,8 @@ def main():
     os.makedirs(pred_dir, exist_ok=True)
     time_indices = range(0, pred_seq.shape[-1], 10)
     for t_raw in time_indices:
-        pred_frame = pred_seq[..., t_raw].cpu()
-        truth_frame = truth_seq[..., t_raw].cpu()
+        pred_frame = pred_seq[0,..., t_raw].cpu()
+        truth_frame = truth_seq[0,..., t_raw].cpu()
         err_frame = pred_frame - truth_frame
         truth_min = truth_frame.min().item()
         truth_max = truth_frame.max().item()
