@@ -289,6 +289,7 @@ def plot_error_energy():
     else:
         save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
     steps = [1, 30, 64]
+    dataset_name = 'NS2D_ChaoticKolmogorovFlow'
     model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
     plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
@@ -391,7 +392,7 @@ def plot_error_energy():
             pass
         
         plt.tight_layout(rect=[0, 0, 1, 1])
-        plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=150, bbox_inches='tight')
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_spectral_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=150, bbox_inches='tight')
         
 
     # pred_frame = pred[..., t_raw]
