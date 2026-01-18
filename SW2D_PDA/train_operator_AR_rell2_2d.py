@@ -17,11 +17,6 @@ from models.saot import SAOTModel
 from models.wavelet_transform import MultiscaleWaveletTransformer2D
 from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention, MSWT_DeNoAttn_StackLayers
 from models.periodic_mswt import PeriodicMultiscaleWaveletTransformer2D, PeriodicMSWT2D_Patching
-from models.periodic_mswt_bases import (
-    PeriodicMultiscaleWaveletTransformer2D_DB2,
-    PeriodicMultiscaleWaveletTransformer2D_DB4,
-    PeriodicMultiscaleWaveletTransformer2D_SYM4,
-)
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
