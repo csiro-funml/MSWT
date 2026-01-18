@@ -350,14 +350,14 @@ def plot_error_energy():
         
         for i, model_name in enumerate(model_name_list):
             ax = axes[0, i+1]
-            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower')
+            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
             ax.set_title(f'{plot_model_name_list[i]}')
             ax.set_xticks([])
             ax.set_yticks([])
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
             ax = axes[1, i+1]
-            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower')
+            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.4f})')
             ax.set_xticks([])
             ax.set_yticks([])
