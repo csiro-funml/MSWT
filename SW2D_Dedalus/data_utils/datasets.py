@@ -143,8 +143,10 @@ class SWLoader2D(Dataset):
         n_traj = self.X_data.shape[0] // T
         
         # self.X_data = rearrange(self.X_data,   '(t n) h w c -> n h w t c', t=T)
-        self.X_data = rearrange(self.X_data,   '(t n) h w c -> n h w t c', t=T)
-        self.y_data = rearrange(self.y_data,   '(t n) h w c -> n h w t c', t=T)
+        # self.X_data = rearrange(self.X_data,   '(t n) h w c -> n h w t c', t=T)
+        # self.y_data = rearrange(self.y_data,   '(t n) h w c -> n h w t c', t=T)
+        self.X_data = rearrange(self.X_data,   '(n t) h w c -> n h w t c', t=T)
+        self.y_data = rearrange(self.y_data,   '(n t) h w c -> n h w t c', t=T)
         # self.y_data = rearrange(self.y_data,   '(t n) h w c -> n h w t c', t=T)
         self.num_samples = n_traj
         # self.num_samples = 1
