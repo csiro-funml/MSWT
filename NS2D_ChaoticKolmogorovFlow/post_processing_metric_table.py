@@ -411,10 +411,10 @@ def plot_error_energy():
         ax.loglog(k_np, spectral_true, label='Truth', linewidth=3, color=color_list[0], linestyle=linestyle_list[0])
         for i, model_name in enumerate(model_name_list):
             ax.loglog(k_np_dict[model_name], spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 3, color=color_list[i+1], linestyle=linestyle_list[i+1])
-        ax.set_xlabel('Wavenumber k')
-        ax.set_ylabel('Spectral Energy Spectrum E(k)')
+        ax.set_xlabel('Wavenumber k', fontsize=20)
+        ax.set_ylabel('Spectral Energy Spectrum E(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
-        ax.legend(fontsize=10, loc='lower left')
+        ax.legend(fontsize=20, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
@@ -423,10 +423,10 @@ def plot_error_energy():
         ax.loglog(k_np, enstropy_true, label='Ground Truth', linewidth=2, color=color_list[0], linestyle=linestyle_list[0])
         for i, model_name in enumerate(model_name_list):
             ax.loglog(k_np_dict[model_name], enstropy_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 3, color=color_list[i+1], linestyle=linestyle_list[i+1])
-        ax.set_xlabel('Wavenumber k')
-        ax.set_ylabel('Enstropy Z(k)')
+        ax.set_xlabel('Wavenumber k', fontsize=20)
+        ax.set_ylabel('Enstropy Z(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
-        ax.legend(fontsize=10, loc='lower left')
+        ax.legend(fontsize=20, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
     # pred_frame = pred[..., t_raw]
