@@ -250,7 +250,7 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     energy_path = os.path.join(save_folder, f'{model_folder_name}2d_{grid_form}/saved_plots', f'{saved_model_name}_seed{seed}_energy_spectra_t{step}.npz')
     
     pred_data = np.load(pred_path)
-    initial_condition = pred_data['initial_condition']
+    initial_condition = pred_data['initial_condition'][0, 0]# (shape: N, C, H, W)
     pred = pred_data['pred_seq_t']
     truth = pred_data['truth_seq_t']
     error = pred_data['error_seq_t']
