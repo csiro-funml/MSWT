@@ -365,12 +365,17 @@ def plot_error_energy():
             ax.set_yticks([])
             
         # add colorbar of error min and error max on the left side of axes[1, 0]
-        # Position colorbar on the left side
-        cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.046, pad=0.04, location='left')
+        # Position colorbar on the left side with wider bar and more ticks
+        cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.046, pad=0.04, location='left', aspect=20, shrink=0.8)
         cbar.set_label('Error', fontsize=10)
         # Move label to the left side of colorbar
         cbar.ax.yaxis.set_label_position('left')
         cbar.ax.yaxis.tick_left()
+        # Set more ticks (e.g., 6-8 ticks between min and max)
+        num_ticks = 5
+        tick_values = np.linspace(error_min, error_max, num_ticks)
+        cbar.set_ticks(tick_values)
+        cbar.set_ticklabels([f'{val:.1f}' for val in tick_values])
         
         ref_ax = axes[0, 0] 
         ax = axes[1, 0]
