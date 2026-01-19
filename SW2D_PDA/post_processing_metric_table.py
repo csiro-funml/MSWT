@@ -328,6 +328,7 @@ def plot_error():
     model_name_list = ['FNO', 'HFS','MSWT_patching']
     saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
     plot_model_name_list = ['FNO', 'HFS', 'MSWT']
+    full_energy_model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     seed = 42
     # grid_form = 'linear'
     grid_form = 'periodic'
@@ -446,7 +447,7 @@ def plot_error():
 
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         ax.loglog(k_np, enstropy_dict['truth'], label='Ground Truth', linewidth=2, color=color_list[0], linestyle=linestyle_list[0])
-        for i, model_name in enumerate(model_name_list):
+        for i, model_name in enumerate(full_energy_model_name_list):
             ax.loglog(k_np, enstropy_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 2, color=color_list[i+1], linestyle=linestyle_list[i+1])
         ax.set_xlabel('Wavenumber k', fontsize=20)
         ax.set_ylabel('Enstropy Z(k)', fontsize=20)
