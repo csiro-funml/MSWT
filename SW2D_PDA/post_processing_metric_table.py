@@ -321,7 +321,7 @@ def plot_error():
     else:
         save_folder = "logs/SW2D_PDA/"
     # steps = [1, 41, 87]
-    steps = range(0, 88, 10)
+    steps = range(0, 88, 20)
     dataset_name = 'SW2D_PDA'
     # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
@@ -338,26 +338,38 @@ def plot_error():
 
         pred_dict = {}
         error_dict = {}
-
+        global_max = float('-inf')
+        global_min = float('inf')
+        error_max = float('-inf')
+        error_min = float('inf')
         for i, model_name in enumerate(model_name_list):
             initial_condition, pred, truth, error= \
             load_pred_truth_error(model_name, saved_model_name_list[i], seed, step+1, save_folder, grid_form)
              # (N , H, W)
             pred_dict[model_name] = pred
             error_dict[model_name] = error
-        
-        par = range(initial_condition.shape[0])
+            global_max = max(global_max, initial_condition.max())
+            global_min = min(global_min, initial_condition.min())
+            error_max = max(error_max, error.max())
+            error_min = min(error_min, error.min())
+
+        global_max = max(global_max, np.abs(global_min))
+        global_min = -global_max # make it symmetrical around zero
+        error_max = max(error_max, np.abs(error_min))
+        error_min = -error_max # make it symmetrical around zero
+
+        par = range(0, initial_condition.shape[0], 10)
         for sample_idx in tqdm(par, desc='Plotting error', total=len(par)):
             fig, axes = plt.subplots(2, 4, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
             # plot the truth first at axes [0, 0]
             ax = axes[0, 0]
-            im = ax.imshow(initial_condition[sample_idx], cmap='RdBu_r', origin='lower')
+            im = ax.imshow(initial_condition[sample_idx], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
             ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
             
             ax = axes[0, 1]
-            im = ax.imshow(truth[sample_idx], cmap='RdBu_r', origin='lower')
+            im = ax.imshow(truth[sample_idx], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
             ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
@@ -371,14 +383,14 @@ def plot_error():
             
             for col_idx, model_name in enumerate(model_name_list):
                 ax = axes[0, col_idx+2]
-                im = ax.imshow(pred_dict[model_name][sample_idx], cmap='RdBu_r', origin='lower')
+                im = ax.imshow(pred_dict[model_name][sample_idx], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
                 ax.set_title(f'{plot_model_name_list[i]}', fontsize=10, fontweight='bold')
                 ax.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 ax.set_xticks([])
                 ax.set_yticks([])
                 
                 ax = axes[1, col_idx+2]   
-                im = ax.imshow(error_dict[model_name][sample_idx], cmap='RdBu_r', origin='lower')
+                im = ax.imshow(error_dict[model_name][sample_idx], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
                 ax.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
                 ax.set_xticks([])
