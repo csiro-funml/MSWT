@@ -276,7 +276,8 @@ def train_2d(args, config):
     else:
         train_set = SWLoader2D(
                             datapath=data_config['datapath'],
-                            state='train',
+                            # state='train',
+                            state = 'val', # temporarily use val set for training
                             train=True,
                             save_normalizer_path=data_config.get('normalizer_path', None)
                         )
