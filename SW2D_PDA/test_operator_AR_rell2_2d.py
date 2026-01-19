@@ -50,7 +50,7 @@ def load_sw_sequences(data_config):
     print("final data shape: ", sequences.shape)  # (N, H, W, T, C)
     return sequences, (S1, S2), T
 
-def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
+def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, time_indices):
     """ 
     truth_seq: (B, H, W, T, C)
     pred_seq: (B, H, W, T, C)
@@ -63,20 +63,19 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     # pderesidual = PDEResidualLoss()
 
 
-    time_idx = [0, 40, truth_seq.shape[-2] - 1]
     metrics_name = ['l2', 'SMLR', 'EMLR', 'SMAE', 'EMAE']
     metrics_dict = {}
     
     # Initialize metrics_dict in desired column order:
     # First all metrics (l2, spectral_meape, etc.) grouped by metric, then seed and model
     for metric in metrics_name:
-       for t in time_idx:
+       for t in time_indices:
            metrics_dict[metric+f'_step{t+1}'] = 0
     metrics_dict['seed'] = seed
     metrics_dict['model'] = model_name
     
     # Compute actual metric values
-    for t in time_idx:
+    for t in time_indices:
         truth_seq_t = truth_seq[..., t, :] # the first channel for vorticity
         pred_seq_t = pred_seq[..., t, :] # the first channel for vorticity
         # convert the vorcitity to velocity
@@ -365,8 +364,8 @@ def main():
     
     initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
 
-
-    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
+    time_indices = range(0, truth_seq.shape[-2], 10)
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, time_indices=time_indices)
 
     # time_indices = [0, 40, truth_seq.shape[-2] - 1]
     time_indices = range(0, truth_seq.shape[-2], 10)
