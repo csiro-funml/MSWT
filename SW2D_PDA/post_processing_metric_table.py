@@ -369,7 +369,8 @@ def plot_error():
         error_max = max(error_max, np.abs(error_min))
         error_min = -error_max # make it symmetrical around zero
 
-        fig, axes = plt.subplots(2, 5, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        # fig, axes = plt.subplots(2, 5, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 10, figsize=(12, 10), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
         im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
