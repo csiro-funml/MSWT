@@ -337,7 +337,7 @@ def plot_error():
     for step in steps:
         for i, model_name in enumerate(model_name_list):
             initial_condition, pred, truth, error= \
-            load_pred_truth_error(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
+            load_pred_truth_error(model_name, saved_model_name_list[i], seed, step+1, save_folder, grid_form)
             
         #     for sample_idx in range(initial_condition.shape[0]):
         #         fig, axes = plt.subplots(2, 4, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
