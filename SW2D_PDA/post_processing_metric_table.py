@@ -289,11 +289,11 @@ def plot_error_energy():
     # from the secon column, shows the prediction and error plot
     # generate the color map from below
     if torch.cuda.is_available():
-        save_folder = "/scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/"
+        save_folder = "/scratch3/wan410/operator_learning_model/SW2D_PDA/"
     else:
-        save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
+        save_folder = "logs/SW2D_PDA/"
     steps = [1, 40, 87]
-    dataset_name = 'NS2D_ChaoticKolmogorovFlow'
+    dataset_name = 'SW2D_PDA'
     # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
     # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
