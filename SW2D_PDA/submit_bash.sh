@@ -61,8 +61,8 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_nlayers4.yaml
 
-python3 test_operator_AR_rell2_2d.py --config_path configs/linear/FNO.yaml --test_seed 42
-# python3 test_operator_AR_rell2_2d.py --config_path configs/linear/MSWT_patching.yaml --test_seed 42
+# python3 test_operator_AR_rell2_2d.py --config_path configs/linear/FNO.yaml --test_seed 42
+python3 test_operator_AR_rell2_2d.py --config_path configs/linear/MSWT_patching.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/linear/HFS.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/linear/WNO.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/linear/SAOT.yaml --test_seed 45
