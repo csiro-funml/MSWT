@@ -142,7 +142,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
         # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape, "Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
         k_np = k_bins
         valid_mask = range(1, min(len(k_np), min(truth_seq_t.shape[1], truth_seq_t.shape[2]) // 2)) # important, because we need to truncate the energy spectra and enstropy spectrum to the same length
-        print("valid_mask: ", valid_mask)
+        # print("valid_mask: ", valid_mask)
         k_np = k_np[valid_mask]
         Ek_true_truncated = Ek_true[:, valid_mask]
         Ek_pred_truncated = Ek_pred[:, valid_mask]
