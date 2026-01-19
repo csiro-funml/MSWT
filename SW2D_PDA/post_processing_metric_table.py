@@ -322,12 +322,12 @@ def plot_error():
     steps = [0, 40, 80]
     # steps = [80]
     dataset_name = 'SW2D_PDA'
-    # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
-    # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
-    # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
-    model_name_list = ['FNO', 'HFS','MSWT_patching']
-    saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
-    plot_model_name_list = ['FNO', 'HFS', 'MSWT']
+    model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
+    # model_name_list = ['FNO', 'HFS','MSWT_patching']
+    # saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    # plot_model_name_list = ['FNO', 'HFS', 'MSWT']
     # full_energy_model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     seed = 42
     # grid_form = 'linear'
@@ -423,7 +423,7 @@ def plot_error():
         # save_folder_error = os.path.join(save_folder, 'plot_error')
         save_folder_error = save_folder
         os.makedirs(save_folder_error, exist_ok=True)
-        plt.savefig(os.path.join(save_folder_error, f'{dataset_name}_pred_error_grid_{grid_form}_t{step}_seed{seed}_instance_{sample_idx}.png'), dpi=500, bbox_inches='tight')
+        # plt.savefig(os.path.join(save_folder_error, f'{dataset_name}_pred_error_grid_{grid_form}_t{step}_seed{seed}_instance_{sample_idx}.png'), dpi=500, bbox_inches='tight')
         plt.close(fig)
             
                
