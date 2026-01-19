@@ -135,8 +135,8 @@ def save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, ti
     os.makedirs(save_dir, exist_ok=True)
     initial_condition = initial_condition.detach().cpu()
     for t in time_indices:
-        truth_seq_t = truth_seq[0,..., t, 0].detach().cpu()
-        pred_seq_t = pred_seq[0,..., t, 0].detach().cpu()
+        truth_seq_t = truth_seq[..., t, 0].detach().cpu()
+        pred_seq_t = pred_seq[..., t, 0].detach().cpu()
         error_seq_t = pred_seq_t - truth_seq_t
         save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_prediction_t{t+1}.npz')
         np.savez(save_path, initial_condition=initial_condition, truth_seq_t=truth_seq_t, pred_seq_t=pred_seq_t, error_seq_t=error_seq_t)
@@ -156,8 +156,8 @@ def compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, mod
     save_dir = os.path.join(save_dir, 'saved_plots')
     os.makedirs(save_dir, exist_ok=True)
     for t_raw in time_indices:
-        pred_frame = pred_seq.detach().cpu()[0, ..., t_raw, 0]
-        truth_frame = truth_seq.detach().cpu()[0, ..., t_raw, 0]
+        pred_frame = pred_seq.detach().cpu()[..., t_raw, 0]
+        truth_frame = truth_seq.detach().cpu()[..., t_raw, 0]
        
         # Spectral energy comparison 
         ux_pred, uy_pred = velocity_from_vorticity(pred_frame.float())
@@ -168,14 +168,14 @@ def compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, mod
         
         _, Zk_true = compute_enstropy_torch(truth_frame.float(), 2 * math.pi, 2 * math.pi)
         _, Zk_pred = compute_enstropy_torch(pred_frame.float(), 2 * math.pi, 2 * math.pi)
-        
+        print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape, "Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
         k_np = k_bins.detach().cpu().numpy()
         valid_mask = range(1, min(len(k_np), truth_frame.shape[-1] // 2))
         k_np = k_np[valid_mask]
-        Ek_true_np = Ek_true.detach().cpu().numpy()[valid_mask]
-        Ek_pred_np = Ek_pred.detach().cpu().numpy()[valid_mask]
-        Zk_true_np = Zk_true[valid_mask]
-        Zk_pred_np = Zk_pred[valid_mask]
+        Ek_true_np = Ek_true.detach().cpu().numpy()[:, valid_mask]
+        Ek_pred_np = Ek_pred.detach().cpu().numpy()[:, valid_mask]
+        Zk_true_np = Zk_true[:, valid_mask]
+        Zk_pred_np = Zk_pred[:, valid_mask]
         save_path = os.path.join(save_dir, f'{model_name}_seed{seed}_energy_spectra_t{t_raw+1}.npz')
         np.savez(save_path, k_np=k_np, Ek_true_np=Ek_true_np, Ek_pred_np=Ek_pred_np, Zk_true_np=Zk_true_np, Zk_pred_np=Zk_pred_np)
         print(f"Saved energy spectra to {save_path}")
