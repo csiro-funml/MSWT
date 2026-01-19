@@ -96,7 +96,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, time_indices
         _, Zk_pred = compute_enstropy_torch(pred_seq_t[..., 0].float(), 2 * math.pi, 2 * math.pi)
         print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape, "Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
         k_np = k_bins
-        valid_mask = range(1, min(len(k_np), min(truth_seq_t.shape[-1], truth_seq_t.shape[-2]) // 2)) # important, because we need to truncate the energy spectra and enstropy spectrum to the same length
+        valid_mask = range(1, min(len(k_np), min(truth_seq_t.shape[-3], truth_seq_t.shape[-2]) // 2)) # important, because we need to truncate the energy spectra and enstropy spectrum to the same length
         k_np = k_np[valid_mask]
         Ek_true_truncated = Ek_true[:, valid_mask]
         Ek_pred_truncated = Ek_pred[:, valid_mask]
