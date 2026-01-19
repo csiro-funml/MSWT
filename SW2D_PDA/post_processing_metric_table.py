@@ -8,7 +8,7 @@ import pandas as pd
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.criterion import LpLoss
-
+from tqdm import tqdm
 
 def process_metric_table_to_latex(CSV_PATH):
     # -----------------------------
@@ -346,8 +346,8 @@ def plot_error():
             pred_dict[model_name] = pred
             error_dict[model_name] = error
         
-        
-        for sample_idx in range(initial_condition.shape[0]):
+        par = range(initial_condition.shape[0])
+        for sample_idx in tqdm(par, desc='Plotting error', total=len(par)):
             fig, axes = plt.subplots(2, 4, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
             # plot the truth first at axes [0, 0]
             ax = axes[0, 0]
