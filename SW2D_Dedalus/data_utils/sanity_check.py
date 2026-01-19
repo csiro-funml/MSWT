@@ -58,7 +58,7 @@ if __name__ == '__main__':
     print(f"Saving plots to: {save_folder}")
     
     # Get the first trajectory, first channel
-    trajectory_0_channel_0 = X_new[0, :, 0, :, :]  # (T, H, W)
+    trajectory_0_channel_0 = X_new[0, :, 1, :, :]  # (T, H, W)
     
     # Plot at every 10 time steps
     time_steps = list(range(0, T, 10))  # [0, 10, 20, 30, ...]
