@@ -437,7 +437,7 @@ def plot_error():
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
 if __name__ == "__main__":
-    aggregate_metric_table(grid_form='linear')
+    # aggregate_metric_table(grid_form='linear')
     
-    # aggregate_metric_table(grid_form='periodic')
+    aggregate_metric_table(grid_form='periodic')
     # plot_error()
