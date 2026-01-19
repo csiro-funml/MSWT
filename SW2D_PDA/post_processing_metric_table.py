@@ -404,8 +404,21 @@ def plot_error():
             # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
+        
 
-        plt.tight_layout()
+        cbar_ax = inset_axes(axes[1, 1], width="4%", height="90%", loc='center',
+                             borderpad=0)
+        cbar = plt.colorbar(im, cax=cbar_ax, aspect=15)
+        cbar.set_label('Error', fontsize=10, fontweight='bold', rotation=90, labelpad=10)
+        # Set ticks on the right side and make them bold and larger
+        cbar.ax.yaxis.set_label_position('right')
+        cbar.ax.yaxis.tick_left()
+        cbar.ax.tick_params(labelsize=11, width=1.2, length=5)
+        # Make tick labels bold
+        for label in cbar.ax.get_yticklabels():
+            label.set_fontweight('bold')  
+        
+        plt.tight_layout(rect=[0, 0, 1, 1])
         # save_folder_error = os.path.join(save_folder, 'plot_error')
         save_folder_error = save_folder
         os.makedirs(save_folder_error, exist_ok=True)
