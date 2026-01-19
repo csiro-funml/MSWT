@@ -328,7 +328,7 @@ def plot_error():
     model_name_list = ['FNO', 'HFS','MSWT_patching']
     saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
     plot_model_name_list = ['FNO', 'HFS', 'MSWT']
-    full_energy_model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    # full_energy_model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     seed = 42
     # grid_form = 'linear'
     grid_form = 'periodic'
@@ -369,7 +369,7 @@ def plot_error():
         error_max = max(error_max, np.abs(error_min))
         error_min = -error_max # make it symmetrical around zero
 
-        fig, axes = plt.subplots(2, 5, figsize=(12, 4), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 5, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
         im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
@@ -393,21 +393,21 @@ def plot_error():
         for col_idx, model_name in enumerate(model_name_list):
             ax = axes[0, col_idx+2]
             im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-            ax.set_ylabel(f'{plot_model_name_list[col_idx]} Prediction', fontsize=10, fontweight='bold')
+            ax.set_title(f'{plot_model_name_list[col_idx]} Prediction', fontsize=10, fontweight='bold')
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_xticks([])
             ax.set_yticks([])
             
             ax = axes[1, col_idx+2]   
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_ylabel(f'{plot_model_name_list[col_idx]} Error', fontsize=10, fontweight='bold')
+            ax.set_title('Error', fontsize=10, fontweight='bold')
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
         
 
-        cbar_ax = inset_axes(axes[1, 1], width="4%", height="90%", loc='center',
+        cbar_ax = inset_axes(axes[1, 1], width="10%", height="70%", loc='center',
                              borderpad=0)
         cbar = plt.colorbar(im, cax=cbar_ax, aspect=15)
         cbar.set_label('Error', fontsize=10, fontweight='bold', rotation=90, labelpad=10)
@@ -447,7 +447,7 @@ def plot_error():
 
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         ax.loglog(k_np, enstropy_dict['truth'], label='Ground Truth', linewidth=2, color=color_list[0], linestyle=linestyle_list[0])
-        for i, model_name in enumerate(full_energy_model_name_list):
+        for i, model_name in enumerate(model_name_list):
             ax.loglog(k_np, enstropy_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 2, color=color_list[i+1], linestyle=linestyle_list[i+1])
         ax.set_xlabel('Wavenumber k', fontsize=20)
         ax.set_ylabel('Enstropy Z(k)', fontsize=20)
