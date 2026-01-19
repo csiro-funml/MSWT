@@ -322,7 +322,7 @@ def plot_error():
         save_folder = "logs/SW2D_PDA/"
     # steps = [1, 41, 87]
     # steps = range(0, 88, 20)
-    steps = [87]
+    steps = [80]
     dataset_name = 'SW2D_PDA'
     # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
