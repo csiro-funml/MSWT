@@ -94,6 +94,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, time_indices
         
         _, Zk_true = compute_enstropy_torch(truth_seq_t[..., 0].float(), 2 * math.pi, 2 * math.pi)
         _, Zk_pred = compute_enstropy_torch(pred_seq_t[..., 0].float(), 2 * math.pi, 2 * math.pi)
+        print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape, "Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
         k_np = k_bins
         valid_mask = range(1, min(len(k_np), min(truth_seq_t.shape[-1], truth_seq_t.shape[-2]) // 2)) # important, because we need to truncate the energy spectra and enstropy spectrum to the same length
         k_np = k_np[valid_mask]
@@ -377,11 +378,12 @@ def main():
     
     initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
 
-    time_indices = range(0, truth_seq.shape[-2], 10)
+    # time_indices = range(0, truth_seq.shape[-2], 10)
+    time_indices = [0, 40, 80]
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, time_indices=time_indices)
 
     # time_indices = [0, 40, truth_seq.shape[-2] - 1]
-    time_indices = range(0, truth_seq.shape[-2], 10)
+    # time_indices = range(0, truth_seq.shape[-2], 10)
     save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
     
