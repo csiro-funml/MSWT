@@ -283,6 +283,158 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     return initial_condition, pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err
 
 
+
+def load_pred_truth_error(model_folder_name, saved_model_name, seed, step, save_folder, grid_form):
+    
+    pred_path = os.path.join(save_folder, f'{model_folder_name}2d_{grid_form}/saved_plots', f'{saved_model_name}_seed{seed}_prediction_t{step}.npz')
+    energy_path = os.path.join(save_folder, f'{model_folder_name}2d_{grid_form}/saved_plots', f'{saved_model_name}_seed{seed}_energy_spectra_t{step}.npz')
+    
+    pred_data = np.load(pred_path)
+    print("pred_data shape", pred_data['initial_condition'].shape, pred_data['pred_seq_t'].shape, pred_data['truth_seq_t'].shape, pred_data['error_seq_t'].shape)
+    initial_condition = pred_data['initial_condition'] # (shape: N, C, H, W)
+    pred = pred_data['pred_seq_t']
+    truth = pred_data['truth_seq_t']
+    error = pred_data['error_seq_t']
+
+    print("initial_condition shape", initial_condition.shape)
+    print("pred shape", pred.shape)
+    print("truth shape", truth.shape)
+    print("error shape", error.shape)
+
+    # compute the l2 error
+    # l2_loss = LpLoss(size_average=True)
+    # l2_err = l2_loss(torch.from_numpy(pred).unsqueeze(0), torch.from_numpy(truth).unsqueeze(0)).item()
+    
+    return initial_condition, pred, truth, error
+
+
+
+def plot_error():
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    # 2 rows ,6 columns
+    # the first column is ground truth and energy plot,
+    # from the secon column, shows the prediction and error plot
+    # generate the color map from below
+    if torch.cuda.is_available():
+        save_folder = "/scratch3/wan410/operator_learning_model/SW2D_PDA/"
+    else:
+        save_folder = "logs/SW2D_PDA/"
+    # steps = [1, 41, 87]
+    steps = range(0, 88, 10)
+    dataset_name = 'SW2D_PDA'
+    # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
+    model_name_list = ['FNO', 'MSWT_patching']
+    saved_model_name_list = ['fno2d', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'MSWT']
+    seed = 42
+    # grid_form = 'linear'
+    grid_form = 'periodic'
+
+    # I want to iterate over the sample indices from 0 to 99 as well
+    for step in steps:
+        for i, model_name in enumerate(model_name_list):
+            initial_condition, pred, truth, error= \
+            load_pred_truth_error(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
+            
+        #     for sample_idx in range(initial_condition.shape[0]):
+        #         fig, axes = plt.subplots(2, 4, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        #         # plot the truth first at axes [0, 0]
+        #         ax = axes[0, 0]
+        #         im = ax.imshow(initial_condition[sample_idx], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        #         ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
+        #         ax.set_xticks([])
+        #         ax.set_yticks([])
+                
+        #         ax = axes[0, 1]
+        #         im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        #         ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
+        #         ax.set_xticks([])
+        #         ax.set_yticks([])
+                
+        #         # make the axis disapprear completly
+        #         ax = axes[1, 0]
+        #         ax.axis('off')
+
+        #         ax = axes[1, 1]
+        #         ax.axis('off')           
+            
+            
+        # #     error_max = max(error_max, error.max().item())
+        # #     error_min = min(error_min, error.min().item())
+        
+
+        # # global_max =  max(truth.max().item(), initial_condition.max().item()) * 1.1 # allow  10% more than the truth max
+        # # global_min = min(truth.min().item(), initial_condition.min().item()) * 1.1 # allow 10% less than the truth min
+        
+        # # plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
+        # # global_max = max(global_max, np.abs(global_min))
+        # # global_min = -global_max # make it symmetrical around zero
+        # # error_max = max(error_max, np.abs(error_min))
+        # # error_min = -error_max # make it symmetrical around zero
+        
+        # # plot the truth first at axes [0, 0]
+        # ax = axes[0, 0]
+        # im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        # ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        
+        # ax = axes[0, 1]
+        # im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        # ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        
+        # # make the axis disapprear completly
+        # ax = axes[1, 0]
+        # ax.axis('off')
+
+        # ax = axes[1, 1]
+        # ax.axis('off')
+        
+        
+        # for i, model_name in enumerate(model_name_list):
+        #     ax = axes[0, i+2]
+        #     im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        #     ax.set_title(f'{plot_model_name_list[i]}', fontsize=10, fontweight='bold')
+        #     ax.set_xticks([])
+        #     ax.set_yticks([])
+        #     # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+        #     ax = axes[1, i+2]
+        #     im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+        #     # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+        #     ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
+        #     ax.set_xticks([])
+        #     ax.set_yticks([])
+            
+        # # add colorbar of error min and max centered inside axes[1, 0]
+        # # Position colorbar in the center-right of the subplot to avoid blocking adjacent axes
+        # # Using inset_axes to place colorbar inside the plot area
+        # # put some texts "rollout %d steps" in the middle of axes[1, 0]
+        # # ax = axes[1, 0]
+        # # ax.text(0.5, 0.5, f'rollout {step} \n time step'+('s' if step > 1 else ''), fontsize=10, fontweight='bold', ha='center', va='center')
+        # # ax.axis('off')
+
+        # cbar_ax = inset_axes(axes[1, 1], width="4%", height="90%", loc='center',
+        #                      borderpad=0)
+        # cbar = plt.colorbar(im, cax=cbar_ax, aspect=15)
+        # cbar.set_label('Error', fontsize=10, fontweight='bold', rotation=90, labelpad=10)
+        # # Set ticks on the right side and make them bold and larger
+        # cbar.ax.yaxis.set_label_position('right')
+        # cbar.ax.yaxis.tick_left()
+        # cbar.ax.tick_params(labelsize=11, width=1.2, length=5)
+        # # Make tick labels bold
+        # for label in cbar.ax.get_yticklabels():
+        #     label.set_fontweight('bold')  
+        
+        # plt.tight_layout(rect=[0, 0, 1, 1])
+        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_spectral_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        
+
 def plot_error_energy():
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
@@ -294,7 +446,8 @@ def plot_error_energy():
         save_folder = "/scratch3/wan410/operator_learning_model/SW2D_PDA/"
     else:
         save_folder = "logs/SW2D_PDA/"
-    steps = [1, 41, 87]
+    # steps = [1, 41, 87]
+    steps = range(0, 88, 10)
     dataset_name = 'SW2D_PDA'
     # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
@@ -303,8 +456,8 @@ def plot_error_energy():
     saved_model_name_list = ['fno2d', 'multiscale_wavelet2d_periodic_patching']
     plot_model_name_list = ['FNO', 'MSWT']
     seed = 42
-    # grid_form = 'linear'
-    grid_form = 'periodic'
+    grid_form = 'linear'
+    # grid_form = 'periodic'
     for step in steps:
         fig, axes = plt.subplots(2, 7, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         pred_dict = {}
@@ -493,4 +646,5 @@ def plot_error_energy():
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
     # aggregate_metric_table(grid_form='periodic')
-    plot_error_energy()
+    # plot_error_energy()
+    plot_error()
