@@ -77,44 +77,44 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     
     # Compute actual metric values
     for t in time_idx:
-        for channel in range(truth_seq.shape[-1]):
-            truth_seq_t = truth_seq[..., t, channel] # the first channel for vorticity
-            pred_seq_t = pred_seq[..., t, channel] # the first channel for vorticity
-            # convert the vorcitity to velocity
-            ux_true, uy_true = velocity_from_vorticity(truth_seq_t)
-            ux_pred, uy_pred = velocity_from_vorticity(pred_seq_t)
-            # print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
-            # (N, H, W)
-            Ek_true = compute_2d_spectral_energy(ux_true, uy_true) #(N, H, W//2)
-            Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred) 
-            # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
-            Zk_true = compute_2d_enstropy_spectrum(w_grid=truth_seq_t)  # (N, H, W)
-            Zk_pred = compute_2d_enstropy_spectrum(w_grid=pred_seq_t) # (N, H, W)
-            # step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
-            # print("ground truth pderesidual: ", step_pderesidual)
-            # step_pderesidual_pred = pderesidual(ux_pred, uy_pred, pred_seq_t).item()
-            # print("predicted pderesidual: ", step_pderesidual_pred)
-            # print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
-            # exit(-1)s
+        truth_seq_t = truth_seq[..., t, 0] # the first channel for vorticity
+        pred_seq_t = pred_seq[..., t, 0] # the first channel for vorticity
+        # convert the vorcitity to velocity
+        ux_true, uy_true = velocity_from_vorticity(truth_seq_t)
+        ux_pred, uy_pred = velocity_from_vorticity(pred_seq_t)
+        # print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
+        # (N, H, W)
+        Ek_true = compute_2d_spectral_energy(ux_true, uy_true) #(N, H, W//2)
+        Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred) 
+        # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
+        Zk_true = compute_2d_enstropy_spectrum(w_grid=truth_seq_t)  # (N, H, W)
+        Zk_pred = compute_2d_enstropy_spectrum(w_grid=pred_seq_t) # (N, H, W)
+
+        # step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
+        # print("ground truth pderesidual: ", step_pderesidual)
+        # step_pderesidual_pred = pderesidual(ux_pred, uy_pred, pred_seq_t).item()
+        # print("predicted pderesidual: ", step_pderesidual_pred)
+        # print("Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
+        # exit(-1)s
     
-            step_l2 = lploss(pred_seq_t, truth_seq_t).item() # first step loss
-            step_spectral_meape = meape(Ek_pred, Ek_true).item()
-            step_spectral_melr = melr(Ek_pred, Ek_true).item()
-            step_enstropy_meape = meape(Zk_pred, Zk_true).item()
-            step_enstropy_melr = melr(Zk_pred, Zk_true).item()
+        step_l2 = lploss(pred_seq_t, truth_seq_t).item() # first step loss
+        step_spectral_meape = meape(Ek_pred, Ek_true).item()
+        step_spectral_melr = melr(Ek_pred, Ek_true).item()
+        step_enstropy_meape = meape(Zk_pred, Zk_true).item()
+        step_enstropy_melr = melr(Zk_pred, Zk_true).item()
         
-            print(f"{model_name} seed: {seed}, step: {t}, channel: {channel}, step l2: {step_l2:.4f}, \
-                step SMLR: {step_spectral_melr:.4f},\
-                step EMLR: {step_enstropy_melr:.4f},\
-                step EMAE: {step_spectral_meape:.4f},\
-                step SMAE: {step_enstropy_meape:.4f}")
+        print(f"{model_name} seed: {seed}, step: {t}, step l2: {step_l2:.4f}, \
+            step SMLR: {step_spectral_melr:.4f},\
+            step EMLR: {step_enstropy_melr:.4f},\
+            step EMAE: {step_spectral_meape:.4f},\
+            step SMAE: {step_enstropy_meape:.4f}")
             
         # Use consistent f-string formatting
-        metrics_dict[f'l2_step{t+1}_channel{channel}'] = step_l2
-        metrics_dict[f'SMLR_step{t+1}_channel{channel}'] = step_spectral_melr
-        metrics_dict[f'EMLR_step{t+1}_channel{channel}'] = step_enstropy_melr
-        metrics_dict[f'SMAE_step{t+1}_channel{channel}'] = step_spectral_meape
-        metrics_dict[f'EMAE_step{t+1}_channel{channel}'] = step_enstropy_meape
+        metrics_dict[f'l2_step{t+1}'] = step_l2
+        metrics_dict[f'SMLR_step{t+1}'] = step_spectral_melr
+        metrics_dict[f'EMLR_step{t+1}'] = step_enstropy_melr
+        metrics_dict[f'SMAE_step{t+1}'] = step_spectral_meape
+        metrics_dict[f'EMAE_step{t+1}'] = step_enstropy_meape
         
     df_metric = pd.Series(metrics_dict).to_frame().T
     # want df_metric to have 2 level of columns: the first level is the metric name, the second level is the step number
@@ -168,7 +168,6 @@ def compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, mod
         
         _, Zk_true = compute_enstropy_torch(truth_frame.float(), 2 * math.pi, 2 * math.pi)
         _, Zk_pred = compute_enstropy_torch(pred_frame.float(), 2 * math.pi, 2 * math.pi)
-        print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape, "Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
         k_np = k_bins.detach().cpu().numpy()
         valid_mask = range(1, min(len(k_np), truth_frame.shape[-1] // 2))
         k_np = k_np[valid_mask]
