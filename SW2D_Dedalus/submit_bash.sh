@@ -30,8 +30,8 @@ echo "=========================================="
 # Training
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python3 data_utils/datasets.py
-# python3 train_operator_AR_rell2_2d.py --config_path configs/linear/FNO.yaml
+# python3 data_utils/datasets.py
+python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/FNO_spherical.yaml
 # python3 train_operator_AR_rell2_2d.py --config_path configs/linear/HFS.yaml
 # python3 train_operator_AR_rell2_2d.py --config_path configs/linear/MSWT_patching.yaml
 

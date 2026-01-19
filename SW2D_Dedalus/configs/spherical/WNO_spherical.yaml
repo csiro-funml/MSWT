@@ -2,8 +2,8 @@ data:
   datapath: '/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater'
   normalizer_path: '/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater/normstat.pt'
   name: SW2D_Dedalus
-  nx: 256
-  ny: 128
+  nx: 128
+  ny: 256
   shuffle: True
   grid_form: spherical
   nt: 359

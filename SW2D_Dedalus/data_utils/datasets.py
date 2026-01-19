@@ -82,7 +82,12 @@ class SWLoader2D(Dataset):
         # For now, we'll use X as input and y as target
         self.X_data = torch.tensor(X_data, dtype=torch.float32)  # (N, C, H, W)
         self.y_data = torch.tensor(y_data, dtype=torch.float32)  # (N, C, H, W)
-        self.S = (self.X_data.shape[-2], self.X_data.shape[-1]) # (H, W)
+        
+        # Rotate data counter-clockwise by 90 degrees: (N, 2, 256, 128) -> (N, 2, 128, 256)
+        self.X_data = torch.rot90(self.X_data, k=1, dims=[-2, -1])  # Rotate last two dimensions
+        self.y_data = torch.rot90(self.y_data, k=1, dims=[-2, -1])  # Rotate last two dimensions
+        
+        self.S = (self.X_data.shape[-2], self.X_data.shape[-1]) # (H, W) = (128, 256)
         
         self.num_samples = self.X_data.shape[0]
         print(f"Loaded {state} dataset: {self.num_samples} samples, shape: {self.X_data.shape}")
@@ -93,7 +98,7 @@ class SWLoader2D(Dataset):
 
     def normalize(self, normalizer_path=None, save_normalizer_path=None):
         '''
-        Normalize data with mean and std of shape (C, H, W) = (2, 256, 128)
+        Normalize data with mean and std of shape (C, H, W) = (2, 128, 256)
         For training set: compute and save normalizer
         For val/test sets: load saved normalizer
         '''
