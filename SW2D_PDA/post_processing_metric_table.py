@@ -264,7 +264,7 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     enstropy_pred = energy_data['Zk_pred_np'][use_sample_idx]
     spectral_true = energy_data['Ek_true_np'][use_sample_idx]
     enstropy_true = energy_data['Zk_true_np'][use_sample_idx]
-    k_np = energy_data['k_np'][use_sample_idx]
+    k_np = energy_data['k_np']
 
     print("initial_condition shape", initial_condition.shape)
     print("pred shape", pred.shape)
