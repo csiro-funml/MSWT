@@ -369,7 +369,8 @@ def main():
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
 
     # time_indices = [0, 40, truth_seq.shape[-2] - 1]
-    # save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    time_indices = range(0, truth_seq.shape[-2], 10)
+    save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
     
     # # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
