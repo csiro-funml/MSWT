@@ -10,11 +10,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.criterion import LpLoss
 
 
-def process_metric_table_to_latex(CSV_PATH):
+def process_metric_table_to_latex():
     # -----------------------------
     # Config
     # -----------------------------
-    CSV_PATH = "avg_evaluation_metrics.csv"   # <-- set this to your local path
+    CSV_PATH = "logs/NS2D_ChaoticKolmogorovFlow/avg_evaluation_metrics_linear.csv"   # <-- set this to your local path
     STEPS = [1, 30, 64]
 
     # Map raw metric names -> display names used in the LaTeX header
@@ -160,11 +160,11 @@ def process_metric_table_to_latex(CSV_PATH):
 
     latex_1 = add_booktabs(latex_1)
     latex_2 = add_booktabs(latex_2)
-
-    with open("table_relL2_smlr_emlr.tex", "w") as f:
+    save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
+    with open(os.path.join(save_folder, "table_relL2_smlr_emlr.tex"), "w") as f:
         f.write(latex_1)
 
-    with open("table_smae_emae.tex", "w") as f:
+    with open(os.path.join(save_folder, "table_smae_emae.tex"), "w") as f:
         f.write(latex_2)
 
     print("Wrote: table_relL2_smlr_emlr.tex")
@@ -487,6 +487,6 @@ def plot_error_energy():
 
 
 if __name__ == "__main__":
-    # aggregate_metric_table(grid_form='linear')
+    aggregate_metric_table(grid_form='linear')
     # aggregate_metric_table(grid_form='periodic')
-    plot_error_energy()
+    # plot_error_energy()
