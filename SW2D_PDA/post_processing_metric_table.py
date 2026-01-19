@@ -292,14 +292,14 @@ def plot_error_energy():
         save_folder = "/scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/"
     else:
         save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
-    steps = [1, 30, 64]
+    steps = [1, 40, 87]
     dataset_name = 'NS2D_ChaoticKolmogorovFlow'
-    model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
-    saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
-    plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
-    # model_name_list = ['FNO']
-    # saved_model_name_list = ['fno2d']
-    # plot_model_name_list = ['FNO']
+    # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
+    model_name_list = ['FNO', 'MSWT_patching']
+    saved_model_name_list = ['fno2d', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'MSWT']
     seed = 42
     grid_form = 'linear'
     # grid_form = 'periodic'
@@ -489,6 +489,6 @@ def plot_error_energy():
 
 
 if __name__ == "__main__":
-    aggregate_metric_table(grid_form='linear')
+    # aggregate_metric_table(grid_form='linear')
     # aggregate_metric_table(grid_form='periodic')
-    # plot_error_energy()
+    plot_error_energy()
