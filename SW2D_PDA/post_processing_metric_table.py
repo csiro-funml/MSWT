@@ -252,17 +252,19 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     energy_path = os.path.join(save_folder, f'{model_folder_name}2d_{grid_form}/saved_plots', f'{saved_model_name}_seed{seed}_energy_spectra_t{step}.npz')
     
     pred_data = np.load(pred_path)
-    initial_condition = pred_data['initial_condition'][0, ..., 0] # (shape: N, C, H, W)
-    pred = pred_data['pred_seq_t']
-    truth = pred_data['truth_seq_t']
-    error = pred_data['error_seq_t']
+    use_sample_idx = 1
+    print("pred_data shape", pred_data['initial_condition'].shape, pred_data['pred_seq_t'].shape, pred_data['truth_seq_t'].shape, pred_data['error_seq_t'].shape)
+    initial_condition = pred_data['initial_condition'][use_sample_idx, ..., 0] # (shape: N, C, H, W)
+    pred = pred_data['pred_seq_t'][use_sample_idx]
+    truth = pred_data['truth_seq_t'][use_sample_idx]
+    error = pred_data['error_seq_t'][use_sample_idx]
 
     energy_data = np.load(energy_path)
-    spectral_pred = energy_data['Ek_pred_np']
-    enstropy_pred = energy_data['Zk_pred_np']
-    spectral_true = energy_data['Ek_true_np']
-    enstropy_true = energy_data['Zk_true_np']
-    k_np = energy_data['k_np']
+    spectral_pred = energy_data['Ek_pred_np'][use_sample_idx]
+    enstropy_pred = energy_data['Zk_pred_np'][use_sample_idx]
+    spectral_true = energy_data['Ek_true_np'][use_sample_idx]
+    enstropy_true = energy_data['Zk_true_np'][use_sample_idx]
+    k_np = energy_data['k_np'][use_sample_idx]
 
     print("initial_condition shape", initial_condition.shape)
     print("pred shape", pred.shape)
