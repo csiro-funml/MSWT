@@ -368,43 +368,44 @@ def main():
 
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
 
-    time_indices = [0, 40, truth_seq.shape[-2] - 1]
-    save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    # time_indices = [0, 40, truth_seq.shape[-2] - 1]
+    # save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
     
-    # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
-    save_path_energy = compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
-    temp = np.load(save_path_energy)
-    for key in temp.keys():
-        print(key, temp[key].shape)
+    # # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
+    # save_path_energy = compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    # temp = np.load(save_path_energy)
+    # for key in temp.keys():
+    #     print(key, temp[key].shape)
 
-    exit(-1)
-    total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(
-        model,
-        sequences,
-        device,
-        use_external_grid=use_external_grid,
-        grid=grid,
-    )
-    print(f'Relative L2  rollout avg: {total_l2:.6f}')
-    print(f'Relative L2 over first step: {step_l2:.6f}')
-    print(f'Log energy error rollout avg: {total_log_en_err:.6f}')
-    print(f'Log energy error over first step: {step_log_en_err:.6f}')
+    # exit(-1)
+    # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(
+    #     model,
+    #     sequences,
+    #     device,
+    #     use_external_grid=use_external_grid,
+    #     grid=grid,
+    # )
+    # print(f'Relative L2  rollout avg: {total_l2:.6f}')
+    # print(f'Relative L2 over first step: {step_l2:.6f}')
+    # print(f'Log energy error rollout avg: {total_log_en_err:.6f}')
+    # print(f'Log energy error over first step: {step_log_en_err:.6f}')
 
 
     
     # Save prediction and energy plots for the first example
-    if example['truth'] is not None:
+    example = {'truth': truth_seq, 'pred': pred_seq}
+    if example['truth'] is not None and example['pred'] is not None:
         plot_dir = config.get('train', {}).get('save_dir')
         pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions')
         spec_dir = os.path.join(plot_dir, 'saved_plots', 'energy')
         os.makedirs(pred_dir, exist_ok=True)
         os.makedirs(spec_dir, exist_ok=True)
 
-        truth = example['truth'][0]  # (S1, S2, T-1, C)
+        truth = example['truth'][0]  # (S1, S2, T-1, C), first samples
         pred = example['pred'][0]
-        T_pred = pred.shape[-2]
-        time_indices = range(0, T_pred, 5)
+        
+        time_indices = [0, 40, truth_seq.shape[-2] - 1]
         for t_raw in time_indices:
             pred_frame = pred[..., t_raw, 0]
             truth_frame = truth[..., t_raw, 0]
