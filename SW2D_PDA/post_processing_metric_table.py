@@ -291,7 +291,7 @@ def load_pred_truth_error(model_folder_name, saved_model_name, seed, step, save_
     
     pred_data = np.load(pred_path)
     print("pred_data shape", pred_data['initial_condition'].shape, pred_data['pred_seq_t'].shape, pred_data['truth_seq_t'].shape, pred_data['error_seq_t'].shape)
-    initial_condition = pred_data['initial_condition'] # (shape: N, C, H, W)
+    initial_condition = pred_data['initial_condition'][..., 0 ] # (shape: N, T, H, W) get the first channel for vorticity
     pred = pred_data['pred_seq_t']
     truth = pred_data['truth_seq_t']
     error = pred_data['error_seq_t']
@@ -335,32 +335,58 @@ def plot_error():
 
     # I want to iterate over the sample indices from 0 to 99 as well
     for step in steps:
+
+        pred_dict = {}
+        error_dict = {}
+
         for i, model_name in enumerate(model_name_list):
             initial_condition, pred, truth, error= \
             load_pred_truth_error(model_name, saved_model_name_list[i], seed, step+1, save_folder, grid_form)
+             # (N , H, W)
+            pred_dict[model_name] = pred
+            error_dict[model_name] = error
+        
+        
+        for sample_idx in range(initial_condition.shape[0]):
+            fig, axes = plt.subplots(2, 4, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+            # plot the truth first at axes [0, 0]
+            ax = axes[0, 0]
+            im = ax.imshow(initial_condition[sample_idx], cmap='RdBu_r', origin='lower')
+            ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
+            ax.set_xticks([])
+            ax.set_yticks([])
             
-        #     for sample_idx in range(initial_condition.shape[0]):
-        #         fig, axes = plt.subplots(2, 4, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
-        #         # plot the truth first at axes [0, 0]
-        #         ax = axes[0, 0]
-        #         im = ax.imshow(initial_condition[sample_idx], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-        #         ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
-        #         ax.set_xticks([])
-        #         ax.set_yticks([])
-                
-        #         ax = axes[0, 1]
-        #         im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-        #         ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
-        #         ax.set_xticks([])
-        #         ax.set_yticks([])
-                
-        #         # make the axis disapprear completly
-        #         ax = axes[1, 0]
-        #         ax.axis('off')
+            ax = axes[0, 1]
+            im = ax.imshow(truth[sample_idx], cmap='RdBu_r', origin='lower')
+            ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            
+            # make the axis disapprear completly
+            ax = axes[1, 0]
+            ax.axis('off')
 
-        #         ax = axes[1, 1]
-        #         ax.axis('off')           
+            ax = axes[1, 1]
+            ax.axis('off')           
             
+            for col_idx, model_name in enumerate(model_name_list):
+                ax = axes[0, col_idx+2]
+                im = ax.imshow(pred_dict[model_name][sample_idx], cmap='RdBu_r', origin='lower')
+                ax.set_title(f'{plot_model_name_list[i]}', fontsize=10, fontweight='bold')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                
+                ax = axes[1, col_idx+2]   
+                im = ax.imshow(error_dict[model_name][sample_idx], cmap='RdBu_r', origin='lower')
+                # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
+                ax.set_xticks([])
+                ax.set_yticks([])
+
+            plt.tight_layout()
+            save_folder_error = os.path.join(save_folder, 'plot_error', 'instance_idx_{sample_idx}')
+            os.makedirs(save_folder_error, exist_ok=True)
+            plt.savefig(os.path.join(save_folder_error, f'{dataset_name}_pred_error_grid_{grid_form}_t{step}_seed{seed}_instance_{sample_idx}.png'), dpi=500, bbox_inches='tight')
+            plt.close(fig)
             
         # #     error_max = max(error_max, error.max().item())
         # #     error_min = min(error_min, error.min().item())
