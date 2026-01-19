@@ -386,13 +386,13 @@ def plot_error():
             ax = axes[0, col_idx+2]
             im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
             ax.set_title(f'{plot_model_name_list[col_idx]}', fontsize=10, fontweight='bold')
-            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_xticks([])
             ax.set_yticks([])
             
             ax = axes[1, col_idx+2]   
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
