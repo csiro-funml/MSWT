@@ -77,18 +77,18 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     
     # Compute actual metric values
     for t in time_idx:
-        truth_seq_t = truth_seq[..., t, 0] # the first channel for vorticity
-        pred_seq_t = pred_seq[..., t, 0] # the first channel for vorticity
+        truth_seq_t = truth_seq[..., t, :] # the first channel for vorticity
+        pred_seq_t = pred_seq[..., t, :] # the first channel for vorticity
         # convert the vorcitity to velocity
-        ux_true, uy_true = velocity_from_vorticity(truth_seq_t)
-        ux_pred, uy_pred = velocity_from_vorticity(pred_seq_t)
+        ux_true, uy_true = velocity_from_vorticity(truth_seq_t[..., 0])
+        ux_pred, uy_pred = velocity_from_vorticity(pred_seq_t[..., 0])
         # print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
         # (N, H, W)
         Ek_true = compute_2d_spectral_energy(ux_true, uy_true) #(N, H, W//2)
         Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred) 
         # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
-        Zk_true = compute_2d_enstropy_spectrum(w_grid=truth_seq_t)  # (N, H, W)
-        Zk_pred = compute_2d_enstropy_spectrum(w_grid=pred_seq_t) # (N, H, W)
+        Zk_true = compute_2d_enstropy_spectrum(w_grid=truth_seq_t[..., 0])  # (N, H, W)
+        Zk_pred = compute_2d_enstropy_spectrum(w_grid=pred_seq_t[..., 0]) # (N, H, W)
 
         # step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
         # print("ground truth pderesidual: ", step_pderesidual)

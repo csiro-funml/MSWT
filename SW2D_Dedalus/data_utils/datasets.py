@@ -170,8 +170,8 @@ if __name__ == '__main__':
     #                     train=True)
     # print(data.shape)
     # load_sw_data_split_and_save('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
-    # X_test = load_sw_data_split_and_save('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
-    X_test = np.load(os.path.join('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater', 'sw2d_test_dataset.npz'))['X_test']
+    X_test = load_sw_data_split_and_save('/datasets/work/oa-tcch/work/forXuesong')
+    # X_test = np.load(os.path.join('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater', 'sw2d_test_dataset.npz'))['X_test']
     print("X_test shape: ", X_test.shape)
     
     # X_test (N*T, C, H, W) 
@@ -187,7 +187,7 @@ if __name__ == '__main__':
     print(f"Reshaped X_test from {X_test.shape} to X_new shape: {X_new.shape}")
     
     # Plot x_new[0, t, 0, h, w] at every 10 time intervals
-    save_folder = '/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater/sanity_plot'
+    save_folder = '/datasets/work/oa-tcch/work/forXuesong/sanity_plot'
     os.makedirs(save_folder, exist_ok=True)
     print(f"Saving plots to: {save_folder}")
     
