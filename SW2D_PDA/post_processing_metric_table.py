@@ -258,7 +258,7 @@ def compute_save_energy_spectra(seq):
     seed: seed for the random test split
     """
 
-    truth_frame = seq.detach().cpu()
+    truth_frame = seq.cpu()
     
     # Spectral energy comparison 
     ux_true, uy_true = velocity_from_vorticity(truth_frame.float())
@@ -345,7 +345,7 @@ def plot_error():
             error_dict[model_name] = error[sample_idx]
 
             # compute the energy spectra and enstropy spectra here
-            k_np, energy_dict[model_name], enstropy_dict[model_name] = compute_save_energy_spectra(pred[sample_idx])
+            k_np, energy_dict[model_name], enstropy_dict[model_name] = compute_save_energy_spectra(torch.from_numpy(pred[sample_idx]))
 
             global_max = max(global_max, initial_condition[sample_idx].max(), truth[sample_idx].max(), pred_dict[model_name][sample_idx].max())
             global_min = min(global_min, initial_condition[sample_idx].min(), truth[sample_idx].min(), pred_dict[model_name][sample_idx].min())
@@ -354,7 +354,7 @@ def plot_error():
         
         initial_condition = initial_condition[sample_idx]
         truth = truth[sample_idx]
-        _, energy_dict['truth'], enstropy_dict['truth'] = compute_save_energy_spectra(truth)
+        _, energy_dict['truth'], enstropy_dict['truth'] = compute_save_energy_spectra(torch.from_numpy(truth))
 
         global_max = max(global_max, np.abs(global_min))
         global_min = -global_max # make it symmetrical around zero
