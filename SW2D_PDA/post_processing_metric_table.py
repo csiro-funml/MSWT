@@ -489,6 +489,6 @@ def plot_error_energy():
 
 
 if __name__ == "__main__":
-    # aggregate_metric_table(grid_form='linear')
-    aggregate_metric_table(grid_form='periodic')
+    aggregate_metric_table(grid_form='linear')
+    # aggregate_metric_table(grid_form='periodic')
     # plot_error_energy()
