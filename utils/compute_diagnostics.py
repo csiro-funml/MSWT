@@ -125,22 +125,23 @@ def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
     of wavenumber magnitude |k|.
 
     Args:
-        ux_grid (torch.Tensor): x-velocity in physical space (Nx, Ny)
-        uy_grid (torch.Tensor): y-velocity in physical space (Nx, Ny)
+        ux_grid (torch.Tensor): x-velocity in physical space (Nx, Ny) or (B, Nx, Ny)
+        uy_grid (torch.Tensor): y-velocity in physical space (Nx, Ny) or (B, Nx, Ny)
         Lx (float): Domain length in x
         Ly (float): Domain length in y
 
     Returns:
-        tuple: (k_bins, E_k, Z_k)
+        tuple: (k_bins, E_k)
             - k_bins: Physical wavenumber bins (rad/length) as torch.Tensor
             - E_k: Energy spectrum E(k) = 0.5 <|û|²>_shell as torch.Tensor
-            - Z_k: Enstrophy spectrum Z(k) = <|ω̂|²>_shell as torch.Tensor
+                   Shape: (num_k_bins,) for single input, (B, num_k_bins) for batched input
 
     Notes:
         - Assumes Lx ≈ Ly for isotropic shell averaging
         - Accounts for rfft symmetry factors
         - Shell index n corresponds to physical wavenumber n*k0 where k0=2π/L
         - All operations are differentiable
+        - Supports both single sample (Nx, Ny) and batched (B, Nx, Ny) input
     """
     if torch is None:
         raise ImportError("PyTorch is required for compute_spectra_torch")
@@ -148,18 +149,29 @@ def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
     device = ux_grid.device
     dtype = ux_grid.dtype
     
+    # Handle both batched and unbatched input
+    is_batched = ux_grid.dim() == 3
+    if is_batched:
+        B = ux_grid.shape[0]
+        ux_grid = ux_grid  # (B, Nx, Ny)
+        uy_grid = uy_grid  # (B, Nx, Ny)
+    else:
+        # Add batch dimension for uniform processing
+        ux_grid = ux_grid.unsqueeze(0)  # (1, Nx, Ny)
+        uy_grid = uy_grid.unsqueeze(0)  # (1, Nx, Ny)
+        B = 1
+    
     Nx, Ny = ux_grid.shape[-2], ux_grid.shape[-1]
     N = Nx * Ny
     assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly"
     k0 = 2 * torch.tensor(np.pi, device=device, dtype=dtype) / Lx
 
-    # Transform to spectral space
+    # Transform to spectral space: (B, Nx, Ny//2+1)
     uxh = torch.fft.rfft2(ux_grid)
     uyh = torch.fft.rfft2(uy_grid)
 
-    # Energy per mode (normalised)
+    # Energy per mode (normalised): (B, Nx, Ny//2+1)
     E_mode = 0.5 * (torch.abs(uxh)**2 + torch.abs(uyh)**2) / (N * N)
-
 
     # rfft symmetry weight: double ky>0 interior modes
     weight = 2.0 * torch.ones_like(E_mode, device=device, dtype=dtype)
@@ -170,59 +182,109 @@ def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
     E_mode = E_mode * weight
 
     # Shell indices (integer radius in index space)
-    # Create index arrays
+    # Create index arrays: (Nx, Ny//2+1)
     ix = torch.fft.fftfreq(Nx, d=1.0 / Nx, device=device)
     iy = torch.arange(0, Ny // 2 + 1, device=device, dtype=dtype)
     IX, IY = torch.meshgrid(ix, iy, indexing='ij')
-    shell_idx = torch.floor(torch.sqrt(IX**2 + IY**2)).long()
+    shell_idx = torch.floor(torch.sqrt(IX**2 + IY**2)).long()  # (Nx, Ny//2+1)
 
-    # Bin into shells using scatter_add (differentiable alternative to bincount)
+    # Bin into shells using scatter_add for each batch
     mmax = shell_idx.max().item()
+    num_k_bins = mmax + 1
     
-    # Flatten for binning
-    shell_idx_flat = shell_idx.ravel()
-    E_mode_flat = E_mode.ravel()
-
-    # Use scatter_add to sum values in each shell (differentiable)
-    Ek = torch.zeros(mmax + 1, device=device, dtype=dtype)
+    # Flatten spatial dimensions for binning: (Nx * (Ny//2+1),)
+    shell_idx_flat = shell_idx.ravel()  # (Nx * (Ny//2+1),)
     
-    Ek.scatter_add_(0, shell_idx_flat, E_mode_flat)
-
-    k_bins = torch.arange(mmax + 1, device=device, dtype=dtype) * k0
+    # Process each batch sample
+    Ek_list = []
+    for b in range(B):
+        E_mode_flat = E_mode[b].ravel()  # (Nx * (Ny//2+1),)
+        # Use scatter_add to sum values in each shell (differentiable)
+        Ek_b = torch.zeros(num_k_bins, device=device, dtype=dtype)
+        Ek_b.scatter_add_(0, shell_idx_flat, E_mode_flat)
+        Ek_list.append(Ek_b)
+    
+    Ek = torch.stack(Ek_list, dim=0)  # (B, num_k_bins)
+    
+    k_bins = torch.arange(num_k_bins, device=device, dtype=dtype) * k0
+    
+    # Remove batch dimension if input was unbatched
+    if not is_batched:
+        Ek = Ek.squeeze(0)  # (num_k_bins,)
+    
     return k_bins, Ek
 
 
 def compute_enstropy_torch(w_grid, Lx, Ly):
     """
     Compute enstropy from vorticity field.
+    
+    Args:
+        w_grid (torch.Tensor): vorticity in physical space (Nx, Ny) or (B, Nx, Ny)
+        Lx (float): Domain length in x
+        Ly (float): Domain length in y
+    
+    Returns:
+        tuple: (k_bins, Zk)
+            - k_bins: Physical wavenumber bins (rad/length) as numpy array
+            - Zk: Enstropy spectrum Z(k) as numpy array
+                  Shape: (num_k_bins,) for single input, (B, num_k_bins) for batched input
     """
+    device = w_grid.device
+    dtype = w_grid.dtype
+    
+    # Handle both batched and unbatched input
+    is_batched = w_grid.dim() == 3
+    if is_batched:
+        B = w_grid.shape[0]
+        w_grid = w_grid  # (B, Nx, Ny)
+    else:
+        # Add batch dimension for uniform processing
+        w_grid = w_grid.unsqueeze(0)  # (1, Nx, Ny)
+        B = 1
+    
     Nx, Ny = w_grid.shape[-2], w_grid.shape[-1]
     N = Nx * Ny
     
     k0 = 2 * np.pi / Lx
-    w_hat = torch.fft.rfft2(w_grid)
-    Z_mode = (torch.abs(w_hat)**2) / (N * N)
-    Z_mode = Z_mode.detach().cpu().numpy()
+    w_hat = torch.fft.rfft2(w_grid)  # (B, Nx, Ny//2+1)
+    Z_mode = (torch.abs(w_hat)**2) / (N * N)  # (B, Nx, Ny//2+1)
 
     # rfft symmetry weight: double ky>0 interior modes
-    weight = 2.0 * np.ones_like(Z_mode)
-    weight[:, 0] = 1.0  # ky=0 is not doubled
+    weight = 2.0 * torch.ones_like(Z_mode, device=device, dtype=dtype)
+    weight[..., 0] = 1.0  # ky=0 is not doubled
     if Ny % 2 == 0:
-        weight[:, -1] = 1.0  # Nyquist is real-valued
+        weight[..., -1] = 1.0  # Nyquist is real-valued
 
-    Z_mode *= weight
+    Z_mode = Z_mode * weight  # (B, Nx, Ny//2+1)
 
     # Shell indices (integer radius in index space)
+    # Create index arrays: (Nx, Ny//2+1)
     ix = np.fft.fftfreq(Nx, d=1.0 / Nx)
     iy = np.arange(0, Ny // 2 + 1)
     IX, IY = np.meshgrid(ix, iy, indexing='ij')
-    shell_idx = np.floor(np.sqrt(IX**2 + IY**2)).astype(int)
+    shell_idx = np.floor(np.sqrt(IX**2 + IY**2)).astype(int)  # (Nx, Ny//2+1)
 
-    # Bin into shells
+    # Bin into shells for each batch
     mmax = shell_idx.max()
-    Zk = np.bincount(shell_idx.ravel(), weights=Z_mode.ravel(), minlength=mmax + 1)
+    num_k_bins = mmax + 1
+    shell_idx_flat = shell_idx.ravel()  # (Nx * (Ny//2+1),)
+    
+    Zk_list = []
+    for b in range(B):
+        Z_mode_b_np = Z_mode[b].detach().cpu().numpy()  # (Nx, Ny//2+1)
+        Z_mode_flat = Z_mode_b_np.ravel()  # (Nx * (Ny//2+1),)
+        Zk_b = np.bincount(shell_idx_flat, weights=Z_mode_flat, minlength=num_k_bins)
+        Zk_list.append(Zk_b)
+    
+    Zk = np.stack(Zk_list, axis=0)  # (B, num_k_bins)
 
-    k_bins = np.arange(mmax + 1) * k0
+    k_bins = np.arange(num_k_bins) * k0
+    
+    # Remove batch dimension if input was unbatched
+    if not is_batched:
+        Zk = Zk.squeeze(0)  # (num_k_bins,)
+    
     return k_bins, Zk
 
 
