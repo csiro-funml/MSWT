@@ -82,10 +82,11 @@ class SWLoader2D(Dataset):
         # For now, we'll use X as input and y as target
         self.X_data = torch.tensor(X_data, dtype=torch.float32)  # (N, C, H, W)
         self.y_data = torch.tensor(y_data, dtype=torch.float32)  # (N, C, H, W)
-        
+        print("before rotation: ", self.X_data.shape, self.y_data.shape)
         # Rotate data counter-clockwise by 90 degrees: (N, 2, 256, 128) -> (N, 2, 128, 256)
         self.X_data = torch.rot90(self.X_data, k=1, dims=[-2, -1])  # Rotate last two dimensions
         self.y_data = torch.rot90(self.y_data, k=1, dims=[-2, -1])  # Rotate last two dimensions
+        print("after rotation: ", self.X_data.shape, self.y_data.shape)
         
         self.S = (self.X_data.shape[-2], self.X_data.shape[-1]) # (H, W) = (128, 256)
         
