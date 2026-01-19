@@ -269,8 +269,8 @@ def compute_save_energy_spectra(seq):
     _, Zk_true = compute_enstropy_torch(truth_frame.float(), 2 * math.pi, 2 * math.pi)
     
     k_np = k_bins.detach().cpu().numpy()
-    # valid_mask = range(1, min(len(k_np), min(truth_frame.shape[-1], truth_frame.shape[-2]) // 2))
-    valid_mask = range(1, len(k_np))
+    valid_mask = range(1, min(len(k_np), min(truth_frame.shape[-1], truth_frame.shape[-2]) // 2))
+    # valid_mask = range(1, len(k_np))
     k_np = k_np[valid_mask]
     Ek_true_np = Ek_true.detach().cpu().numpy()[valid_mask]
     Zk_true_np = Zk_true.detach().cpu().numpy()[valid_mask]
