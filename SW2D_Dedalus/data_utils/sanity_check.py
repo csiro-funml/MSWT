@@ -27,8 +27,18 @@ def load_sw_data_split_and_save(datapath):
 if __name__ == '__main__':
     # X_test = load_sw_data_split_and_save('/datasets/work/oa-tcch/work/forXuesong')
     data_folder = '/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater'
-    X_test = np.load(os.path.join(data_folder, 'sw2d_test_dataset.npz'))['X_test']
+    data = np.load(os.path.join(data_folder, 'sw2d_test_dataset.npz'))
+    X_test = data['X_test']
+    test_realisations = data['test_realisations']
+    times_test = data['times_test']
+    print("test_realisations shape: ", test_realisations.shape)
+    print("times_test shape: ", times_test.shape)
     print("X_test shape: ", X_test.shape)
+    print("first 10 test realisations: ", test_realisations[:10])
+    print("first 10 times: ", times_test[:10])
+    print("last 10 test realisations: ", test_realisations[-10:])
+    print("last 10 times: ", times_test[-10:])
+
     
     # X_test (N*T, C, H, W) 
     T = 359
