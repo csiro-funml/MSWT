@@ -407,8 +407,8 @@ def main():
         
         time_indices = [0, 40, truth_seq.shape[-2] - 1]
         for t_raw in time_indices:
-            pred_frame = pred[..., t_raw, 0]
-            truth_frame = truth[..., t_raw, 0]
+            pred_frame = pred[..., t_raw, 0].cpu()
+            truth_frame = truth[..., t_raw, 0].cpu()
             err_frame = pred_frame - truth_frame
             truth_min = truth_frame.min().item()
             truth_max = truth_frame.max().item()
