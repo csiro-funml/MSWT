@@ -11,8 +11,8 @@ from einops import rearrange
 import matplotlib.pyplot as plt
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
-def load_sw_data_split_and_save(datapath):
-    data = np.load(os.path.join(datapath, 'sw2d_dataset_v2.npz'))
+def load_sw_data_split_and_save(load_dir, save_dir):
+    data = np.load(os.path.join(load_dir, 'sw2d_dataset_v2.npz'))
     print(data)
     for key in data.keys():
         print(key)
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     #                     n_samples=100, offset=0,
     #                     train=True)
     # print(data.shape)
-    load_sw_data_split_and_save('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
+    load_sw_data_split_and_save(load_dir='/datasets/work/oa-tcch/work/forXuesong', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
     # X_test = load_sw_data_split_and_save('/datasets/work/oa-tcch/work/forXuesong')
     # # X_test = np.load(os.path.join('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater', 'sw2d_test_dataset.npz'))['X_test']
     # print("X_test shape: ", X_test.shape)
