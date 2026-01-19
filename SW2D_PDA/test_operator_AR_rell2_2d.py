@@ -394,69 +394,69 @@ def main():
 
     
     # Save prediction and energy plots for the first example
-    example = {'truth': truth_seq, 'pred': pred_seq}
-    if example['truth'] is not None and example['pred'] is not None:
-        plot_dir = config.get('train', {}).get('save_dir')
-        pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions')
-        spec_dir = os.path.join(plot_dir, 'saved_plots', 'energy')
-        os.makedirs(pred_dir, exist_ok=True)
-        os.makedirs(spec_dir, exist_ok=True)
+    # example = {'truth': truth_seq, 'pred': pred_seq}
+    # if example['truth'] is not None and example['pred'] is not None:
+    #     plot_dir = config.get('train', {}).get('save_dir')
+    #     pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions')
+    #     spec_dir = os.path.join(plot_dir, 'saved_plots', 'energy')
+    #     os.makedirs(pred_dir, exist_ok=True)
+    #     os.makedirs(spec_dir, exist_ok=True)
 
-        truth = example['truth'][0]  # (S1, S2, T-1, C), first samples
-        pred = example['pred'][0]
+    #     truth = example['truth'][0]  # (S1, S2, T-1, C), first samples
+    #     pred = example['pred'][0]
         
-        time_indices = [0, 40, truth_seq.shape[-2] - 1]
-        for t_raw in time_indices:
-            pred_frame = pred[..., t_raw, 0].cpu()
-            truth_frame = truth[..., t_raw, 0].cpu()
-            err_frame = pred_frame - truth_frame
-            truth_min = truth_frame.min().item()
-            truth_max = truth_frame.max().item()
-            abs_lim = max(abs(truth_min), abs(truth_max))
-            vmin = -abs_lim
-            vmax = abs_lim
+    #     time_indices = [0, 40, truth_seq.shape[-2] - 1]
+    #     for t_raw in time_indices:
+    #         pred_frame = pred[..., t_raw, 0].cpu()
+    #         truth_frame = truth[..., t_raw, 0].cpu()
+    #         err_frame = pred_frame - truth_frame
+    #         truth_min = truth_frame.min().item()
+    #         truth_max = truth_frame.max().item()
+    #         abs_lim = max(abs(truth_min), abs(truth_max))
+    #         vmin = -abs_lim
+    #         vmax = abs_lim
 
-            fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-            titles = ['Truth', 'Prediction', 'Error']
-            data_to_plot = [truth_frame, pred_frame, err_frame]
-            for ax, title, data in zip(axes, titles, data_to_plot):
-                if title in ['Truth', 'Prediction']:
-                    im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=vmin, vmax=vmax)
-                else:
-                    err_abs = max(abs(data.min().item()), abs(data.max().item()), 1e-8)
-                    im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=-err_abs, vmax=err_abs)
-                ax.set_title(f'{title} (T={t_raw})')
-                ax.set_xticks([])
-                ax.set_yticks([])
-                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            plt.tight_layout()
-            pred_plot_path = os.path.join(pred_dir, f'ns_prediction_t{t_raw}.png')
-            fig.savefig(pred_plot_path, dpi=150, bbox_inches='tight')
-            plt.close(fig)
+    #         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    #         titles = ['Truth', 'Prediction', 'Error']
+    #         data_to_plot = [truth_frame, pred_frame, err_frame]
+    #         for ax, title, data in zip(axes, titles, data_to_plot):
+    #             if title in ['Truth', 'Prediction']:
+    #                 im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=vmin, vmax=vmax)
+    #             else:
+    #                 err_abs = max(abs(data.min().item()), abs(data.max().item()), 1e-8)
+    #                 im = ax.imshow(data.numpy(), cmap='RdBu_r', origin='lower', vmin=-err_abs, vmax=err_abs)
+    #             ax.set_title(f'{title} (T={t_raw})')
+    #             ax.set_xticks([])
+    #             ax.set_yticks([])
+    #             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    #         plt.tight_layout()
+    #         pred_plot_path = os.path.join(pred_dir, f'ns_prediction_t{t_raw}.png')
+    #         fig.savefig(pred_plot_path, dpi=150, bbox_inches='tight')
+    #         plt.close(fig)
 
-            # Spectral energy comparison
+    #         # Spectral energy comparison
             
-            ux_pred, uy_pred = velocity_from_vorticity(pred_frame.float())
-            ux_true, uy_true = velocity_from_vorticity(truth_frame.float())
-            k_bins, Ek_pred = compute_spectra_torch(ux_pred, uy_pred, 2 * math.pi, 2 * math.pi)
-            _, Ek_true = compute_spectra_torch(ux_true, uy_true, 2 * math.pi, 2 * math.pi)
+    #         ux_pred, uy_pred = velocity_from_vorticity(pred_frame.float())
+    #         ux_true, uy_true = velocity_from_vorticity(truth_frame.float())
+    #         k_bins, Ek_pred = compute_spectra_torch(ux_pred, uy_pred, 2 * math.pi, 2 * math.pi)
+    #         _, Ek_true = compute_spectra_torch(ux_true, uy_true, 2 * math.pi, 2 * math.pi)
 
-            k_np = k_bins.cpu().numpy()
-            Ek_pred_np = Ek_pred.cpu().numpy()
-            Ek_true_np = Ek_true.cpu().numpy()
+    #         k_np = k_bins.cpu().numpy()
+    #         Ek_pred_np = Ek_pred.cpu().numpy()
+    #         Ek_true_np = Ek_true.cpu().numpy()
 
-            valid_mask = range(1, min(len(k_np), min(S_data) // 2))
-            fig_spec, ax_spec = plt.subplots(1, 1, figsize=(6, 4))
-            ax_spec.loglog(k_np[valid_mask], Ek_true_np[valid_mask], label='Truth', linewidth=1)
-            ax_spec.loglog(k_np[valid_mask], Ek_pred_np[valid_mask], '--', label='Prediction', linewidth=1)
-            ax_spec.set_xlabel('Wavenumber k')
-            ax_spec.set_ylabel('Energy E(k)')
-            ax_spec.set_title(f'Spectral Energy (T={t_raw})')
-            ax_spec.grid(True, which='both', alpha=0.3)
-            ax_spec.legend()
-            spec_plot_path = os.path.join(spec_dir, f'ns_spectral_energy_t{t_raw}.png')
-            fig_spec.savefig(spec_plot_path, dpi=150, bbox_inches='tight')
-            plt.close(fig_spec)
+    #         valid_mask = range(1, min(len(k_np), min(S_data) // 2))
+    #         fig_spec, ax_spec = plt.subplots(1, 1, figsize=(6, 4))
+    #         ax_spec.loglog(k_np[valid_mask], Ek_true_np[valid_mask], label='Truth', linewidth=1)
+    #         ax_spec.loglog(k_np[valid_mask], Ek_pred_np[valid_mask], '--', label='Prediction', linewidth=1)
+    #         ax_spec.set_xlabel('Wavenumber k')
+    #         ax_spec.set_ylabel('Energy E(k)')
+    #         ax_spec.set_title(f'Spectral Energy (T={t_raw})')
+    #         ax_spec.grid(True, which='both', alpha=0.3)
+    #         ax_spec.legend()
+    #         spec_plot_path = os.path.join(spec_dir, f'ns_spectral_energy_t{t_raw}.png')
+    #         fig_spec.savefig(spec_plot_path, dpi=150, bbox_inches='tight')
+    #         plt.close(fig_spec)
             # except Exception as exc:  # noqa: BLE001
             #     print(f'Warning: failed to create spectral energy plot at T={t_raw}: {exc}')
 
