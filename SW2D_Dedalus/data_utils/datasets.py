@@ -16,20 +16,27 @@ def load_sw_data_split_and_save(load_dir, save_dir):
     print(data)
     for key in data.keys():
         print(key)
-    # X_train, X_val, X_test, y_train, y_val, y_test = data['X_train'], data['X_val'], data['X_test'], data['Y_train'], data['Y_val'], data['Y_test']
-    # print("X_train shape: ", X_train.shape) # (N, C, H, W)  (28720, 2, 256, 128)  # 80 realizations of 360 steps
-    # print("X_val shape: ", X_val.shape) # (N, C, H, W)  # 10 realizations of 360 steps
-    # print("X_test shape: ", X_test.shape) # (N, C, H, W)  # 10 realizations of 360 steps
-    # print("y_train shape: ", y_train.shape)
-    # print("y_val shape: ", y_val.shape)
-    # print("y_test shape: ", y_test.shape)
-
-    # # save the training/ val /test set in separate npz files
-    # np.savez(os.path.join(datapath, 'sw2d_train_dataset.npz'), X_train=X_train, y_train=y_train)
-    # np.savez(os.path.join(datapath, 'sw2d_val_dataset.npz'), X_val=X_val, y_val=y_val)
-    # np.savez(os.path.join(datapath, 'sw2d_test_dataset.npz'), X_test=X_test, y_test=y_test)
-    # print("Training/ val /test set saved to: ", os.path.join(datapath, 'sw2d_train_dataset.npz'), os.path.join(datapath, 'sw2d_val_dataset.npz'), os.path.join(datapath, 'sw2d_test_dataset.npz'))
-    # print("data shape: ", data.shape)
+    X_train, X_val, X_test, y_train, y_val, y_test = data['X_train'], data['X_val'], data['X_test'], data['Y_train'], data['Y_val'], data['Y_test']
+    print("X_train shape: ", X_train.shape) # (N, C, H, W)  (28720, 2, 256, 128)  # 80 realizations of 360 steps
+    print("X_val shape: ", X_val.shape) # (N, C, H, W)  # 10 realizations of 360 steps
+    print("X_test shape: ", X_test.shape) # (N, C, H, W)  # 10 realizations of 360 steps
+    print("y_train shape: ", y_train.shape)
+    print("y_val shape: ", y_val.shape)
+    print("y_test shape: ", y_test.shape)
+    
+    # load realization name 
+    train_realisation = data['train_realisations']
+    times_train = data['times_train']
+    val_realisation = data['val_realisations']
+    times_val = data['times_val']
+    test_realisation = data['test_realisations']
+    times_test = data['times_test']
+    # save the training/ val /test set in separate npz files
+    np.savez(os.path.join(save_dir, 'sw2d_train_dataset.npz'), X_train=X_train, y_train=y_train, train_realisations=train_realisation, times_train=times_train)
+    np.savez(os.path.join(save_dir, 'sw2d_val_dataset.npz'), X_val=X_val, y_val=y_val, val_realisations=val_realisation, times_val=times_val)
+    np.savez(os.path.join(save_dir, 'sw2d_test_dataset.npz'), X_test=X_test, y_test=y_test, test_realisations=test_realisation, times_test=times_test)
+    print("Training/ val /test set saved to: ", os.path.join(save_dir, 'sw2d_train_dataset.npz'), os.path.join(save_dir, 'sw2d_val_dataset.npz'), os.path.join(save_dir, 'sw2d_test_dataset.npz'))
+    print("data shape: ", data.shape)
     return data
 
 
