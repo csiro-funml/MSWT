@@ -173,13 +173,15 @@ def process_metric_table_to_latex(CSV_PATH):
 
 def aggregate_metric_table(grid_form='linear'):
     if torch.cuda.is_available():
-        save_folder = "/scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/"
+        save_folder = "/scratch3/wan410/operator_learning_model/SW2D_PDA/"
     else:
-        save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
+        save_folder = "logs/SW2D_PDA/"
    
 
-    model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
-    renamed_name_list = ['FNO', 'Unet', 'WNO', 'SAOT', 'HFS', 'MSWT']
+    # model_name_list = ['FNO', 'PDERefinerUNet', 'WNO', 'SAOT', 'HFS', 'MSWT_patching']
+    # renamed_name_list = ['FNO', 'Unet', 'WNO', 'SAOT', 'HFS', 'MSWT']
+    model_name_list = ['FNO', 'MSWT_patching']
+    renamed_name_list = ['FNO', 'MSWT']
     
     seeds = [42, 43, 44, 45, 46]
     total_df_metric = pd.DataFrame()
@@ -192,10 +194,10 @@ def aggregate_metric_table(grid_form='linear'):
                 # print(df_metric.head())
                 # df_metric = df.iloc[0]
                 # only keep wno with seed 42 and abandon other seeeds for wno because their metrics are not stable
-                if model_name == 'WNO':
-                    print(df_metric['seed'].values[0])
-                    if df_metric['seed'].values[0] != 42:
-                        continue
+                # if model_name == 'WNO':
+                #     print(df_metric['seed'].values[0])
+                #     if df_metric['seed'].values[0] != 42:
+                #         continue
                 # rename model with the model_name
                 df_metric['model'] = model_name
                 total_df_metric = pd.concat([total_df_metric, df_metric], ignore_index=True)
@@ -488,5 +490,5 @@ def plot_error_energy():
 
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
-    # aggregate_metric_table(grid_form='periodic')
-    plot_error_energy()
+    aggregate_metric_table(grid_form='periodic')
+    # plot_error_energy()
