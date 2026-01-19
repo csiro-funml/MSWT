@@ -368,7 +368,7 @@ def plot_error():
         error_max = max(error_max, np.abs(error_min))
         error_min = -error_max # make it symmetrical around zero
 
-        fig, axes = plt.subplots(5, 2, figsize=(12, 10), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 5, figsize=(12, 4), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
         im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
@@ -383,21 +383,21 @@ def plot_error():
         ax.set_yticks([])
         
         # # make the axis disapprear completly
-        # ax = axes[1, 0]
-        # ax.axis('off')
+        ax = axes[1, 0]
+        ax.axis('off')
 
-        # ax = axes[1, 1]
-        # ax.axis('off')          
+        ax = axes[1, 1]
+        ax.axis('off')          
 
         for col_idx, model_name in enumerate(model_name_list):
-            ax = axes[col_idx+1, 0]
+            ax = axes[0, col_idx+2]
             im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
             ax.set_ylabel(f'{plot_model_name_list[col_idx]} Prediction', fontsize=10, fontweight='bold')
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_xticks([])
             ax.set_yticks([])
             
-            ax = axes[col_idx+1, 1]   
+            ax = axes[1, col_idx+2]   
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             ax.set_ylabel(f'{plot_model_name_list[col_idx]} Error', fontsize=10, fontweight='bold')
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
