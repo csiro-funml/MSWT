@@ -132,8 +132,6 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
         if pred.dim() == 4:
             pred = pred.squeeze(-1)
     # rotate the H and W by 90 degrees
-    pred = torch.rot90(pred, k=1, dims=[1, 2])
-    y = torch.rot90(y, k=1, dims=[0, 1])
     return pred, y.unsqueeze(0)
 
 def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
@@ -276,8 +274,8 @@ def train_2d(args, config):
     else:
         train_set = SWLoader2D(
                             datapath=data_config['datapath'],
-                            # state='train',
-                            state = 'val', # temporarily use val set for training
+                            state='train',
+                            # state = 'val', # temporarily use val set for training
                             train=True,
                             save_normalizer_path=data_config.get('normalizer_path', None)
                         )
