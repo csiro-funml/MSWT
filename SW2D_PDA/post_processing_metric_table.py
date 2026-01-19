@@ -14,12 +14,12 @@ from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_t
 
 
 
-def process_metric_table_to_latex(CSV_PATH):
+def process_metric_table_to_latex():
     # -----------------------------
     # Config
     # -----------------------------
-    CSV_PATH = "avg_evaluation_metrics.csv"   # <-- set this to your local path
-    STEPS = [1, 30, 64]
+    CSV_PATH = "logs/SW2D_PDA/avg_evaluation_metrics_periodic.csv"   # <-- set this to your local path
+    STEPS = [1, 41, 81]
 
     # Map raw metric names -> display names used in the LaTeX header
     METRIC_DISPLAY = {
@@ -100,6 +100,8 @@ def process_metric_table_to_latex(CSV_PATH):
         """
         cols = []
         data = {}
+        # Ensure Model column exists and get model names as list
+        model_names = df["Model"].tolist()
         for m in metrics:
             for st in steps:
                 colname = f"{m}_step{st}"
@@ -108,9 +110,12 @@ def process_metric_table_to_latex(CSV_PATH):
                 disp_m = METRIC_DISPLAY[m]
                 disp_s = f"step {st}"
                 cols.append((disp_m, disp_s))
-                data[(disp_m, disp_s)] = df[colname].map(to_latex_cell)
+                # Map to LaTeX format - convert Series to list for proper alignment
+                mapped_values = df[colname].map(to_latex_cell).tolist()
+                data[(disp_m, disp_s)] = mapped_values
 
-        out = pd.DataFrame(data, index=df["Model"])
+        # Create DataFrame with model names as index
+        out = pd.DataFrame(data, index=model_names)
         out.columns = pd.MultiIndex.from_tuples(cols, names=["Metric", "Step"])
         return out
 
@@ -164,11 +169,11 @@ def process_metric_table_to_latex(CSV_PATH):
 
     latex_1 = add_booktabs(latex_1)
     latex_2 = add_booktabs(latex_2)
-
-    with open("table_relL2_smlr_emlr.tex", "w") as f:
+    save_folder = "logs/SW2D_PDA/"
+    with open(os.path.join(save_folder, "table_relL2_smlr_emlr.tex"), "w") as f:
         f.write(latex_1)
 
-    with open("table_smae_emae.tex", "w") as f:
+    with open(os.path.join(save_folder, "table_smae_emae.tex"), "w") as f:
         f.write(latex_2)
 
     print("Wrote: table_relL2_smlr_emlr.tex")
@@ -438,6 +443,7 @@ def plot_error():
 
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
-    
-    aggregate_metric_table(grid_form='periodic')
+    # aggregate_metric_table(grid_form='periodic')
+    # process_metric_table_to_latex()
+
     # plot_error()

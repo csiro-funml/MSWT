@@ -133,12 +133,21 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
         ux_pred, uy_pred = velocity_from_vorticity(pred_seq_t)
         # print("ux_true shape: ", ux_true.shape, "uy_true shape: ", uy_true.shape, "ux_pred shape: ", ux_pred.shape, "uy_pred shape: ", uy_pred.shape)
         # (N, H, W)
-        Ek_true = compute_2d_spectral_energy(ux_true, uy_true) #(N, H, W//2)
-        Ek_pred = compute_2d_spectral_energy(ux_pred, uy_pred) 
-        # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape)
-        Zk_true = compute_2d_enstropy_spectrum(w_grid=truth_seq_t)  # (N, H, W)
-        Zk_pred = compute_2d_enstropy_spectrum(w_grid=pred_seq_t) # (N, H, W)
 
+        k_bins, Ek_pred = compute_spectra_torch(ux_pred, uy_pred, 2 * math.pi, 2 * math.pi)
+        _, Ek_true = compute_spectra_torch(ux_true, uy_true, 2 * math.pi, 2 * math.pi)
+        
+        _, Zk_true = compute_enstropy_torch(truth_seq_t.float(), 2 * math.pi, 2 * math.pi)
+        _, Zk_pred = compute_enstropy_torch(pred_seq_t.float(), 2 * math.pi, 2 * math.pi)
+        # print("Ek_true shape: ", Ek_true.shape, "Ek_pred shape: ", Ek_pred.shape, "Zk_true shape: ", Zk_true.shape, "Zk_pred shape: ", Zk_pred.shape)
+        k_np = k_bins
+        valid_mask = range(1, min(len(k_np), min(truth_seq_t.shape[1], truth_seq_t.shape[2]) // 2)) # important, because we need to truncate the energy spectra and enstropy spectrum to the same length
+        print("valid_mask: ", valid_mask)
+        k_np = k_np[valid_mask]
+        Ek_true_truncated = Ek_true[:, valid_mask]
+        Ek_pred_truncated = Ek_pred[:, valid_mask]
+        Zk_true_truncated = Zk_true[:, valid_mask]
+        Zk_pred_truncated = Zk_pred[:, valid_mask]
         # step_pderesidual = pderesidual(ux_true, uy_true, truth_seq_t).item()
         # print("ground truth pderesidual: ", step_pderesidual)
         # step_pderesidual_pred = pderesidual(ux_pred, uy_pred, pred_seq_t).item()
@@ -147,10 +156,10 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
         # exit(-1)s
     
         step_l2 = lploss(pred_seq_t, truth_seq_t).item() # first step loss
-        step_spectral_meape = meape(Ek_pred, Ek_true).item()
-        step_spectral_melr = melr(Ek_pred, Ek_true).item()
-        step_enstropy_meape = meape(Zk_pred, Zk_true).item()
-        step_enstropy_melr = melr(Zk_pred, Zk_true).item()
+        step_spectral_meape = meape(Ek_pred_truncated, Ek_true_truncated).item()
+        step_spectral_melr = melr(Ek_pred_truncated, Ek_true_truncated).item()
+        step_enstropy_meape = meape(Zk_pred_truncated, Zk_true_truncated).item()
+        step_enstropy_melr = melr(Zk_pred_truncated, Zk_true_truncated).item()
         
         print(f"{model_name} seed: {seed}, step: {t}, step l2: {step_l2:.4f}, \
             step SMLR: {step_spectral_melr:.4f},\
@@ -361,16 +370,16 @@ def main():
     
     
     
-    # for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
-    time_indices = [0, 29, truth_seq.shape[-1] - 1]
-    save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    # # for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
+    # time_indices = [0, 29, truth_seq.shape[-1] - 1]
+    # save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
     
-    # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
-    save_path_energy = compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
-    temp = np.load(save_path_energy)
-    for key in temp.keys():
-        print(key, temp[key].shape)
+    # # also compute the spectral energy and enstropy spectrum for the ground truth and predictions at the same time indices and save as npz file
+    # save_path_energy = compute_save_energy_spectra(truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    # temp = np.load(save_path_energy)
+    # for key in temp.keys():
+    #     print(key, temp[key].shape)
     # exit(-1)
 
 
