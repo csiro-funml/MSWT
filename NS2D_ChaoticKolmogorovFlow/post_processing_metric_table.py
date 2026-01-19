@@ -96,6 +96,8 @@ def process_metric_table_to_latex():
         """
         cols = []
         data = {}
+        # Ensure Model column exists and get model names as list
+        model_names = df["Model"].tolist()
         for m in metrics:
             for st in steps:
                 colname = f"{m}_step{st}"
@@ -104,9 +106,12 @@ def process_metric_table_to_latex():
                 disp_m = METRIC_DISPLAY[m]
                 disp_s = f"step {st}"
                 cols.append((disp_m, disp_s))
-                data[(disp_m, disp_s)] = df[colname].map(to_latex_cell)
+                # Map to LaTeX format - convert Series to list for proper alignment
+                mapped_values = df[colname].map(to_latex_cell).tolist()
+                data[(disp_m, disp_s)] = mapped_values
 
-        out = pd.DataFrame(data, index=df["Model"])
+        # Create DataFrame with model names as index
+        out = pd.DataFrame(data, index=model_names)
         out.columns = pd.MultiIndex.from_tuples(cols, names=["Metric", "Step"])
         return out
 
@@ -487,6 +492,7 @@ def plot_error_energy():
 
 
 if __name__ == "__main__":
-    aggregate_metric_table(grid_form='linear')
+    # aggregate_metric_table(grid_form='linear')
+    process_metric_table_to_latex()
     # aggregate_metric_table(grid_form='periodic')
     # plot_error_energy()

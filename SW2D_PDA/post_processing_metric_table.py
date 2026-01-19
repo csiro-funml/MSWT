@@ -325,9 +325,9 @@ def plot_error():
     # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
     # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
-    model_name_list = ['FNO', 'MSWT_patching']
-    saved_model_name_list = ['fno2d', 'multiscale_wavelet2d_periodic_patching']
-    plot_model_name_list = ['FNO', 'MSWT']
+    model_name_list = ['FNO', 'HFS','MSWT_patching']
+    saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'HFS', 'MSWT']
     seed = 42
     # grid_form = 'linear'
     grid_form = 'periodic'
@@ -368,7 +368,7 @@ def plot_error():
         error_max = max(error_max, np.abs(error_min))
         error_min = -error_max # make it symmetrical around zero
 
-        fig, axes = plt.subplots(2, 4, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(5, 2, figsize=(12, 10), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
         im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
@@ -382,24 +382,25 @@ def plot_error():
         ax.set_xticks([])
         ax.set_yticks([])
         
-        # make the axis disapprear completly
-        ax = axes[1, 0]
-        ax.axis('off')
+        # # make the axis disapprear completly
+        # ax = axes[1, 0]
+        # ax.axis('off')
 
-        ax = axes[1, 1]
-        ax.axis('off')          
+        # ax = axes[1, 1]
+        # ax.axis('off')          
 
         for col_idx, model_name in enumerate(model_name_list):
-            ax = axes[0, col_idx+2]
+            ax = axes[col_idx+1, 0]
             im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-            ax.set_title(f'{plot_model_name_list[col_idx]}', fontsize=10, fontweight='bold')
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            ax.set_ylabel(f'{plot_model_name_list[col_idx]} Prediction', fontsize=10, fontweight='bold')
+            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_xticks([])
             ax.set_yticks([])
             
-            ax = axes[1, col_idx+2]   
+            ax = axes[col_idx+1, 1]   
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            ax.set_ylabel(f'{plot_model_name_list[col_idx]} Error', fontsize=10, fontweight='bold')
+            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
@@ -446,4 +447,4 @@ if __name__ == "__main__":
     # aggregate_metric_table(grid_form='periodic')
     # process_metric_table_to_latex()
 
-    # plot_error()
+    plot_error()
