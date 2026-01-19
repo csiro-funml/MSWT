@@ -383,7 +383,7 @@ def plot_error():
                 ax.set_yticks([])
 
             plt.tight_layout()
-            save_folder_error = os.path.join(save_folder, 'plot_error', 'instance_idx_{sample_idx}')
+            save_folder_error = os.path.join(save_folder, 'plot_error', f'instance_idx_{sample_idx}')
             os.makedirs(save_folder_error, exist_ok=True)
             plt.savefig(os.path.join(save_folder_error, f'{dataset_name}_pred_error_grid_{grid_form}_t{step}_seed{seed}_instance_{sample_idx}.png'), dpi=500, bbox_inches='tight')
             plt.close(fig)
