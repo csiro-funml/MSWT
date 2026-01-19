@@ -269,7 +269,8 @@ def compute_save_energy_spectra(seq):
     _, Zk_true = compute_enstropy_torch(truth_frame.float(), 2 * math.pi, 2 * math.pi)
     
     k_np = k_bins.detach().cpu().numpy()
-    valid_mask = range(1, min(len(k_np), min(truth_frame.shape[-1], truth_frame.shape[-2]) // 2))
+    # valid_mask = range(1, min(len(k_np), min(truth_frame.shape[-1], truth_frame.shape[-2]) // 2))
+    valid_mask = range(1, len(k_np))
     k_np = k_np[valid_mask]
     Ek_true_np = Ek_true.detach().cpu().numpy()[valid_mask]
     Zk_true_np = Zk_true.detach().cpu().numpy()[valid_mask]
@@ -312,7 +313,8 @@ def plot_error():
     else:
         save_folder = "logs/SW2D_PDA/"
     # steps = [1, 41, 87]
-    steps = range(0, 88, 20)
+    # steps = range(0, 88, 20)
+    steps = [1, 41, 81]
     # steps = [80]
     dataset_name = 'SW2D_PDA'
     # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
@@ -398,7 +400,8 @@ def plot_error():
             ax.set_yticks([])
 
         plt.tight_layout()
-        save_folder_error = os.path.join(save_folder, 'plot_error')
+        # save_folder_error = os.path.join(save_folder, 'plot_error')
+        save_folder_error = save_folder
         os.makedirs(save_folder_error, exist_ok=True)
         plt.savefig(os.path.join(save_folder_error, f'{dataset_name}_pred_error_grid_{grid_form}_t{step}_seed{seed}_instance_{sample_idx}.png'), dpi=500, bbox_inches='tight')
         plt.close(fig)
