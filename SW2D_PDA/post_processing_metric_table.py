@@ -269,10 +269,10 @@ def compute_save_energy_spectra(seq):
     _, Zk_true = compute_enstropy_torch(truth_frame.float(), 2 * math.pi, 2 * math.pi)
     
     k_np = k_bins.detach().cpu().numpy()
-    valid_mask = range(1, min(len(k_np), truth_frame.shape[-1] // 2))
+    valid_mask = range(1, min(len(k_np), min(truth_frame.shape[-1], truth_frame.shape[-2]) // 2))
     k_np = k_np[valid_mask]
     Ek_true_np = Ek_true.detach().cpu().numpy()[valid_mask]
-    Zk_true_np = Zk_true[valid_mask]
+    Zk_true_np = Zk_true.detach().cpu().numpy()[valid_mask]
     return k_np, Ek_true_np, Zk_true_np
 
 
@@ -347,10 +347,10 @@ def plot_error():
             # compute the energy spectra and enstropy spectra here
             k_np, energy_dict[model_name], enstropy_dict[model_name] = compute_save_energy_spectra(torch.from_numpy(pred[sample_idx]))
 
-            global_max = max(global_max, initial_condition[sample_idx].max(), truth[sample_idx].max(), pred_dict[model_name][sample_idx].max())
-            global_min = min(global_min, initial_condition[sample_idx].min(), truth[sample_idx].min(), pred_dict[model_name][sample_idx].min())
-            error_max = max(error_max, error_dict[model_name][sample_idx].max())
-            error_min = min(error_min, error_dict[model_name][sample_idx].min())
+            global_max = max(global_max, initial_condition[sample_idx].max(), truth[sample_idx].max(), pred_dict[model_name].max())
+            global_min = min(global_min, initial_condition[sample_idx].min(), truth[sample_idx].min(), pred_dict[model_name].min())
+            error_max = max(error_max, error_dict[model_name].max())
+            error_min = min(error_min, error_dict[model_name].min())
         
         initial_condition = initial_condition[sample_idx]
         truth = truth[sample_idx]
