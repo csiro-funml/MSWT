@@ -322,13 +322,13 @@ def plot_error():
     steps = [0, 40, 80]
     # steps = [80]
     dataset_name = 'SW2D_PDA'
-    model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
-    saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
-    plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
-    # model_name_list = ['FNO', 'HFS','MSWT_patching']
-    # saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
-    # plot_model_name_list = ['FNO', 'HFS', 'MSWT']
-    # full_energy_model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
+    model_name_list = ['FNO', 'HFS','MSWT_patching']
+    saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'HFS', 'MSWT']
+
     seed = 42
     # grid_form = 'linear'
     grid_form = 'periodic'
@@ -370,7 +370,7 @@ def plot_error():
         error_min = -error_max # make it symmetrical around zero
 
         # fig, axes = plt.subplots(2, 5, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
-        fig, axes = plt.subplots(2, 10, figsize=(12, 10), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 5, figsize=(15, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         # plot the truth first at axes [0, 0]
         ax = axes[0, 0]
         im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
@@ -443,7 +443,7 @@ def plot_error():
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
         ax.legend(fontsize=20, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
 
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
@@ -455,7 +455,7 @@ def plot_error():
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
         ax.legend(fontsize=20, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
