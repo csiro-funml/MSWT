@@ -252,7 +252,7 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     energy_path = os.path.join(save_folder, f'{model_folder_name}2d_{grid_form}/saved_plots', f'{saved_model_name}_seed{seed}_energy_spectra_t{step}.npz')
     
     pred_data = np.load(pred_path)
-    initial_condition = pred_data['initial_condition'][0, 0]# (shape: N, C, H, W)
+    initial_condition = pred_data['initial_condition'][0, ..., 0] # (shape: N, C, H, W)
     pred = pred_data['pred_seq_t']
     truth = pred_data['truth_seq_t']
     error = pred_data['error_seq_t']
@@ -292,7 +292,7 @@ def plot_error_energy():
         save_folder = "/scratch3/wan410/operator_learning_model/SW2D_PDA/"
     else:
         save_folder = "logs/SW2D_PDA/"
-    steps = [1, 40, 87]
+    steps = [1, 41, 87]
     dataset_name = 'SW2D_PDA'
     # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
     # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
