@@ -284,7 +284,7 @@ def compute_enstropy_torch(w_grid, Lx, Ly):
     # Remove batch dimension if input was unbatched
     if not is_batched:
         Zk = Zk.squeeze(0)  # (num_k_bins,)
-    
+    Zk = torch.from_numpy(Zk)
     return k_bins, Zk
 
 
