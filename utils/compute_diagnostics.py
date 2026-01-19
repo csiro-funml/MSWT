@@ -148,7 +148,7 @@ def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
     device = ux_grid.device
     dtype = ux_grid.dtype
     
-    Nx, Ny = ux_grid.shape
+    Nx, Ny = ux_grid.shape[-2], ux_grid.shape[-1]
     N = Nx * Ny
     assert abs(Lx - Ly) < 1e-12, "Isotropic shell binning requires Lx ≈ Ly"
     k0 = 2 * torch.tensor(np.pi, device=device, dtype=dtype) / Lx
@@ -163,9 +163,9 @@ def compute_spectra_torch(ux_grid, uy_grid, Lx, Ly):
 
     # rfft symmetry weight: double ky>0 interior modes
     weight = 2.0 * torch.ones_like(E_mode, device=device, dtype=dtype)
-    weight[:, 0] = 1.0  # ky=0 is not doubled
+    weight[..., 0] = 1.0  # ky=0 is not doubled
     if Ny % 2 == 0:
-        weight[:, -1] = 1.0  # Nyquist is real-valued
+        weight[..., -1] = 1.0  # Nyquist is real-valued
 
     E_mode = E_mode * weight
 
