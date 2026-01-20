@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
 def load_sw_data_split_and_save(load_dir, save_dir):
-    data = np.load(os.path.join(load_dir, 'sw2d_dataset_v2.npz'))
+    data = np.load(os.path.join(load_dir, 'sw2d_dataset_v3.npz'))
     print(data)
     for key in data.keys():
         print(key)
@@ -87,7 +87,7 @@ class SWLoader2D(Dataset):
         self.X_data = torch.rot90(self.X_data, k=1, dims=[-2, -1])  # Rotate last two dimensions
         self.y_data = torch.rot90(self.y_data, k=1, dims=[-2, -1])  # Rotate last two dimensions
         print("after rotation: ", self.X_data.shape, self.y_data.shape)
-        
+
         self.S = (self.X_data.shape[-2], self.X_data.shape[-1]) # (H, W) = (128, 256)
         
         self.num_samples = self.X_data.shape[0]
