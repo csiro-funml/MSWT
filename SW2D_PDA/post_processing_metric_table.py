@@ -203,10 +203,10 @@ def aggregate_metric_table(grid_form='linear'):
                 # print(df_metric.head())
                 # df_metric = df.iloc[0]
                 # only keep wno with seed 42 and abandon other seeeds for wno because their metrics are not stable
-                # if model_name == 'WNO':
-                #     print(df_metric['seed'].values[0])
-                #     if df_metric['seed'].values[0] != 42:
-                #         continue
+                if model_name == 'PDERefinerUNet':
+                    print(df_metric['seed'].values[0])
+                    if df_metric['seed'].values[0] == 45:
+                        continue
                 # rename model with the model_name
                 df_metric['model'] = model_name
                 total_df_metric = pd.concat([total_df_metric, df_metric], ignore_index=True)
