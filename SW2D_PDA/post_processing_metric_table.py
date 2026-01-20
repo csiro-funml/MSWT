@@ -459,7 +459,7 @@ def plot_error():
 
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
-    # aggregate_metric_table(grid_form='periodic')
+    aggregate_metric_table(grid_form='periodic')
     # process_metric_table_to_latex()
 
-    plot_error()
+    # plot_error()
