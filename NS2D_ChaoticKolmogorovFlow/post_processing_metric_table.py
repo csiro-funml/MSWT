@@ -587,7 +587,7 @@ def plot_demo_error_energy():
         # Use tight_layout with rect to leave space for colorbars on the right
         # rect=[left, bottom, right, top] in figure coordinates
         # Leave space on right (0.9) for colorbars, tighter margins elsewhere
-        fig.tight_layout(rect=[0, 0, 0.85, 1])
+        fig.tight_layout(rect=[0, 0, 0.8, 1])
         
         # Colorbar for prediction row (top row: truth + predictions)
         # Position: right side, aligned with top row (shorter height)
