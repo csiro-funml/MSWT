@@ -521,7 +521,7 @@ def save_demo_plot():
         
         
         # get the percentile of the truth
-        truth_percentile = np.percentile(np.abs(truth).reshape(-1), 90)
+        truth_percentile = np.percentile(np.abs(truth).reshape(-1), 95)
         ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=-truth_percentile, vmax=truth_percentile)
         # ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
         ax.set_xticks([])
