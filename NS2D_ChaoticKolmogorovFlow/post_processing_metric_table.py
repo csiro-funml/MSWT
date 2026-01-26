@@ -542,7 +542,7 @@ def save_demo_plot():
         truth_torch_dwt = dwt(truth_torch)[0] #(4, H, W)
         print("truth_torch_dwt shape", truth_torch_dwt.shape)
      
-        fig, axes = plt.subplots(2, 2, figsize=(12, 12), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 2, figsize=(12, 12))
         for i in range(4):
             ax = axes[i//2, i%2]
             ax.imshow(truth_torch_dwt[i].cpu().numpy(), cmap='RdBu_r', origin='lower')
