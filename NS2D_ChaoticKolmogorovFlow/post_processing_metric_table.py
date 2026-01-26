@@ -523,12 +523,17 @@ def save_demo_plot():
         # get the percentile of the truth
         truth_percentile = np.percentile(np.abs(truth).reshape(-1), 98)
         ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=-truth_percentile, vmax=truth_percentile)
+
+        # ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        # turn off the grid, and the bounding box of the image
         ax.grid(False)
+        ax.set_axis_off()
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_ground_truth_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
         plt.close(fig)
-    
-    # plot the prediction
+
 
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
