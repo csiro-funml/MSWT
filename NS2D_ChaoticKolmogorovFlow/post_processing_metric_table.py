@@ -545,8 +545,8 @@ def save_demo_plot():
         fig, axes = plt.subplots(2, 2, figsize=(12, 12))
         for i in range(4):
             ax = axes[i//2, i%2]
-            coeff_percentile = np.percentile(np.abs(truth_torch_dwt[i].cpu().numpy().reshape(-1)), 98)
-            ax.imshow(truth_torch_dwt[i].cpu().numpy(), cmap='RdBu_r', origin='lower', vmin=-coeff_percentile, vmax=coeff_percentile)
+            # coeff_percentile = np.percentile(np.abs(truth_torch_dwt[i].cpu().numpy().reshape(-1)), 98)
+            ax.imshow(truth_torch_dwt[i].cpu().numpy(), cmap='RdBu_r', origin='lower')
             # ax.set_title(f'DWT Coefficient {i}', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
