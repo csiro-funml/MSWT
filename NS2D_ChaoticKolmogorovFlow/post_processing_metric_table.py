@@ -540,12 +540,12 @@ def save_demo_plot():
         truth_torch = torch.from_numpy(truth).unsqueeze(0).unsqueeze(0) # (B,C,H, W)
         print("truth_torch shape", truth_torch.shape)
         truth_torch_dwt = dwt(truth_torch)[0] #(4, H, W)
-        coeff_percentile = np.percentile(np.abs(truth_torch_dwt.cpu().numpy().reshape(-1)), 98)
         print("truth_torch_dwt shape", truth_torch_dwt.shape)
      
         fig, axes = plt.subplots(2, 2, figsize=(12, 12))
         for i in range(4):
             ax = axes[i//2, i%2]
+            coeff_percentile = np.percentile(np.abs(truth_torch_dwt[i].cpu().numpy().reshape(-1)), 98)
             ax.imshow(truth_torch_dwt[i].cpu().numpy(), cmap='RdBu_r', origin='lower', vmin=-coeff_percentile, vmax=coeff_percentile)
             # ax.set_title(f'DWT Coefficient {i}', fontsize=10, fontweight='bold')
             ax.set_xticks([])
