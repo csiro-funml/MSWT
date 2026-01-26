@@ -520,7 +520,7 @@ def plot_error_demo():
         _, energy_dict['truth'], enstropy_dict['truth'] = compute_save_energy_spectra(torch.from_numpy(truth))
 
         # fig, axes = plt.subplots(2, 5, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
-        fig, axes = plt.subplots(2, 4, figsize=(7, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 4, figsize=(7, 2.5), gridspec_kw={'hspace': 0.15, 'wspace': 0.3})
         # plot the truth first at axes [0, 0]
         ax = axes[1, 0]
         im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
@@ -538,14 +538,14 @@ def plot_error_demo():
         for col_idx, model_name in enumerate(model_name_list):
             ax = axes[0, col_idx+1]
             im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-            ax.set_title(f'{plot_model_name_list[col_idx]} Prediction', fontsize=10, fontweight='bold')
+            ax.set_title(f'{plot_model_name_list[col_idx]}', fontsize=10, fontweight='bold')
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_xticks([])
             ax.set_yticks([])
             
             ax = axes[1, col_idx+1]   
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'{plot_model_name_list[col_idx]} Error', fontsize=10, fontweight='bold')
+            ax.set_title('Error', fontsize=10, fontweight='bold')
             # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
             ax.set_xticks([])
