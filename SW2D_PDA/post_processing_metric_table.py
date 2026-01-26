@@ -521,7 +521,7 @@ def plot_error_demo():
 
         # fig, axes = plt.subplots(2, 5, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         fig, axes = plt.subplots(2, 4, figsize=(7, 2.5), gridspec_kw={'hspace': 0.15, 'wspace': 0.3})
-        colormap = 'BrBG'
+        colormap = 'PiYG'
         # plot the truth first at axes [0, 0]
         ax = axes[1, 0]
         im = ax.imshow(initial_condition, cmap=colormap, origin='lower', vmin=global_min, vmax=global_max)
