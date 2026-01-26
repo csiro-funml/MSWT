@@ -686,4 +686,4 @@ if __name__ == "__main__":
     # aggregate_metric_table(grid_form='periodic')
     # save_wavelet_transform_demo_plot()
     plot_demo_error_energy() # just plot for FNO, HFS, MSWT_patching 
-    plot_error_energy() # plot for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching
+    # plot_error_energy() # plot for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching
