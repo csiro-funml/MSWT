@@ -457,9 +457,162 @@ def plot_error():
         plt.tight_layout(rect=[0, 0, 1, 1])
         # plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
+
+def plot_error_demo():
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    # 2 rows ,6 columns
+    # the first column is ground truth and energy plot,
+    # from the secon column, shows the prediction and error plot
+    # generate the color map from below
+    if torch.cuda.is_available():
+        save_folder = "/scratch3/wan410/operator_learning_model/SW2D_PDA/"
+    else:
+        save_folder = "logs/SW2D_PDA/"
+    # steps = [1, 41, 87]
+    # steps = range(0, 88, 20)
+    # steps = [0, 40, 80]
+    steps = [80]
+    # steps = [80]
+    dataset_name = 'SW2D_PDA'
+    # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
+    model_name_list = ['FNO', 'HFS','MSWT_patching']
+    saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'HFS', 'MSWT']
+
+    seed = 42
+    # grid_form = 'linear'
+    grid_form = 'periodic'
+    sample_idx = 0
+    # I want to iterate over the sample indices from 0 to 99 as well
+    for step in steps:
+
+        pred_dict = {}
+        error_dict = {}
+
+        energy_dict = {}
+        enstropy_dict = {}
+        
+        error_list = []
+        for i, model_name in enumerate(model_name_list):
+            initial_condition, pred, truth, error= \
+            load_pred_truth_error(model_name, saved_model_name_list[i], seed, step+1, save_folder, grid_form)
+             # (N , H, W)
+            pred_dict[model_name] = pred[sample_idx]
+            error_dict[model_name] = error[sample_idx]
+
+            # compute the energy spectra and enstropy spectra here
+            k_np, energy_dict[model_name], enstropy_dict[model_name] = compute_save_energy_spectra(torch.from_numpy(pred[sample_idx]))
+            error_list.extend(error.reshape(-1))
+
+        
+        # use percentile to set the global max and min
+        global_max = np.percentile(np.abs(np.concatenate([initial_condition.reshape(-1), truth.reshape(-1), pred_dict[model_name].reshape(-1)])), 98)
+        global_min = -global_max # make it symmetrical around zero
+
+        error_max = np.percentile(np.abs(error_list), 98)
+        error_min = -error_max # make it symmetrical around zero
+        
+        initial_condition = initial_condition[sample_idx]
+        truth = truth[sample_idx]
+        _, energy_dict['truth'], enstropy_dict['truth'] = compute_save_energy_spectra(torch.from_numpy(truth))
+
+        # fig, axes = plt.subplots(2, 5, figsize=(12, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 4, figsize=(7, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        # plot the truth first at axes [0, 0]
+        ax = axes[1, 0]
+        im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        
+        ax = axes[0, 0]
+        im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
+        ax.set_xticks([])
+        ax.set_yticks([])
+                 
+
+        for col_idx, model_name in enumerate(model_name_list):
+            ax = axes[0, col_idx+1]
+            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+            ax.set_title(f'{plot_model_name_list[col_idx]} Prediction', fontsize=10, fontweight='bold')
+            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            
+            ax = axes[1, col_idx+1]   
+            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+            ax.set_title(f'{plot_model_name_list[col_idx]} Error', fontsize=10, fontweight='bold')
+            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
+            ax.set_xticks([])
+            ax.set_yticks([])
+        
+        
+        # Use tight_layout with rect to leave space for colorbars on the right
+        # rect=[left, bottom, right, top] in figure coordinates
+        # Leave space on right (0.9) for colorbars, tighter margins elsewhere
+        fig.tight_layout(rect=[0, 0, 0.8, 1])
+        
+        # Colorbar for prediction row (top row: truth + predictions)
+        # Position: right side, aligned with top row (shorter height)
+        cax_pred = fig.add_axes([0.95, 0.55, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
+        cbar_pred = fig.colorbar(axes[0, 0].images[0], cax=cax_pred, orientation='vertical')
+        # set the label to the left of the colorbar
+        cbar_pred.set_label('Prediction', fontsize=10, rotation=90, labelpad=1)
+        cbar_pred.ax.yaxis.set_label_position('left')
+        # cbar_pred.set_label(f'{channel_unit_list[c_idx]}', rotation=270, labelpad=15)
+        
+        # Colorbar for bias row (bottom row: biases only)
+        # Position: right side, aligned with bottom row (shorter height)
+        cax_bias = fig.add_axes([0.95, 0.1, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
+        cbar_bias = fig.colorbar(axes[1, 1].images[0], cax=cax_bias, orientation='vertical')
+        cbar_bias.set_label('Error', fontsize=10, rotation=90, labelpad=1)
+        cbar_bias.ax.yaxis.set_label_position('left')
+        save_folder_error = save_folder
+        os.makedirs(save_folder_error, exist_ok=True)
+        plt.savefig(os.path.join(save_folder_error, f'{dataset_name}_pred_error_demo_{grid_form}_t{step}_seed{seed}_instance_{sample_idx}.pdf'), dpi=500, bbox_inches='tight')
+        plt.close(fig)
+            
+               
+        # # plot the energy spectra and enstropy spectra
+        # fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        # # Highlight Ground Truth (first) and MSWT_patching (last) with bold colors and solid lines
+        # # Ground Truth: bold orange/red; MSWT_patching: bold purple
+        # # Middle models: muted colors with dashes
+        # color_list = ['#E65100', '#6BAED6', '#969696', '#FDB462', '#74C476', '#7B1FA2']  # orange-red, light blue, gray, peach, light green, bold purple
+        # linestyle_list = ['-', '--', '-.', ':', '--', '--']  # Solid for Ground Truth and MSWT_patching
+        # ax.loglog(k_np, energy_dict['truth'], label='Ground Truth', linewidth=3, color=color_list[0], linestyle=linestyle_list[0])
+        # for i, model_name in enumerate(model_name_list):
+        #     ax.loglog(k_np, energy_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 3, color=color_list[i+1], linestyle=linestyle_list[i+1])
+        # ax.set_xlabel('Wavenumber k', fontsize=20)
+        # ax.set_ylabel('Spectral Energy Spectrum E(k)', fontsize=20)
+        # ax.grid(True, which='both', alpha=0.3, linestyle='--')
+        # ax.legend(fontsize=20, loc='lower left')
+        # plt.tight_layout(rect=[0, 0, 1, 1])
+        # # plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+
+
+        # fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        # ax.loglog(k_np, enstropy_dict['truth'], label='Ground Truth', linewidth=2, color=color_list[0], linestyle=linestyle_list[0])
+        # for i, model_name in enumerate(model_name_list):
+        #     ax.loglog(k_np, enstropy_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 2, color=color_list[i+1], linestyle=linestyle_list[i+1])
+        # ax.set_xlabel('Wavenumber k', fontsize=20)
+        # ax.set_ylabel('Enstropy Z(k)', fontsize=20)
+        # ax.grid(True, which='both', alpha=0.3, linestyle='--')
+        # ax.legend(fontsize=20, loc='lower left')
+        # plt.tight_layout(rect=[0, 0, 1, 1])
+        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+
+
+
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
     # aggregate_metric_table(grid_form='periodic')
-    process_metric_table_to_latex()
+    # process_metric_table_to_latex()
 
     # plot_error()
+    plot_error_demo()
