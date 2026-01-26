@@ -426,8 +426,8 @@ def plot_error_energy():
         ax.legend(fontsize=16, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
         # plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
-        # save it as a svg file
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.svg'), dpi=500, bbox_inches='tight')
+        # save it as a pdf file
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.pdf'), dpi=500, bbox_inches='tight')
 
 
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
@@ -440,7 +440,7 @@ def plot_error_energy():
         ax.legend(fontsize=16, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
         # plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.svg'), dpi=500, bbox_inches='tight')
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.pdf'), dpi=500, bbox_inches='tight')
     # pred_frame = pred[..., t_raw]
     # truth_frame = truth[..., t_raw]
     # err_frame = pred_frame - truth_frame
@@ -593,14 +593,16 @@ def plot_demo_error_energy():
         # Position: right side, aligned with top row (shorter height)
         cax_pred = fig.add_axes([0.90, 0.55, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
         cbar_pred = fig.colorbar(axes[0, 0].images[0], cax=cax_pred, orientation='vertical')
+        cbar_pred.set_label('Prediction', fontsize=10, rotation=90)
         # cbar_pred.set_label(f'{channel_unit_list[c_idx]}', rotation=270, labelpad=15)
         
         # Colorbar for bias row (bottom row: biases only)
         # Position: right side, aligned with bottom row (shorter height)
         cax_bias = fig.add_axes([0.90, 0.1, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
         cbar_bias = fig.colorbar(axes[1, 1].images[0], cax=cax_bias, orientation='vertical')
+        cbar_bias.set_label('Error', fontsize=10, rotation=90)
         # plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_demo_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_demo_{grid_form}_t{step}_seed{seed}.svg'), dpi=500, bbox_inches='tight')
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_demo_{grid_form}_t{step}_seed{seed}.pdf'), dpi=500, bbox_inches='tight')
         
         
 
