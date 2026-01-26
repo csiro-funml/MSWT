@@ -423,9 +423,11 @@ def plot_error_energy():
         ax.set_xlabel('Wavenumber k', fontsize=20)
         ax.set_ylabel('Kinetic Energy Spectrum E(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
-        ax.legend(fontsize=16, loc='upper right')
+        ax.legend(fontsize=16, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        # save it as a svg file
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.svg'), dpi=500, bbox_inches='tight')
 
 
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
@@ -435,9 +437,10 @@ def plot_error_energy():
         ax.set_xlabel('Wavenumber k', fontsize=20)
         ax.set_ylabel('Enstrophy Spectrum Z(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
-        ax.legend(fontsize=16, loc='upper right')
+        ax.legend(fontsize=16, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.svg'), dpi=500, bbox_inches='tight')
     # pred_frame = pred[..., t_raw]
     # truth_frame = truth[..., t_raw]
     # err_frame = pred_frame - truth_frame
@@ -543,12 +546,12 @@ def plot_demo_error_energy():
             error_list.extend(error.reshape(-1))
         
         # use percentile to set the global max and min
-        global_percentile = np.percentile(np.abs(np.concatenate([truth.reshape(-1), initial_condition.reshape(-1)])), 98)
+        global_percentile = np.percentile(np.abs(np.concatenate([truth.reshape(-1), initial_condition.reshape(-1)])), 99)
         global_max = global_percentile
         global_min = -global_percentile
         # plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
         
-        error_max = np.percentile(np.abs(error_list), 98)
+        error_max = np.percentile(np.abs(error_list), 99)
         error_min = -error_max # make it symmetrical around zero
         
         # plot the truth first at axes [0, 0]
@@ -576,7 +579,7 @@ def plot_demo_error_energy():
             ax = axes[1, i+1]
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
+            ax.set_title(f'(Error: Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
             
@@ -596,7 +599,8 @@ def plot_demo_error_energy():
         # Position: right side, aligned with bottom row (shorter height)
         cax_bias = fig.add_axes([0.90, 0.1, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
         cbar_bias = fig.colorbar(axes[1, 1].images[0], cax=cax_bias, orientation='vertical')
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_demo_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_demo_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_demo_{grid_form}_t{step}_seed{seed}.svg'), dpi=500, bbox_inches='tight')
         
         
 
