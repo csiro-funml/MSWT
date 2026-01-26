@@ -491,8 +491,49 @@ def plot_error_energy():
 
 
 
+def save_demo_plot():
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    # 2 rows ,6 columns
+    # the first column is ground truth and energy plot,
+    # from the secon column, shows the prediction and error plot
+    # generate the color map from below
+    if torch.cuda.is_available():
+        save_folder = "/scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/"
+    else:
+        save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
+    steps = [1, 30, 64]
+    dataset_name = 'NS2D_ChaoticKolmogorovFlow'
+    model_name = 'FNO'
+    saved_model_name = 'fno2d'
+    # model_name_list = ['FNO']
+    # saved_model_name_list = ['fno2d']
+    # plot_model_name_list = ['FNO']
+    seed = 42
+    grid_form = 'linear'
+    # grid_form = 'periodic'
+    for step in steps:
+        fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        
+
+        initial_condition, pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
+        load_pred_truth_error_spectral(model_name, saved_model_name, seed, step, save_folder, grid_form)
+        
+        
+        # get the percentile of the truth
+        truth_percentile = np.percentile(np.abs(truth).reshape(-1), 90)
+        ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=-truth_percentile, vmax=truth_percentile)
+        # ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        plt.tight_layout(rect=[0, 0, 1, 1])
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_ground_truth_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        plt.close(fig)
+
+
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
-    process_metric_table_to_latex()
+    # process_metric_table_to_latex()
     # aggregate_metric_table(grid_form='periodic')
     # plot_error_energy()
+    save_demo_plot()
