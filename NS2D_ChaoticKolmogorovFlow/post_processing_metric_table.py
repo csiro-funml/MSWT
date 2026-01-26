@@ -510,7 +510,7 @@ def save_demo_plot():
     # saved_model_name_list = ['fno2d']
     # plot_model_name_list = ['FNO']
     seed = 42
-    grid_form = 'linear's
+    grid_form = 'linear'
     # grid_form = 'periodic'
     for step in steps:
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
