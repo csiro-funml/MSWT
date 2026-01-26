@@ -541,13 +541,13 @@ def save_demo_plot():
         print("truth_torch shape", truth_torch.shape)
         truth_torch_dwt = dwt(truth_torch)
         print("truth_torch_dwt shape", truth_torch_dwt.shape)
-        truth_dw_coeff = torch.split(truth_torch_dwt[0], 4, dim=1).numpy().cpu() # (4, C,H, W)
-        print("truth_dw_coeff shape", truth_dw_coeff.shape)
+        truth_dw_coeff = torch.split(truth_torch_dwt[0], 4, dim=1) # (4, C,H, W)
+        # print("truth_dw_coeff shape", truth_dw_coeff.shape)
 
         fig, axes = plt.subplots(2, 2, figsize=(12, 12), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
         for i in range(4):
             ax = axes[i//2, i%2]
-            ax.imshow(truth_dw_coeff[i], cmap='RdBu_r', origin='lower')
+            ax.imshow(truth_dw_coeff[i].cpu().numpy(), cmap='RdBu_r', origin='lower')
             # ax.set_title(f'DWT Coefficient {i}', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
