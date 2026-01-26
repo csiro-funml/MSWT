@@ -423,7 +423,7 @@ def plot_error_energy():
         ax.set_xlabel('Wavenumber k', fontsize=20)
         ax.set_ylabel('Spectral Energy Spectrum E(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
-        ax.legend(fontsize=20, loc='lower left')
+        ax.legend(fontsize=16, loc='upper right')
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
@@ -435,7 +435,7 @@ def plot_error_energy():
         ax.set_xlabel('Wavenumber k', fontsize=20)
         ax.set_ylabel('Enstropy Z(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
-        ax.legend(fontsize=20, loc='lower left')
+        ax.legend(fontsize=16, loc='upper right')
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
     # pred_frame = pred[..., t_raw]
@@ -491,8 +491,116 @@ def plot_error_energy():
     # return 
 
 
+def plot_demo_error_energy():
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    # 2 rows ,6 columns
+    # the first column is ground truth and energy plot,
+    # from the secon column, shows the prediction and error plot
+    # generate the color map from below
+    if torch.cuda.is_available():
+        save_folder = "/scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/"
+    else:
+        save_folder = "logs/NS2D_ChaoticKolmogorovFlow/"
+    steps = [64]
+    dataset_name = 'NS2D_ChaoticKolmogorovFlow'
+    model_name_list = ['FNO', 'HFS', 'MSWT_patching']
+    saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'HFS', 'MSWT']
+    # model_name_list = ['FNO']
+    # saved_model_name_list = ['fno2d']
+    # plot_model_name_list = ['FNO']
+    seed = 42
+    grid_form = 'linear'
+    # grid_form = 'periodic'
+    for step in steps:
+        fig, axes = plt.subplots(2, 4, figsize=(8, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        pred_dict = {}
+        error_dict = {}
+        l2_err_dict = {}
+        k_np_dict = {}
+        spectral_pred_dict = {}
+        enstropy_pred_dict = {}
+        
+        error_list = []
+        truth = None  # Will be set once from first model
+        k_np = None  # Will be set once from first model
+        spectral_true = None  # Will be set once from first model
+        
+        for i, model_name in enumerate(model_name_list):
 
-def save_demo_plot():
+            initial_condition, pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
+            load_pred_truth_error_spectral(model_name, saved_model_name_list[i], seed, step, save_folder, grid_form)
+            
+            pred_dict[model_name] = pred
+            error_dict[model_name] = error
+            k_np_dict[model_name] = k_np
+            l2_err_dict[model_name] = l2_err
+            spectral_pred_dict[model_name] = spectral_pred
+            enstropy_pred_dict[model_name] = enstropy_pred
+            
+            
+            error_list.extend(error.reshape(-1))
+        
+        # use percentile to set the global max and min
+        global_percentile = np.percentile(np.abs(np.concatenate([truth.reshape(-1), initial_condition.reshape(-1)])), 98)
+        global_max = global_percentile
+        global_min = -global_percentile
+        # plt.savefig(os.path.join(save_folder, f'pred_error_spectral_grid_{grid_form}_t{step}.png'), dpi=150, bbox_inches='tight')
+        
+        error_max = np.percentile(np.abs(error_list), 98)
+        error_min = -error_max # make it symmetrical around zero
+        
+        # plot the truth first at axes [0, 0]
+        ax = axes[1, 0]
+        im = ax.imshow(initial_condition, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        ax.set_title('Initial Condition', fontsize=10, fontweight='bold')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        
+        ax = axes[0, 0]
+        im = ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        
+        
+        for i, model_name in enumerate(model_name_list):
+            ax = axes[0, i+1]
+            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+            ax.set_title(f'{plot_model_name_list[i]}', fontsize=10, fontweight='bold')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+            ax = axes[1, i+1]
+            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+            # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+            ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            
+        
+        # Use tight_layout with rect to leave space for colorbars on the right
+        # rect=[left, bottom, right, top] in figure coordinates
+        # Leave space on right (0.9) for colorbars, tighter margins elsewhere
+        fig.tight_layout(rect=[0, 0, 0.9, 1])
+        
+        # Colorbar for prediction row (top row: truth + predictions)
+        # Position: right side, aligned with top row (shorter height)
+        cax_pred = fig.add_axes([0.90, 0.55, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
+        cbar_pred = fig.colorbar(axes[0, 0].images[0], cax=cax_pred, orientation='vertical')
+        # cbar_pred.set_label(f'{channel_unit_list[c_idx]}', rotation=270, labelpad=15)
+        
+        # Colorbar for bias row (bottom row: biases only)
+        # Position: right side, aligned with bottom row (shorter height)
+        cax_bias = fig.add_axes([0.90, 0.1, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
+        cbar_bias = fig.colorbar(axes[1, 1].images[0], cax=cax_bias, orientation='vertical')
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_pred_error_demo_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        
+        
+
+def save_wavelet_transform_demo_plot():
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
     # 2 rows ,6 columns
@@ -567,5 +675,6 @@ if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
     # process_metric_table_to_latex()
     # aggregate_metric_table(grid_form='periodic')
-    # plot_error_energy()
-    save_demo_plot()
+    plot_error_energy()
+    # save_wavelet_transform_demo_plot()
+    plot_demo_error_energy()
