@@ -541,17 +541,26 @@ def save_demo_plot():
         print("truth_torch shape", truth_torch.shape)
         truth_torch_dwt = dwt(truth_torch)[0] #(4, H, W)
         print("truth_torch_dwt shape", truth_torch_dwt.shape)
-     
+        coef_percentile = np.percentile(np.abs(truth_torch_dwt[0].cpu().numpy().reshape(-1)), 98)
         fig, axes = plt.subplots(2, 2, figsize=(12, 12))
         for i in range(4):
             ax = axes[i//2, i%2]
             # coeff_percentile = np.percentile(np.abs(truth_torch_dwt[i].cpu().numpy().reshape(-1)), 98)
-            ax.imshow(truth_torch_dwt[i].cpu().numpy(), cmap='RdBu_r', origin='lower')
+            if i == 0:
+                ax.imshow(truth_torch_dwt[i].cpu().numpy(), cmap='RdBu_r', origin='lower', vmin=-coef_percentile, vmax=coef_percentile)
+            else:
+                ax.imshow(truth_torch_dwt[i].cpu().numpy(), cmap='RdBu_r', origin='lower')
             # ax.set_title(f'DWT Coefficient {i}', fontsize=10, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
             ax.grid(False)
-            ax.set_axis_off()
+            # set the axis linewidth to 0.5
+            linewidth = 0.5
+            ax.spines['top'].set_linewidth(linewidth)
+            ax.spines['bottom'].set_linewidth(linewidth)
+            ax.spines['left'].set_linewidth(linewidth)
+            ax.spines['right'].set_linewidth(linewidth)
+            # ax.set_axis_off()
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_ground_truth_dwt_coeff_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 if __name__ == "__main__":
