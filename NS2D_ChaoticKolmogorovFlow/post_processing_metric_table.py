@@ -510,7 +510,7 @@ def save_demo_plot():
     # saved_model_name_list = ['fno2d']
     # plot_model_name_list = ['FNO']
     seed = 42
-    grid_form = 'linear'
+    grid_form = 'linear's
     # grid_form = 'periodic'
     for step in steps:
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
@@ -521,7 +521,7 @@ def save_demo_plot():
         
         
         # get the percentile of the truth
-        truth_percentile = np.percentile(np.abs(truth).reshape(-1), 95)
+        truth_percentile = np.percentile(np.abs(truth).reshape(-1), 98)
         ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=-truth_percentile, vmax=truth_percentile)
         # ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
         ax.set_xticks([])
