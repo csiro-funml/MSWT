@@ -517,7 +517,7 @@ def plot_demo_error_energy():
     grid_form = 'linear'
     # grid_form = 'periodic'
     for step in steps:
-        fig, axes = plt.subplots(2, 4, figsize=(7.5, 3), gridspec_kw={'hspace': 0.35, 'wspace': 0.2})
+        fig, axes = plt.subplots(2, 4, figsize=(7.8, 3), gridspec_kw={'hspace': 0.35, 'wspace': 0.2})
         pred_dict = {}
         error_dict = {}
         l2_err_dict = {}
@@ -591,7 +591,7 @@ def plot_demo_error_energy():
         
         # Colorbar for prediction row (top row: truth + predictions)
         # Position: right side, aligned with top row (shorter height)
-        cax_pred = fig.add_axes([0.90, 0.55, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
+        cax_pred = fig.add_axes([0.95, 0.55, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
         cbar_pred = fig.colorbar(axes[0, 0].images[0], cax=cax_pred, orientation='vertical')
         # set the label to the left of the colorbar
         cbar_pred.set_label('Prediction', fontsize=10, rotation=90, labelpad=1)
@@ -600,7 +600,7 @@ def plot_demo_error_energy():
         
         # Colorbar for bias row (bottom row: biases only)
         # Position: right side, aligned with bottom row (shorter height)
-        cax_bias = fig.add_axes([0.90, 0.1, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
+        cax_bias = fig.add_axes([0.95, 0.1, 0.015, 0.35])  # [left, bottom, width, height] in figure coords
         cbar_bias = fig.colorbar(axes[1, 1].images[0], cax=cax_bias, orientation='vertical')
         cbar_bias.set_label('Error', fontsize=10, rotation=90, labelpad=1)
         cbar_bias.ax.yaxis.set_label_position('left')
