@@ -8,6 +8,7 @@ import pandas as pd
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.criterion import LpLoss
+from models.wavelet_transform import DWT_2D
 
 
 def process_metric_table_to_latex():
@@ -521,20 +522,39 @@ def save_demo_plot():
         
         
         # get the percentile of the truth
-        truth_percentile = np.percentile(np.abs(truth).reshape(-1), 98)
-        ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=-truth_percentile, vmax=truth_percentile)
+        # truth_percentile = np.percentile(np.abs(truth).reshape(-1), 98)
+        # ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=-truth_percentile, vmax=truth_percentile)
 
-        # ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
-        ax.set_xticks([])
-        ax.set_yticks([])
-        # turn off the grid, and the bounding box of the image
-        ax.grid(False)
-        ax.set_axis_off()
+        # # ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        # # turn off the grid, and the bounding box of the image
+        # ax.grid(False)
+        # ax.set_axis_off()
+        # plt.tight_layout(rect=[0, 0, 1, 1])
+        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_ground_truth_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        # plt.close(fig)
+
+        # run Wavelet transform on the truth
+        dwt = DWT_2D(wave='haar')
+        truth_torch = torch.from_numpy(truth).unsqueeze(0).unsqueeze(0) # (B,C,H, W)
+        print("truth_torch shape", truth_torch.shape)
+        truth_torch_dwt = dwt(truth_torch)
+        print("truth_torch_dwt shape", truth_torch_dwt.shape)
+        truth_dw_coeff = torch.split(truth_torch_dwt[0], 4, dim=1).numpy().cpu() # (4, C,H, W)
+        print("truth_dw_coeff shape", truth_dw_coeff.shape)
+
+        fig, axes = plt.subplots(2, 2, figsize=(12, 12), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        for i in range(4):
+            ax = axes[i//2, i%2]
+            ax.imshow(truth_dw_coeff[i], cmap='RdBu_r', origin='lower')
+            # ax.set_title(f'DWT Coefficient {i}', fontsize=10, fontweight='bold')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.grid(False)
+            ax.set_axis_off()
         plt.tight_layout(rect=[0, 0, 1, 1])
-        plt.savefig(os.path.join(save_folder, f'{dataset_name}_ground_truth_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
-        plt.close(fig)
-
-
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_ground_truth_dwt_coeff_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
     # process_metric_table_to_latex()
