@@ -421,7 +421,7 @@ def plot_error_energy():
         for i, model_name in enumerate(model_name_list):
             ax.loglog(k_np_dict[model_name], spectral_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 3, color=color_list[i+1], linestyle=linestyle_list[i+1])
         ax.set_xlabel('Wavenumber k', fontsize=20)
-        ax.set_ylabel('Spectral Energy Spectrum E(k)', fontsize=20)
+        ax.set_ylabel('Kinetic Energy Spectrum E(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
         ax.legend(fontsize=16, loc='upper right')
         plt.tight_layout(rect=[0, 0, 1, 1])
@@ -433,7 +433,7 @@ def plot_error_energy():
         for i, model_name in enumerate(model_name_list):
             ax.loglog(k_np_dict[model_name], enstropy_pred_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 2, color=color_list[i+1], linestyle=linestyle_list[i+1])
         ax.set_xlabel('Wavenumber k', fontsize=20)
-        ax.set_ylabel('Enstropy Z(k)', fontsize=20)
+        ax.set_ylabel('Enstrophy Spectrum Z(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
         ax.legend(fontsize=16, loc='upper right')
         plt.tight_layout(rect=[0, 0, 1, 1])
@@ -675,6 +675,6 @@ if __name__ == "__main__":
     # aggregate_metric_table(grid_form='linear')
     # process_metric_table_to_latex()
     # aggregate_metric_table(grid_form='periodic')
-    plot_error_energy()
     # save_wavelet_transform_demo_plot()
-    plot_demo_error_energy()
+    plot_demo_error_energy() # just plot for FNO, HFS, MSWT_patching 
+    plot_error_energy() # plot for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching
