@@ -555,7 +555,7 @@ def save_demo_plot():
             ax.set_yticks([])
             ax.grid(False)
             # set the axis linewidth to 0.5
-            linewidth = 0.5
+            linewidth = 3
             ax.spines['top'].set_linewidth(linewidth)
             ax.spines['bottom'].set_linewidth(linewidth)
             ax.spines['left'].set_linewidth(linewidth)
