@@ -517,7 +517,7 @@ def plot_demo_error_energy():
     grid_form = 'linear'
     # grid_form = 'periodic'
     for step in steps:
-        fig, axes = plt.subplots(2, 4, figsize=(8, 3), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
+        fig, axes = plt.subplots(2, 4, figsize=(8, 3), gridspec_kw={'hspace': 0.35, 'wspace': 0.2})
         pred_dict = {}
         error_dict = {}
         l2_err_dict = {}
@@ -579,7 +579,7 @@ def plot_demo_error_energy():
             ax = axes[1, i+1]
             im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
             # im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'(Error: Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
+            ax.set_title(f'Error\n(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=7, fontweight='bold')
             ax.set_xticks([])
             ax.set_yticks([])
             
