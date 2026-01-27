@@ -26,14 +26,14 @@ for SEED in "${SEEDS[@]}"; do
     echo ""
     echo "Creating and submitting job for seed $SEED..."
     
-    # Create a temporary job script for this seed
+    # Create a temporary job script fçor this seed
     TEMP_SCRIPT="${BASE_DIR}/submit_bash_seed${SEED}.sh"
     
     # Create the script with all the SBATCH directives and setup
     cat > "$TEMP_SCRIPT" << EOF
 #!/bin/bash
 
-#SBATCH --time=03:00:00           # Increased time for longer training with larger batches
+#SBATCH --time=04:00:00           # Increased time for longer training with larger batches
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
