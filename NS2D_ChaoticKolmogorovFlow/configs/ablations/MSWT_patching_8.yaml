@@ -13,15 +13,19 @@ data:
   shuffle: True
   S2: 64
   T2: 65
+  grid_form: linear
 
 model:
-  name: multiscale_wavelet2d_attn05124_group4
+  name: multiscale_wavelet2d_periodic_patching
   wave: haar
-  dim: 128
-  in_chans: 3    # u plus (x,y) grid concatenated in train loop
+  dims: [64, 128, 512]
+  in_chans: 3
   out_chans: 1
-  use_efficient_attention: True
-  efficient_layers: [0, 1, 2]
+  use_efficient_attention: False
+  add_periodic_grid: false
+  local_attention_size: 8
+  external_grid: false
+  patch_size: 8
 
 
 train:
@@ -33,8 +37,8 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/MSWT2d_dim128_attn05124_group4/
-  save_name: MultiscaleWavelet2d-dim128-nlayers4-attn05124-group4.pt
+  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/ablations/MSWT_patching_8/
+  save_name: MultiscaleWavelet2d_periodic_patching-dim64-nlayers4-patchsize8.pt
   data_iter: 1
   eqn_iter: 0
 
@@ -51,4 +55,3 @@ test_data:
   sub: 4
   sub_t: 1
   shuffle: False
-
