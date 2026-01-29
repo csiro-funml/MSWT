@@ -322,12 +322,12 @@ def plot_error():
     steps = [0, 40, 80]
     # steps = [80]
     dataset_name = 'SW2D_PDA'
-    # model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
-    # saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
-    # plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
-    model_name_list = ['FNO', 'HFS','MSWT_patching']
-    saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
-    plot_model_name_list = ['FNO', 'HFS', 'MSWT']
+    model_name_list = ['FNO', 'PDERefinerUNet', 'SAOT', 'HFS', 'MSWT_patching']
+    saved_model_name_list = ['fno2d', 'refiner_unet', 'saot', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    plot_model_name_list = ['FNO', 'Unet', 'SAOT', 'HFS', 'MSWT']
+    # model_name_list = ['FNO', 'HFS','MSWT_patching']
+    # saved_model_name_list = ['fno2d', 'hfs', 'multiscale_wavelet2d_periodic_patching']
+    # plot_model_name_list = ['FNO', 'HFS', 'MSWT']
 
     seed = 42
     # grid_form = 'linear'
@@ -443,7 +443,7 @@ def plot_error():
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
         ax.legend(fontsize=20, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
-        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_spectral_energy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
 
         fig, ax = plt.subplots(1, 1, figsize=(6, 6), gridspec_kw={'hspace': 0.3, 'wspace': 0.3})
@@ -455,7 +455,7 @@ def plot_error():
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
         ax.legend(fontsize=20, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
-        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+        plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
 
 def plot_error_demo():
