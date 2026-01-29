@@ -439,7 +439,7 @@ def plot_error():
         for i, model_name in enumerate(model_name_list):
             ax.loglog(k_np, energy_dict[model_name], label=f'{plot_model_name_list[i]}', linewidth=2 if model_name != 'MSWT_patching' else 3, color=color_list[i+1], linestyle=linestyle_list[i+1])
         ax.set_xlabel('Wavenumber k', fontsize=20)
-        ax.set_ylabel('Spectral Energy Spectrum E(k)', fontsize=20)
+        ax.set_ylabel('Energy E(k)', fontsize=20)
         ax.grid(True, which='both', alpha=0.3, linestyle='--')
         ax.legend(fontsize=20, loc='lower left')
         plt.tight_layout(rect=[0, 0, 1, 1])
@@ -615,5 +615,5 @@ if __name__ == "__main__":
     # aggregate_metric_table(grid_form='periodic')
     # process_metric_table_to_latex()
 
-    # plot_error()
-    plot_error_demo()
+    plot_error()
+    # plot_error_demo()
