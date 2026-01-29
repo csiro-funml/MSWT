@@ -391,21 +391,21 @@ def plot_error():
         ax = axes[1, 1]
         ax.axis('off')          
 
-        for col_idx, model_name in enumerate(model_name_list):
-            ax = axes[0, col_idx+2]
-            im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
-            ax.set_title(f'{plot_model_name_list[col_idx]} Prediction', fontsize=10, fontweight='bold')
-            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            ax.set_xticks([])
-            ax.set_yticks([])
+        # for col_idx, model_name in enumerate(model_name_list):
+        #     ax = axes[0, col_idx+2]
+        #     im = ax.imshow(pred_dict[model_name], cmap='RdBu_r', origin='lower', vmin=global_min, vmax=global_max)
+        #     ax.set_title(f'{plot_model_name_list[col_idx]} Prediction', fontsize=10, fontweight='bold')
+        #     # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        #     ax.set_xticks([])
+        #     ax.set_yticks([])
             
-            ax = axes[1, col_idx+2]   
-            im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
-            ax.set_title(f'{plot_model_name_list[col_idx]} Error', fontsize=10, fontweight='bold')
-            # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
-            ax.set_xticks([])
-            ax.set_yticks([])
+        #     ax = axes[1, col_idx+2]   
+        #     im = ax.imshow(error_dict[model_name], cmap='RdBu_r', origin='lower', vmin=error_min, vmax=error_max)
+        #     ax.set_title(f'{plot_model_name_list[col_idx]} Error', fontsize=10, fontweight='bold')
+        #     # fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        #     # ax.set_title(f'(Rel $L^2$: {l2_err_dict[model_name]:.2f})', fontsize=10, fontweight='bold')
+        #     ax.set_xticks([])
+        #     ax.set_yticks([])
         
 
         cbar_ax = inset_axes(axes[1, 1], width="8%", height="70%", loc='center',
