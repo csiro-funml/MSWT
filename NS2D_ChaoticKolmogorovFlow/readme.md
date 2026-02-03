@@ -1,6 +1,6 @@
 # NS2D Chaotic Kolmogorov Flow Benchmark
 
-This folder contains the **2D incompressible Navier–Stokes (Chaotic Kolmogorov flow)** benchmark for neural operator learning. Models are trained to predict vorticity **one step ahead** and evaluated via **autoregressive rollout** on a held-out test set, with metrics on relative L² error, spectral energy, and enstrophy.
+This folder contains the **2D incompressible Navier–Stokes (Chaotic Kolmogorov flow)** benchmark for neural operator learning. Models are trained to predict vorticity **one step ahead** and evaluated via **autoregressive rollout** on a held-out test set, with metrics on relative $L^2$ error, spectral energy, and enstrophy.
 
 For full benchmark details, see **“Physics-Informed Neural Operator for Learning Partial Differential Equations”** by Zongyi Li et al. (Section 4: *Experiments — Navier–Stokes Equation. Chaotic Kolmogorov flow*).
 
@@ -11,22 +11,22 @@ For full benchmark details, see **“Physics-Informed Neural Operator for Learni
 ### PDE and Data
 
 - **Equation:** 2D incompressible Navier–Stokes in vorticity form  
-- **Spatial domain:** \( x \in (0, 2\pi)^2 \) (periodic)  
-- **Temporal domain:** \( t \in [0, 0.5] \) (train) / test rollout as in config  
-- **Forcing:** \( -4\cos(4x_2) \)  
+- **Spatial domain:** $x\in (0, 2\pi)^2$ (periodic)  
+- **Temporal domain:**  $t \in [0, 0.5]$  (train) / test rollout as in config  
+- **Forcing:**  $-4\cos(4x_2)$
 - **Reynolds number:** 500  
 - **Input/output:** vorticity only (no velocity channels)
 
 ### Train Set
 
 - **Shape:** `(N, T, X, Y)` — N trajectories, T time steps, X×Y spatial resolution  
-- **Source:** [NS_fft_Re500_T4000.npy](https://hkzdata.s3.us-west-2.amazonaws.com/PINO/data/NS_fft_Re500_T4000.npy)  
+- **Source:** [NS_fft_Re500_T4000.npy](https://github.com/neuraloperator/physics_informed/tree/master)  
 - **Size:** 4000 × 64 × 64 × 65 (4k trajectories, 64×64 space, 65 time steps)
 
 ### Test Set
 
 - **Shape:** `(N, T, X, Y)`  
-- **Source:** [NS_Re500_s256_T100_test.npy](https://hkzdata.s3.us-west-2.amazonaws.com/PINO/data/NS_Re500_s256_T100_test.npy)  
+- **Source:** [NS_Re500_s256_T100_test.npy](https://github.com/neuraloperator/physics_informed/tree/master)  
 - **Size:** 100 × 129 × 256 × 256  
 - **Usage:** Subsampled in config (e.g. `sub: 4` → 64×64) for autoregressive evaluation over time.
 
