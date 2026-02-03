@@ -1085,9 +1085,9 @@ if __name__ == '__main__':
     
     # preprocess_ns2d()
     # preprocess_ns2d_cond()
-    # load_path = '/scratch3/wan410/operator_learning_data/pdearena/ShallowWater-2D'
-    # save_path = '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda'
-    # preprocess_shallow_water(load_path=load_path, save_path=save_path)
+    load_path = '/scratch3/wan410/operator_learning_data/pdearena/ShallowWater-2D'
+    save_path = '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda'
+    preprocess_shallow_water(load_path=load_path, save_path=save_path)
 
 
     #### CFDBench datasets

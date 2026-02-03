@@ -1,3 +1,6 @@
+# the data can be downloaded from the following link:
+# https://huggingface.co/datasets/pdearena/ShallowWater-2D/tree/main   
+
 import scipy.io
 import numpy as np
 import os
@@ -7,6 +10,81 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 import h5py
 from tqdm import tqdm
+
+
+
+def preprocess_shallow_water(load_path, save_path):
+    """
+    Preprocess the Shallow Water dataset from PDEArena
+
+    there are 5 channels in the dataset:
+        u, v, div, vor, pres
+    data shape: (N, 96, 192, 88, 5)
+    """
+    LOAD_PATH = load_path
+    SAVE_PATH_TEST = save_path + '/test'
+    SAVE_PATH_TRAIN = save_path + '/train'
+
+    # Create new folders if SAVE_PATH does not exist
+    os.makedirs(SAVE_PATH_TEST, exist_ok=True)
+    os.makedirs(SAVE_PATH_TRAIN, exist_ok=True)
+
+    test_tot = 0
+    train_tot = 0
+
+    # Traverse the file in LOAD_PATH
+    for root, dirs, files in tqdm(os.walk(LOAD_PATH)):
+        print("dir", dirs)
+        for file in files:
+            # Skip the file if it is not a HDF5 file
+            if not file.endswith('.nc'):
+                continue
+            # Open the file
+            try:
+                with h5py.File(os.path.join(root, file), 'r') as f:
+                    if 'test' in root:
+                        key = 'test'
+                        path = SAVE_PATH_TEST
+                    elif 'train' in root:
+                        key = 'train'
+                        path = SAVE_PATH_TRAIN
+                    elif 'valid' in root:
+                        key = 'valid'
+                        path = SAVE_PATH_TRAIN
+                    else:
+                        raise ValueError('Unknown file type {}!'.format(file))
+
+                    u = f['u'][:]
+                    u = u[:, 0, ...]
+                    v = f['v'][:]
+                    v = v[:, 0, ...]
+                    div = f['div'][:]
+                    div = div[:, 0, ...]
+                    vor = f['vor'][:]
+                    vor = vor[:, 0, ...]
+                    pres = f['pres'][:]
+
+                    data = np.stack([u, v, div, vor, pres], axis=-1)
+                    data = np.transpose(data, (1, 2, 0, 3))
+
+                    # Create the destination file
+                    if key == 'test':
+                        idx = test_tot
+                        test_tot += 1
+                    else:
+                        idx = train_tot
+                        train_tot += 1
+                    dst_file = 'data_{}.hdf5'.format(idx)
+                    save_path = os.path.join(path, dst_file)
+                    with h5py.File(save_path, 'w') as g:
+                        # Write data as a hdf5 dataset
+                        # with key 'data'
+                        g.create_dataset('data', data=data)
+            except Exception as e:
+                print('Error in file {}: {}'.format(file, e))
+                continue
+
+
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
 def load_save_sw_data(folder_path, max_files= 4000, state='train'):
@@ -123,6 +201,13 @@ class SWLoader2D(Dataset):
 
 
 if __name__ == '__main__':
+    # Function 1. preprocess the data from the huggingface dataset and save it as a hdf5 file
+    # load_path = '/scratch3/wan410/operator_learning_data/pdearena/ShallowWater-2D'
+    # save_path = '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda'
+    # preprocess_shallow_water(load_path=load_path, save_path=save_path)
+    
+    
+    # Function 2. load the data from the hdf5 file and save it as a numpy array
     # if torch.cuda.is_available():
     #     # state = 'train'
     #     state = 'val'
@@ -131,13 +216,7 @@ if __name__ == '__main__':
     #     folder = 'pdearena/sw2d_pda/train'
     # data = load_save_sw_data(folder,max_files=4000, state=state)
 
-    # loader = SWLoader2D(datapath1='pdearena/sw2d_pda/train/sw2d_pda_data_train.npy',
-    #                     nx=96, ny=192, nt=87, nc=2,
-    #                     sub=1, sub_t=1,
-    #                     N=4000, t_interval=1.0,
-    #                     n_samples=100, offset=0,
-    #                     train=True)
-    # print(data.shape)
+    # Function 3. load the data from the numpy array and create a torch dataset
     data = SWLoader2D(datapath1='pdearena/sw2d_pda/train/sw2d_pda_data_train.npy',
                         nx=96, ny=192, nt=87, nc=2,
                         sub=1, sub_t=1,
