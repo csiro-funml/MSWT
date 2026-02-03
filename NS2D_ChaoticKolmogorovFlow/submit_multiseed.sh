@@ -64,7 +64,6 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path ${CONFIG_PATH} --test_ratio 0.25 --test_seed ${SEED}
 python3 test_operator_AR_rell2_2d.py --config_path ${CONFIG_PATH} --test_seed ${SEED}
 
-python3 test_operator_AR_rell2_2d.py --config_path ${CONFIG_PATH} --test_seed ${SEED}
 #################################################################################################################################
 EOF
 
