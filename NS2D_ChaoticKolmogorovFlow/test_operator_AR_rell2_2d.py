@@ -98,7 +98,7 @@ def autoregressive_predict(model, sequences, device, grid):
     return initial_condition, total_pred.squeeze(1), sequences[..., 1:].to(device)
 
 
-def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
+def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=False):
     """ 
     truth_seq: (B, H, W, T)
     pred_seq: (B, H, W, T)
@@ -177,7 +177,8 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir):
     # want df_metric to have 2 level of columns: the first level is the metric name, the second level is the step number
     save_folder = os.path.join(save_dir, 'evaluation_metrics')
     os.makedirs(save_folder, exist_ok=True)
-    df_metric.to_csv(os.path.join(save_folder, f'{model_name}_seed{seed}_metrics.csv'), index=False)
+    if save_csv:
+        df_metric.to_csv(os.path.join(save_folder, f'{model_name}_seed{seed}_metrics.csv'), index=False)
     return metrics_dict
 
 
@@ -353,9 +354,9 @@ def main():
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
+
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
     exit(-1)
-    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir)
-    
     
     
     # # for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
