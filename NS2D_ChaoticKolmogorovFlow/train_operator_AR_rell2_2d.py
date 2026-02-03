@@ -14,7 +14,7 @@ from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
-from models.periodic_mswt import PeriodicMSWT2D_Patching
+from models.mswt import PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
