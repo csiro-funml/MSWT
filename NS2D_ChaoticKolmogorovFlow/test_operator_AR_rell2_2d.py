@@ -354,12 +354,12 @@ def main():
     print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
-
+    # Function 1, evaluate the model and save the metrics
     evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
-    exit(-1)
+    # exit(-1)
     
-    
-    # # for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
+     
+    # Function 2, for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
     time_indices = [0, 29, truth_seq.shape[-1] - 1]
     save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     

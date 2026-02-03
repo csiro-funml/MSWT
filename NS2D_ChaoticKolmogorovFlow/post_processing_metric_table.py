@@ -8,7 +8,7 @@ import pandas as pd
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.criterion import LpLoss
-from models.wavelet_transform import DWT_2D
+from models.mswt_utils import DWT_2D
 
 
 def process_metric_table_to_latex():
@@ -178,6 +178,9 @@ def process_metric_table_to_latex():
 
 
 def aggregate_metric_table(grid_form='linear'):
+    """
+    Aggregate the metric table for all the models and seeds
+    """
     if torch.cuda.is_available():
         save_folder = "/scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/"
     else:
@@ -285,7 +288,10 @@ def load_pred_truth_error_spectral(model_folder_name, saved_model_name, seed, st
     return initial_condition, pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err
 
 
-def plot_error_energy():
+def plot_error_energy_supp_fig():
+    """
+    Plot the prediction and error for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching and the energy spectrum plots
+    """
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
     # 2 rows ,6 columns
@@ -494,7 +500,10 @@ def plot_error_energy():
     # return 
 
 
-def plot_demo_error_energy():
+def plot_error_energy_main_fig():
+    """ 
+    Plot the prediction and error for FNO, HFS, MSWT and the energy spectrum plots
+    """
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
     # 2 rows ,6 columns
@@ -609,7 +618,7 @@ def plot_demo_error_energy():
         
         
 
-def save_wavelet_transform_demo_plot():
+def wavelet_transform_coeff_demo_plot():
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
     # 2 rows ,6 columns
@@ -637,21 +646,6 @@ def save_wavelet_transform_demo_plot():
         initial_condition, pred, truth, error, k_np, spectral_pred, spectral_true, enstropy_pred, enstropy_true, l2_err = \
         load_pred_truth_error_spectral(model_name, saved_model_name, seed, step, save_folder, grid_form)
         
-        
-        # get the percentile of the truth
-        # truth_percentile = np.percentile(np.abs(truth).reshape(-1), 98)
-        # ax.imshow(truth, cmap='RdBu_r', origin='lower', vmin=-truth_percentile, vmax=truth_percentile)
-
-        # # ax.set_title('Ground Truth', fontsize=10, fontweight='bold')
-        # ax.set_xticks([])
-        # ax.set_yticks([])
-        # # turn off the grid, and the bounding box of the image
-        # ax.grid(False)
-        # ax.set_axis_off()
-        # plt.tight_layout(rect=[0, 0, 1, 1])
-        # plt.savefig(os.path.join(save_folder, f'{dataset_name}_ground_truth_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
-        # plt.close(fig)
-
         # run Wavelet transform on the truth
         dwt = DWT_2D(wave='haar')
         truth_torch = torch.from_numpy(truth).unsqueeze(0).unsqueeze(0) # (B,C,H, W)
@@ -680,10 +674,20 @@ def save_wavelet_transform_demo_plot():
             # ax.set_axis_off()
         plt.tight_layout(rect=[0, 0, 1, 1])
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_ground_truth_dwt_coeff_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
+
 if __name__ == "__main__":
+    # Function 1, aggregate the metric table for all the models and seeds
     # aggregate_metric_table(grid_form='linear')
+    
+    # Function 2, process the metric table to latex
     # process_metric_table_to_latex()
-    # aggregate_metric_table(grid_form='periodic')
-    # save_wavelet_transform_demo_plot()
-    # plot_demo_error_energy() # just plot for FNO, HFS, MSWT_patching 
-    plot_error_energy() # plot for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching
+    
+    # Function 3, to generate main Fig 2 in the paper, plot the prediction and error for FNO, HFS, MSWT and the energy spectrum plots
+    plot_error_energy_main_fig()
+    
+    # Function 4, to generate supplementary figures (5-10) in the paper, plot the prediction and error for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching and the energy spectrum plots
+    # plot_error_energy_supp_fig() # plot for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching
+
+
+    # Function 5, to generate the demo figure in the paper, run the wavelet transform on the ground truth and show four wavelet components
+    # wavelet_transform_coeff_demo_plot()
