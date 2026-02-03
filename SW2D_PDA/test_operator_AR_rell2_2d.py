@@ -17,7 +17,7 @@ from models.mswt import PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
-from utils.criterion import LpLoss, LogEnstropyEnergyLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, compute_2d_spectral_energy, compute_2d_enstropy_spectrum, PDEResidualLoss
+from utils.criterion import LpLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch, compute_enstropy_torch
 from utils.utilities import torch2dgrid_2d
 import pandas as pd
