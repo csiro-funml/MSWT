@@ -1,3 +1,10 @@
+# ---------------------------------------------------------------------------------------------
+# Author: Xuesong
+# Date: 25/12/2025
+# This code is developed with reference to the following GitHub repo:
+# https://github.com/chenhong-zhou/SAOT
+# ---------------------------------------------------------------------------------------------
+
 import torch
 import numpy as np
 import torch.nn as nn
