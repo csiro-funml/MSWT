@@ -1,0 +1,22 @@
+
+train:
+  save_dir: /scratch3/wan410/operator_learning_model/ERA5/MSWT_patch_sphere/
+  save_name: MSWT_earth_padding-dim512-layer3.pt
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  milestones: [100, 200, 300, 400, 500]
+  epochs: 500
+
+model:
+  name: MSWT_patch_sphere
+  wave: haar
+  dims: [64, 128, 256, 512]
+  in_chans: 7
+  out_chans: 6
+  use_efficient_attention: True
+  efficient_layers: [0, 1, 2]
+  add_sphere_grid: true
+  local_attention_size: 6
+  external_grid: false
+  residual_connection: True
+

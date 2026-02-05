@@ -1,0 +1,13 @@
+model:
+  name: lucie
+  target_params: small
+
+train:
+  # save_dir: /scratch3/wan410/operator_learning_model/ERA5/LUCIE_sfno_nolearningstoping/
+  # save_name: lucie-nlayer8-embed72-mlp2-noearlystopping.pt
+  save_dir: /scratch3/wan410/operator_learning_model/ERA5/LUCIE/
+  save_name: lucie-nlayer8-embed72-mlp2.pt
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  milestones: [100, 200, 300, 400, 500]
+  epochs: 500

@@ -306,7 +306,7 @@ def load_pred_truth_error(model_folder_name, saved_model_name, seed, step, save_
     return initial_condition, pred, truth, error
 
 
-def plot_error():
+def plot_error_energy_supp_fig():
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
     # 2 rows ,6 columns
@@ -458,7 +458,7 @@ def plot_error():
         plt.savefig(os.path.join(save_folder, f'{dataset_name}_enstropy_spectrum_grid_{grid_form}_t{step}_seed{seed}.png'), dpi=500, bbox_inches='tight')
 
 
-def plot_error_demo():
+def plot_error_energy_main_fig():
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
     # 2 rows ,6 columns
@@ -611,9 +611,15 @@ def plot_error_demo():
 
 
 if __name__ == "__main__":
-    # aggregate_metric_table(grid_form='linear')
-    # aggregate_metric_table(grid_form='periodic')
-    # process_metric_table_to_latex()
 
-    plot_error()
-    # plot_error_demo()
+    # Function 1, aggregate the metric table for all the models and seeds
+    # aggregate_metric_table(grid_form='periodic')
+    
+    # Function 2, process the metric table to latex
+    # process_metric_table_to_latex()
+    
+    # Function 3, to generate main Fig 2 in the paper, plot the prediction and error for FNO, HFS, MSWT and the energy spectrum plots
+    plot_error_energy_main_fig()
+    
+    # Function 4, to generate supplementary figures (5-10) in the paper, plot the prediction and error for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching and the energy spectrum plots
+    plot_error_energy_supp_fig() # plot for FNO, PDERefinerUNet, SAOT, HFS, MSWT_patching

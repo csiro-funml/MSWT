@@ -1,0 +1,14 @@
+model:
+  name: hfs
+  target_params: small
+  in_c: 7
+  out_c: 6
+  add_sphere_grid: True
+
+train:
+  save_dir: /scratch3/wan410/operator_learning_model/ERA5/HFS_sphere/
+  save_name: HFS_sphere-small-nlayer5-bottleneck512.pt
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  milestones: [100, 200, 300, 400, 500]
+  epochs: 500
