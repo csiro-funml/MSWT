@@ -120,7 +120,7 @@ def evaluate_rollout(rollout, true_clim, save_dir, seed):
     
     save_df = pd.DataFrame(save_df)
     print(save_df)
-    save_df.to_csv(os.path.join(save_dir, f'evaluation_metrics_seed{seed}.csv'))
+    # save_df.to_csv(os.path.join(save_dir, f'evaluation_metrics_seed{seed}.csv'))
     return save_df
 
 
