@@ -289,7 +289,7 @@ def train_2d(args, config):
         test_loader = DataLoader(test_set,
                                  batch_size=config['train']['batchsize'],
                                  shuffle=False)
-        print("train set shape: ", train_set.data.shape, "test set shape: ", test_set.data.shape)
+        print("train set shape: ", len(train_set), "test set shape: ", len(test_set))
     else:
         train_set = full_dataset
         test_loader = None
