@@ -33,8 +33,12 @@ def load_ns_sequences(data_config):
 
     S = nx // sub
     T = int(nt * t_interval) // sub_t + 1
-
-    data1 = np.load(datapath1)
+    # create a random dataset in case the data is not available
+    if not os.path.exists(datapath1):
+        print(f"Data not found at {datapath1}, creating random dataset with shape (N, T, X, Y) = (100, {T}, {S}, {S})")
+        data1 = torch.rand(100, T, S, S) # (100, 65, 64, 64)
+    else:
+        data1 = np.load(datapath1)
     data1 = torch.tensor(data1, dtype=torch.float)[..., ::sub_t, ::sub, ::sub]
     # print("data1 shape: ", data1.shape)
     if t_interval == 0.5:
@@ -176,8 +180,8 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=Fal
     df_metric = pd.Series(metrics_dict).to_frame().T
     # want df_metric to have 2 level of columns: the first level is the metric name, the second level is the step number
     save_folder = os.path.join(save_dir, 'evaluation_metrics')
-    os.makedirs(save_folder, exist_ok=True)
     if save_csv:
+        os.makedirs(save_folder, exist_ok=True)
         df_metric.to_csv(os.path.join(save_folder, f'{model_name}_seed{seed}_metrics.csv'), index=False)
     return metrics_dict
 
@@ -360,8 +364,8 @@ def main():
     
      
     # Function 2, for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
-    time_indices = [0, 29, truth_seq.shape[-1] - 1]
-    save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    # time_indices = [0, 29, truth_seq.shape[-1] - 1]
+    # save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
     
 
 
