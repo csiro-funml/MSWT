@@ -91,17 +91,18 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     base_ds = _get_base_dataset(test_source)
     if not hasattr(base_ds, 'data'):
         return None, None
-    data = base_ds.data
-    print("data shape: ", data.shape)
-    if sample_idx >= data.shape[0]:
-        sample_idx = data.shape[0] - 1
-    max_t = data.shape[-2] - 1
-    if max_t <= 0:
-        return None, None
-    t_idx = min(t_idx, max_t - 1)
-    print("sample_idx: ", sample_idx, "t_idx: ", t_idx)
-    x = data[sample_idx].to(device) # (X, Y, C)
-    y = data[sample_idx + 1, ..., 0].to(device) # (X, Y, C)
+    # Use __getitem__ to properly access the dataset, which handles the offset correctly
+    # For NS_Dedalus_Loader2D, data shape is (T, X, Y, C) and __getitem__(idx) returns
+    # (data[idx], data[idx+1, :, :, :1]) where idx is a timestep index after offset
+    if sample_idx >= len(base_ds):
+        sample_idx = len(base_ds) - 1
+    print("sample_idx: ", sample_idx, "dataset length: ", len(base_ds))
+    x, y = base_ds[sample_idx]
+    x = x.to(device)  # (X, Y, C)
+    y = y.to(device)  # (X, Y, 1) or (X, Y) - vorticity only
+    # Squeeze last dimension if it exists (y might be (X, Y, 1) from __getitem__)
+    if y.dim() == 3 and y.shape[-1] == 1:
+        y = y.squeeze(-1)  # (X, Y)
     grid_b = grid.to(device)
     # print("x shape:", x.shape, "y shape:", y.shape, "grid_b shape:", grid_b.shape)
     x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1) # (1, X, Y, 2)
