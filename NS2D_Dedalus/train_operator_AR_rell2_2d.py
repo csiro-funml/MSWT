@@ -87,17 +87,41 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     """
     Grab a deterministic (x_t, x_{t+1}) pair from the test data without relying on
     the test loader's random timestep selection.
+    
+    This function properly handles Subset wrappers from random_split by using
+    the dataset's __getitem__ method, which respects the offset applied during
+    dataset initialization.
     """
-    base_ds = _get_base_dataset(test_source)
-    if not hasattr(base_ds, 'data'):
-        return None, None
+    # Unwrap DataLoader if needed, but preserve Subset to use its index mapping
+    if isinstance(test_source, DataLoader):
+        test_source = test_source.dataset
+    
+    # If it's a Subset, use it directly (Subset.__getitem__ handles index mapping)
+    # Otherwise, use the base dataset
+    if isinstance(test_source, Subset):
+        dataset = test_source
+        # sample_idx is relative to the Subset's indices
+        if sample_idx >= len(dataset):
+            sample_idx = len(dataset) - 1
+        print(f"Accessing Subset: sample_idx={sample_idx}, subset_length={len(dataset)}")
+    else:
+        dataset = _get_base_dataset(test_source)
+        if not hasattr(dataset, 'data'):
+            return None, None
+        # sample_idx is relative to the base dataset (which has already been offset-sliced)
+        if sample_idx >= len(dataset):
+            sample_idx = len(dataset) - 1
+        # Log offset info if available for debugging
+        if hasattr(dataset, 'original_offset'):
+            print(f"Accessing base dataset: sample_idx={sample_idx}, dataset_length={len(dataset)}, "
+                  f"original_offset={dataset.original_offset}")
+        else:
+            print(f"Accessing base dataset: sample_idx={sample_idx}, dataset_length={len(dataset)}")
+    
     # Use __getitem__ to properly access the dataset, which handles the offset correctly
     # For NS_Dedalus_Loader2D, data shape is (T, X, Y, C) and __getitem__(idx) returns
     # (data[idx], data[idx+1, :, :, :1]) where idx is a timestep index after offset
-    if sample_idx >= len(base_ds):
-        sample_idx = len(base_ds) - 1
-    print("sample_idx: ", sample_idx, "dataset length: ", len(base_ds))
-    x, y = base_ds[sample_idx]
+    x, y = dataset[sample_idx]
     x = x.to(device)  # (X, Y, C)
     y = y.to(device)  # (X, Y, 1) or (X, Y) - vorticity only
     # Squeeze last dimension if it exists (y might be (X, Y, 1) from __getitem__)
@@ -276,6 +300,10 @@ def train_2d(args, config):
     
     
     # split dataset into training and validation sets by test_ratio
+    # Note: random_split works correctly with offset because:
+    # 1. The dataset's data has already been offset-sliced during __init__
+    # 2. random_split creates Subset objects that map indices correctly
+    # 3. Subset.__getitem__ calls the base dataset's __getitem__ with mapped indices
     if args.test_ratio > 0:
         test_size = max(1, int(len(full_dataset) * args.test_ratio))
         if len(full_dataset) - test_size <= 0:
@@ -290,7 +318,13 @@ def train_2d(args, config):
         test_loader = DataLoader(test_set,
                                  batch_size=config['train']['batchsize'],
                                  shuffle=False)
-        print("train set shape: ", len(train_set), "test set shape: ", len(test_set))
+        # Verify offset is preserved (for debugging)
+        base_ds = _get_base_dataset(full_dataset)
+        if hasattr(base_ds, 'original_offset'):
+            print(f"Dataset split info: train_size={train_size}, test_size={test_size}, "
+                  f"original_offset={base_ds.original_offset}, "
+                  f"full_dataset_length={len(full_dataset)}")
+        print("train set length: ", len(train_set), "test set length: ", len(test_set))
     else:
         train_set = full_dataset
         test_loader = None

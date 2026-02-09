@@ -132,12 +132,15 @@ class NS_Dedalus_Loader2D(Dataset):
                 n_samples = N
         start = max(0, offset)
         end = total if n_samples is None else min(total, start + n_samples)
-        print("start: ", start, "end: ", end)
+        # Store offset for debugging/validation
+        self.original_offset = offset
+        self.original_total = total
+        print(f"Dataset initialization: offset={offset}, start={start}, end={end}, original_total={total}")
         self.data = self.data[start:end] # (T, X, Y, C)
         self.num_samples = self.data.shape[0] -1
         self.max_time_index = 1
         self.normalize()
-        print("data shape: ", self.data.shape)
+        print(f"Final data shape: {self.data.shape}, num_samples={self.num_samples}")
 
     def normalize(self):
         self.mean = self.data.mean(axis=(0, 1, 2)) # average over spatial and temporal dimensions
@@ -149,8 +152,12 @@ class NS_Dedalus_Loader2D(Dataset):
         return self.num_samples
 
     def __getitem__(self, idx):
-        if idx < 1000:
-            print("idx: ", idx)
+        # Validate index is within bounds (data has already been offset-sliced)
+        if idx < 0 or idx >= self.num_samples:
+            raise IndexError(f"Index {idx} out of range [0, {self.num_samples})")
+        # Ensure idx+1 is valid (needed for next timestep)
+        if idx + 1 >= self.data.shape[0]:
+            raise IndexError(f"Index {idx+1} exceeds data length {self.data.shape[0]} (need idx+1 for next timestep)")
         return self.data[idx], self.data[idx + 1, :, :, :1] # the output is the vorticity at the next time step (no need to predict the forcing)
 
 

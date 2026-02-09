@@ -314,7 +314,7 @@ def train_2d(args, config):
     
     
     #
-    x, _ = full_dataset[1000]
+    x, _ = full_dataset[0]
     print("x shape:", x.shape)
     genertate_images_and_spectra(x[...,-1][None, ..., None, None].cpu().numpy())
 
