@@ -52,7 +52,7 @@ SW2D_PDA/
 │       ├── WNO_periodic.yaml
 │       ├── SAOT_periodic.yaml
 │       ├── PDERefinerUNet_periodic.yaml
-│       └── MSWT_patching_periodic.yaml
+│       └── MSWT_periodic.yaml
 ├── data_utils/
 │   └── datasets.py                # SWLoader2D, preprocessing, normalizer
 ├── train_operator_AR_rell2_2d.py # Training (one-step L2)

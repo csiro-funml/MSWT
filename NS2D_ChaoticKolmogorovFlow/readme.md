@@ -45,7 +45,7 @@ NS2D_ChaoticKolmogorovFlow/
 │   │   ├── WNO.yaml
 │   │   ├── SAOT.yaml
 │   │   ├── PDERefinerUNet.yaml
-│   │   └── MSWT_patching.yaml
+│   │   └── MSWT.yaml
 │   ├── periodic/               # Periodic grid variants
 │   └── ablations/              # MSWT patching ablations (patch size 1,2,4,8)
 ├── data_utils/
