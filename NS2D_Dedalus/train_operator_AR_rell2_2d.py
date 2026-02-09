@@ -14,8 +14,7 @@ from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
-from models.wavelet_transform import MultiscaleWaveletTransformer2D
-from models.wavelet_transform_exploration import MultiscaleWaveletTransformer2DDecoderNoAttention, MultiscaleWaveletTransformer2DEfficient, MultiscaleWaveletDoubleAttention, MSWT_DeNoAttn_StackLayers
+from models.mswt_res import PeriodicMSWT2D_Patching_Residual
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
@@ -262,6 +261,7 @@ def train_2d(args, config):
         full_dataset, S_data, _ = build_synthetic_dataset(
             data_config, args.synthetic_samples, step_ahead=True)
     else:
+        print("offset: ", data_config.get('offset', 0))
         full_dataset = NS_Dedalus_Loader2D(datapath1=data_config['datapath'],
                                     nx=data_config['nx'], nt=data_config['nt'],
                                     sub=data_config['sub'], sub_t=data_config['sub_t'],
@@ -341,7 +341,7 @@ def train_2d(args, config):
             n_blocks=model_cfg.get('n_blocks', 3),
         ).to(device)
     elif model_name in ['wno', 'wno2d']:
-        dummy = torch.zeros(1, 1, S_data, S_data, device=device)
+        dummy = torch.zeros(1, 1, S_data[0], S_data[1], device=device)
         model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
                       out_channels=model_cfg.get('out_chans', 1),
                       width=model_cfg.get('width', 64),
@@ -357,64 +357,27 @@ def train_2d(args, config):
                         mlp_ratio=model_cfg.get('mlp_ratio', 1),
                         fun_dim=model_cfg.get('fun_dim', 1),
                         out_dim=model_cfg.get('out_dim', 1),
-                        H = S_data,
-                        W = S_data,
+                        H = S_data[0],
+                        W = S_data[1],
                         slice_num=model_cfg.get('slice_num', 32),
                         ref=model_cfg.get('ref', 8),
                         unified_pos=model_cfg.get('unified_pos', 0),
                         is_filter=model_cfg.get('is_filter', True)).to(device)
-    elif model_name in ['multiscale_wavelet', 'multiscale_wavelet2d', 'multiscale_wavelet_transformer2d']:
-        model = MultiscaleWaveletTransformer2D(
+    elif model_name in ['mswt_periodic_patching_residual', 'periodic_mswt_patching_residual']:
+        model = PeriodicMSWT2D_Patching_Residual(
             wave=model_cfg.get('wave', 'haar'),
             input_dim=model_cfg.get('in_chans', 3),
             output_dim=model_cfg.get('out_chans', 1),
             dim=model_cfg.get('dim', None),
             dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
             use_efficient_attention=model_cfg.get('use_efficient_attention', False),
             efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            add_grid=model_cfg.get('add_grid', False),
+            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
+            patch_size=model_cfg.get('patch_size', None),
+            local_attention_size=model_cfg.get('local_attention_size', None),
+            residual_connection=model_cfg.get('residual_connection', False),
         ).to(device)
-    elif model_name in ['multiscale_wavelet2d_nodecoderattn']:
-        model = MultiscaleWaveletTransformer2DDecoderNoAttention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_attn05124_group4']:
-        model = MultiscaleWaveletTransformer2DEfficient(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_double_attn']:
-        model = MultiscaleWaveletDoubleAttention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_denoattn_stacklayers3']:
-        model = MSWT_DeNoAttn_StackLayers(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    
     else:
         raise ValueError(f'Model {model_name} not supported')
     print('model structure: ', model)

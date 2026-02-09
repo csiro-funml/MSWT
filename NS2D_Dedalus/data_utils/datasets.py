@@ -132,6 +132,7 @@ class NS_Dedalus_Loader2D(Dataset):
                 n_samples = N
         start = max(0, offset)
         end = total if n_samples is None else min(total, start + n_samples)
+        print("start: ", start, "end: ", end)
         self.data = self.data[start:end] # (T, X, Y, C)
         self.num_samples = self.data.shape[0] -1
         self.max_time_index = 1
@@ -148,6 +149,8 @@ class NS_Dedalus_Loader2D(Dataset):
         return self.num_samples
 
     def __getitem__(self, idx):
+        if idx < 1000:
+            print("idx: ", idx)
         return self.data[idx], self.data[idx + 1, :, :, :1] # the output is the vorticity at the next time step (no need to predict the forcing)
 
 
