@@ -92,13 +92,14 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     if not hasattr(base_ds, 'data'):
         return None, None
     data = base_ds.data
+    print("data shape: ", data.shape)
     if sample_idx >= data.shape[0]:
         sample_idx = data.shape[0] - 1
     max_t = data.shape[-2] - 1
     if max_t <= 0:
         return None, None
     t_idx = min(t_idx, max_t - 1)
-
+    print("sample_idx: ", sample_idx, "t_idx: ", t_idx)
     x = data[sample_idx].to(device) # (X, Y, C)
     y = data[sample_idx + 1, ..., 0].to(device) # (X, Y, C)
     grid_b = grid.to(device)
@@ -270,6 +271,7 @@ def train_2d(args, config):
                                     n_samples=data_config.get('n_sample', data_config.get('n_samples', data_config['total_num'])),
                                     offset=data_config.get('offset', 0))
         S_data = full_dataset.S
+        print("full_dataset shape: ", full_dataset.data.shape)
     
     
     # split dataset into training and validation sets by test_ratio
@@ -287,6 +289,7 @@ def train_2d(args, config):
         test_loader = DataLoader(test_set,
                                  batch_size=config['train']['batchsize'],
                                  shuffle=False)
+        print("train set shape: ", train_set.data.shape, "test set shape: ", test_set.data.shape)
     else:
         train_set = full_dataset
         test_loader = None
