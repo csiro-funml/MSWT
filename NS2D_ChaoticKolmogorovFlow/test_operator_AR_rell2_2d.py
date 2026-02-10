@@ -340,8 +340,7 @@ def main():
         ).to(device)
     else:
         raise ValueError(f'Model {model_name} not supported')
-    print('model structure: ', model)
-    print('model structure: ', model)
+    # print('model structure: ', model)
 
     print("total number of parameters: ", sum(p.numel() for p in model.parameters()))
 

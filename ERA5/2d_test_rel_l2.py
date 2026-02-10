@@ -276,7 +276,7 @@ if __name__ == '__main__':
     else:
         raise ValueError(f'Model {model_name} not supported')
     print("number of parameters: ", sum(p.numel() for p in model.parameters()))
-    print('model structure: ', model)
+    # print('model structure: ', model)
 
     # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=0)
     # scheduler = CosineAnnealingLR(optimizer, T_max=150, eta_min=1e-5)
