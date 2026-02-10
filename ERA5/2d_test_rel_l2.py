@@ -32,7 +32,7 @@ def eval_model(model, data_inp, data_tar, prog_means, prog_stds, diag_means, dia
 
 def out_of_sample_eval(model, data_inp, data_tar, prog_means, prog_stds, diag_means, diag_stds, diff_stds):
     forcing = data_inp[:1460,-2:]   # repeating tisr and constant oro
-    print(forcing.shape)
+    # print(forcing.shape)
     rollout_step = 14600 # 
     initial_frame_idx = 16000+100
     forcing_initial_idx = (16000+100) % 1460 + 1
