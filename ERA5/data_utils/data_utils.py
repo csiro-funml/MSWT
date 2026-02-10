@@ -15,8 +15,7 @@ def load_data(fname):
     return np_data
 
 
-def load_data_era5(device, demo_index=None, load_high_res=False):
-    folder = '/scratch3/wan410/operator_learning_data/LUCIE' if torch.cuda.is_available() else 'saved_data'
+def load_data_era5(device, demo_index=None, load_high_res=False, folder='/scratch3/wan410/operator_learning_data/LUCIE'):
     if load_high_res:
         data_file = os.path.join(folder, 'era5_512gg_1985-2004_regridded.npz')
         mean_file = os.path.join(folder, 'era5_512gg_1985-clim.npz')

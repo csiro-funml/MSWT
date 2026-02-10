@@ -187,7 +187,8 @@ load_high_res = args.load_high_res
 if torch.cuda.is_available():
     data_inp, data_tar, true_clim, prog_means, prog_stds, diag_means, diag_stds, diff_stds = load_data_era5(device, 
                                                                                                 demo_index=np.arange(0, 100, 10) + 1,
-                                                                                                load_high_res=load_high_res)
+                                                                                                load_high_res=load_high_res,
+                                                                                                folder=config['data']['datapath'])
 else:
     print("Using random data")
     data_inp = torch.randn(100,7, 48, 96).to(device)

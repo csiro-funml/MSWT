@@ -1,8 +1,8 @@
 data:
   datapath: '/datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/benchmark/LUCIE'
-  
+
 train:
-  save_dir: /scratch3/wan410/operator_learning_model/ERA5/MSWT_patch_sphere/
+  save_dir: /datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/checkpoint/ERA5/MSWT_patch_sphere/
   save_name: MSWT_earth_padding-dim512-layer3.pt
   base_lr: 0.001
   scheduler_gamma: 0.5
