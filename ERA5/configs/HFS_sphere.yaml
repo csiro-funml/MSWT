@@ -1,3 +1,6 @@
+data:
+  datapath: '/datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/benchmark/LUCIE'
+  
 model:
   name: hfs
   target_params: small
