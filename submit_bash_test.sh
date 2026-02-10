@@ -19,6 +19,6 @@ source /datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_I
 # python3 NS2D_ChaoticKolmogorovFlow/test_operator_AR_rell2_2d.py --config_path NS2D_ChaoticKolmogorovFlow/configs/new_dataset_direc/MSWT.yaml 
 
 # test MSWT on SW2D
-python3 SW2D_PDA/test_operator_AR_rell2_2d.py --config_path SW2D_PDA/configs/new_dataset_direc/MSWT.yaml 
+python3 SW2D_PDA/test_operator_AR_rell2_2d.py --config_path SW2D_PDA/configs/new_dataset_direc/MSWT_periodic.yaml 
 
 # test MSWT on ERA5
