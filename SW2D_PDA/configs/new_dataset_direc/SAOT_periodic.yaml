@@ -1,0 +1,58 @@
+data:
+  datapath: '/datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/benchmark/pdearena/sw2d_pda_data_train.npy'
+  normalizer_path: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/normstats.pt'
+  name: SW2D
+  total_num: 4000
+  offset: 0
+  n_sample: 100
+  time_interval: 1
+  nx: 96
+  ny: 192
+  nt: 87
+  sub: 1
+  sub_t: 1
+  shuffle: True
+  S2: 96
+  T2: 88
+  grid_form: periodic
+
+model:
+  name: saot
+  space_dim: 4
+  n_layers: 5
+  n_hidden: 256
+  dropout: 0.0
+  n_head: 4
+  Time_Input: False
+  mlp_ratio: 1
+  fun_dim: 2
+  out_dim: 2
+  slice_num: 32
+  ref: 8
+  unified_pos: 0
+  is_filter: True
+
+
+train:
+  batchsize: 32
+  epochs: 10_000
+  milestones: [2_000, 4_000, 6_000, 8_000]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 0.0
+  f_loss: 0.0
+  xy_loss: 1.0
+  save_dir: /datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/checkpoint/SW2D_PDA/SAOT2d_periodic/
+  save_name: SAOT2d-nlayers5-nhidden256.pt
+  data_iter: 1
+  eqn_iter: 0
+
+test_data:
+  datapath: '/datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/benchmark/pdearena/sw2d_pda_data_val.npy'
+  total_num: 100
+  nx: 96
+  ny: 192
+  nt: 87
+  sub: 1
+  sub_t: 1
+  shuffle: False

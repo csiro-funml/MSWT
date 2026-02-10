@@ -15,7 +15,8 @@ import matplotlib.pyplot as plt
 # from utilities3 import *
 
 from timeit import default_timer
-from pytorch_wavelets import DWT, IDWT # (or import DWT, IDWT)
+
+# from pytorch_wavelets import DWT, IDWT (pytorch_wavelets had a latest updata and failed the installation)
 
 torch.manual_seed(0)
 np.random.seed(0)
