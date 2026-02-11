@@ -32,16 +32,16 @@ def verify_dataset(dataset, total_samples=5, interval=200,
                    Ly=2 * np.pi,
                    state='train'):
     """plot the resolution and the spectrum of some samples in the dataset."""
-    fig, axes = plt.subplots(2, total_samples, figsize=(10, 10))
+    fig, axes = plt.subplots(2, total_samples, figsize=(10, 20))
     for img_idx, sample_idx in enumerate(range(0, total_samples*interval, interval)):
         x, y = dataset[sample_idx]
         print("x shape: ", x.shape, "y shape: ", y.shape)
         ax = axes[0, img_idx]
-        im = ax.imshow(x[..., -1].cpu().numpy(), cmap='RdBu_r', origin='lower')
+        im = ax.imshow(y[..., -1].cpu().numpy(), cmap='RdBu_r', origin='lower')
         plt.colorbar(im)
         ax.set_title(f'Sample {sample_idx}')
         
-        ux_pred, uy_pred = velocity_from_vorticity(x[..., -1].cpu())
+        ux_pred, uy_pred = velocity_from_vorticity(y[..., -1].cpu())
 
         # Compute spectra for prediction and target
         k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
