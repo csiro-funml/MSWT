@@ -32,7 +32,7 @@ def verify_dataset(dataset, total_samples=5, interval=200,
                    Ly=2 * np.pi,
                    state='train'):
     """plot the resolution and the spectrum of some samples in the dataset."""
-    fig, axes = plt.subplots(2, total_samples, figsize=(10, 20))
+    fig, axes = plt.subplots(2, total_samples, figsize=(20, 10))
     for img_idx, sample_idx in enumerate(range(0, total_samples*interval, interval)):
         x, y = dataset[sample_idx]
         print("x shape: ", x.shape, "y shape: ", y.shape)
