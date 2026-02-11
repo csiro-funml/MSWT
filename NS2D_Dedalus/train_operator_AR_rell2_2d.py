@@ -183,15 +183,6 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
             pred = pred.squeeze(-1)
     return pred, y.unsqueeze(0)
 
-def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
-    x_bot, y_bot = bot
-    x_top, y_top = top
-    x_arr = torch.linspace(x_bot, x_top, steps=num_x)
-    y_arr = torch.linspace(y_bot, y_top, steps=num_y)
-    xx, yy = torch.meshgrid(x_arr, y_arr, indexing='ij')
-    mesh = torch.stack([xx, yy], dim=2)
-    return mesh
-
 
 def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=10,save_step=100, use_tqdm=True, writer=None, model_name='fno2d', start_ep=0):
     """Train on one-step pairs (u_t, u_{t+1})."""
