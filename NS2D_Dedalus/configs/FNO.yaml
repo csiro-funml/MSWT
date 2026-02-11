@@ -12,6 +12,7 @@ data:
   shuffle: True
   S2: 256
   T2: 1
+  grid_form: linear
 
 model:
   layers: [64, 64, 64, 64, 64, 64]

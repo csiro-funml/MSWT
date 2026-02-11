@@ -20,7 +20,7 @@ from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
 from utils.criterion import LpLoss
-from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint
+from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint, torch2dgrid_2d
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra
 import matplotlib.pyplot as plt
 
@@ -337,12 +337,7 @@ def train_2d(args, config):
         S_data = full_dataset.S
         print("full_dataset shape: ", full_dataset.data.shape)
     
-    
-    # split dataset into training and validation sets by test_ratio
-    # Note: random_split works correctly with offset because:
-    # 1. The dataset's data has already been offset-sliced during __init__
-    # 2. random_split creates Subset objects that map indices correctly
-    # 3. Subset.__getitem__ calls the base dataset's __getitem__ with mapped indices
+
     if args.test_ratio > 0:
         test_size = max(1, int(len(full_dataset) * args.test_ratio))
         if len(full_dataset) - test_size <= 0:
@@ -358,7 +353,6 @@ def train_2d(args, config):
                                  batch_size=config['train']['batchsize'],
                                  shuffle=False)
         
-        print("train set length: ", len(train_set), "test set length: ", len(test_set))
     else:
         train_set = full_dataset
         test_loader = None
@@ -367,11 +361,9 @@ def train_2d(args, config):
                               batch_size=config['train']['batchsize'],
                               shuffle=data_config['shuffle'])
     
-    # todo: verify the the first 
-    verify_dataset(full_dataset, total_samples=5, interval=200, state='full')
-    verify_dataset(train_set, total_samples=5, interval=200, state='train')
-    verify_dataset(test_set, total_samples=5, interval=20, state='test')
-    exit(-1)
+    # verify_dataset(full_dataset, total_samples=5, interval=200, state='full')
+    # verify_dataset(train_set, total_samples=5, interval=200, state='train')
+    # verify_dataset(test_set, total_samples=5, interval=20, state='test')
     # create model
     print("device: ", device)
     model_cfg = config['model']
@@ -496,7 +488,7 @@ def train_2d(args, config):
     os.makedirs(tensorboard_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
-    grid = torch2dgrid(S_data, S_data)
+    grid = torch2dgrid_2d(S_data[0], S_data[1], form=config['data']['grid_form'], device=device, dtype=torch.float32)
     train_step_ahead(model,
                         train_loader,
                         optimizer,
