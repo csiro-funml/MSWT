@@ -159,7 +159,7 @@ class NS_Dedalus_Loader2D(Dataset):
         # Ensure idx+1 is valid (needed for next timestep)
         if idx + 1 >= self.data.shape[0]:
             raise IndexError(f"Index {idx+1} exceeds data length {self.data.shape[0]} (need idx+1 for next timestep)")
-        return self.data[idx], self.data[idx + 1, :, :, :1] # the output is the vorticity at the next time step (no need to predict the forcing)
+        return self.data[idx], self.data[idx + 1, :, :, -1:] # the output is the vorticity at the next time step (no need to predict the forcing)
 
 
 if __name__ == '__main__':
