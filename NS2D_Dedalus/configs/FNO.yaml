@@ -38,14 +38,12 @@ train:
   eqn_iter: 0
 
 test_data:
-  datapath: '/scratch3/wan410/operator_learning_data/pino_ns2d/NS_Re500_s256_T100_test.npy'
-  Re: 500
-  total_num: 100
-  offset: 0
-  n_sample: 100
-  time_interval: 0.5
+  datapath: '/scratch3/wan410/operator_learning_data/Dedalus/Forcing_with_low_freq_energy/dedalus_data_test.npy'
+  total_num: 10000
+  offset: 1000 # skip the first 1000 steps (200s)
+  time_interval: 1
   nx: 256
-  nt: 128
-  sub: 4
+  nt: 1
+  sub: 1
   sub_t: 1
   shuffle: False
