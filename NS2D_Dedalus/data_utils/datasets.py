@@ -120,9 +120,9 @@ class NS_Dedalus_Loader2D(Dataset):
             if datapath2 is not None:
                 data2 = self.extract(data2)
        
-        self.data = data1.permute(0, 2, 3, 1) # (T, C, X, Y) -> (T, X, Y, C)
+        data1 = data1.permute(0, 2, 3, 1) # (T, C, X, Y) -> (T, X, Y, C)
         
-        total = self.data.shape[0]
+        total = data1.shape[0]
         if offset >= total: # we need to skip the first 1000 steps 
             raise ValueError(f'Offset {offset} exceeds dataset size {total}.')
         if n_samples is None:
@@ -136,7 +136,8 @@ class NS_Dedalus_Loader2D(Dataset):
         self.original_offset = offset
         self.original_total = total
         print(f"Dataset initialization: offset={offset}, start={start}, end={end}, original_total={total}")
-        self.data = self.data[start:end] # (T, X, Y, C)
+        
+        self.data = data1[start:end] # (T, X, Y, C)
         self.num_samples = self.data.shape[0] -1
         self.max_time_index = 1
         self.normalize()

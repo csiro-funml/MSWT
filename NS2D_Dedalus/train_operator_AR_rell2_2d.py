@@ -2,6 +2,7 @@ import os
 import yaml
 from argparse import ArgumentParser
 import torch
+import numpy as np
 import torch.nn.functional as F
 import math
 from torch.utils.data import DataLoader, random_split, TensorDataset, Dataset, Subset
@@ -20,7 +21,45 @@ from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
 from utils.criterion import LpLoss
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint
+from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra
+import matplotlib.pyplot as plt
 
+
+
+
+def verify_dataset(dataset, total_samples=5, interval=200, 
+                   Lx=2 * np.pi,
+                   Ly=2 * np.pi,
+                   state='train'):
+    """plot the resolution and the spectrum of some samples in the dataset."""
+    fig, axes = plt.subplots(2, total_samples, figsize=(10, 10))
+    for i in range(0, total_samples*interval, interval):
+        x, y = dataset[i]
+        print("x shape: ", x.shape, "y shape: ", y.shape)
+        ax = axes[0, i]
+        im = ax.imshow(x[..., 0].cpu().numpy(), cmap='RdBu_r', origin='lower')
+        ax.colorbar(im)
+        ax.set_title(f'Sample {i}')
+        
+        ux_pred, uy_pred = velocity_from_vorticity(x[..., 0].cpu().numpy())
+
+        # Compute spectra for prediction and target
+        k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
+
+        k_nyquist = int((np.pi * x.shape[1]) // Lx)
+
+        start_truth = 1
+        ax_energy = axes[1, i]
+        ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_pred[start_truth:k_nyquist], 
+                        'o-', markersize=1, label=f'Ground Truth', linewidth=1, color='blue')
+        ax_energy.set_xlabel('Wavenumber', fontsize=14)
+        ax_energy.set_ylabel('Energy', fontsize=14)
+        ax_energy.set_title('Energy Spectrum', fontsize=14)
+        ax_energy.legend(fontsize=12)
+        ax_energy.grid(True)
+
+    plt.savefig(f'dedalus_data_{state}.png')
+    return True
 
 
 def evaluate_3d(model, test_loader, device):
@@ -318,12 +357,7 @@ def train_2d(args, config):
         test_loader = DataLoader(test_set,
                                  batch_size=config['train']['batchsize'],
                                  shuffle=False)
-        # Verify offset is preserved (for debugging)
-        base_ds = _get_base_dataset(full_dataset)
-        if hasattr(base_ds, 'original_offset'):
-            print(f"Dataset split info: train_size={train_size}, test_size={test_size}, "
-                  f"original_offset={base_ds.original_offset}, "
-                  f"full_dataset_length={len(full_dataset)}")
+        
         print("train set length: ", len(train_set), "test set length: ", len(test_set))
     else:
         train_set = full_dataset
@@ -332,6 +366,10 @@ def train_2d(args, config):
     train_loader = DataLoader(train_set,
                               batch_size=config['train']['batchsize'],
                               shuffle=data_config['shuffle'])
+    
+    # todo: verify the the first 
+    verify_dataset(train_set, total_samples=5, interval=200, state='train')
+    verify_dataset(test_set, total_samples=5, interval=20, state='test')
     # create model
     print("device: ", device)
     model_cfg = config['model']
