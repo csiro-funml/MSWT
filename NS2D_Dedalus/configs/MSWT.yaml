@@ -18,11 +18,11 @@ data:
 model:
   name: mswt_periodic_patching_residual
   wave: haar
-  dims: [16, 16, 32, 64, 128, 256, 512]
+  dims: [32, 32, 64, 128, 256, 512]
   in_chans: 5    # u plus (x,y) grid concatenated in train loop
   out_chans: 1
   use_efficient_attention: True
-  efficient_layers: [0, 1, 2, 3, 4, 5]
+  efficient_layers: [0, 1, 2, 3, 4]
   residual_connection: True
   patch_size: 2
   local_attention_size: 8
