@@ -37,11 +37,11 @@ def verify_dataset(dataset, total_samples=5, interval=200,
         x, y = dataset[i]
         print("x shape: ", x.shape, "y shape: ", y.shape)
         ax = axes[0, i]
-        im = ax.imshow(x[..., 0].cpu().numpy(), cmap='RdBu_r', origin='lower')
-        ax.colorbar(im)
+        im = ax.imshow(y[..., -1].cpu().numpy(), cmap='RdBu_r', origin='lower')
+        plt.colorbar(im)
         ax.set_title(f'Sample {i}')
         
-        ux_pred, uy_pred = velocity_from_vorticity(x[..., 0].cpu().numpy())
+        ux_pred, uy_pred = velocity_from_vorticity(y[..., -1].cpu().numpy())
 
         # Compute spectra for prediction and target
         k_bins, Ek_pred, Zk_pred = compute_spectra(ux_pred, uy_pred, Lx, Ly)
