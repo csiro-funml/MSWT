@@ -43,6 +43,7 @@ class PeriodicWaveletAttentionBlock(nn.Module):
         self.attention = Attention(dim)
         self.final_proj = nn.Linear(dim // 4, dim)
         self.use_efficient_attention = use_efficient_attention
+        self.residual_connection = residual_connection
         self.local_attention_size = local_attention_size
 
     def local_attention(self, x, h, w):
