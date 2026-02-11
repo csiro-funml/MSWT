@@ -368,8 +368,10 @@ def train_2d(args, config):
                               shuffle=data_config['shuffle'])
     
     # todo: verify the the first 
+    verify_dataset(full_dataset, total_samples=5, interval=200, state='full')
     verify_dataset(train_set, total_samples=5, interval=200, state='train')
     verify_dataset(test_set, total_samples=5, interval=20, state='test')
+    exit(-1)
     # create model
     print("device: ", device)
     model_cfg = config['model']
