@@ -328,7 +328,7 @@ def train_2d(args, config):
     else:
         print("offset: ", data_config.get('offset', 0))
         full_dataset = NS_Dedalus_Loader2D(datapath1=data_config['datapath'],
-                                    nx=data_config['nx'], nt=data_config['nt'],
+                                    nx=data_config['nx'], ny=data_config['ny'], nt=data_config['nt'],
                                     sub=data_config['sub'], sub_t=data_config['sub_t'],
                                     N=data_config['total_num'],
                                     t_interval=data_config['time_interval'],

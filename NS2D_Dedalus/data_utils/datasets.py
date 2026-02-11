@@ -86,7 +86,7 @@ def load_save_dedalus_data(datapath='/datasets/work/oa-tcch/work/forXuesong/real
 
 class NS_Dedalus_Loader2D(Dataset):
     def __init__(self, datapath1,
-                 nx, nt,
+                 nx, ny, nt,
                  datapath2=None, sub=1, sub_t=1,
                  N=None, t_interval=1.0,
                  n_samples=None, offset=0,
@@ -105,7 +105,7 @@ class NS_Dedalus_Loader2D(Dataset):
             n_samples: number of trajectories to keep (defaults to N)
             offset: starting index for slicing
         '''
-        self.S = nx // sub
+        self.S =(nx // sub, ny // sub)
         self.T = int(nt * t_interval) // sub_t + 1
         self.time_scale = t_interval
         self.train = train

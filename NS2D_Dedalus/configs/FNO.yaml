@@ -5,6 +5,7 @@ data:
   offset: 1000 # skip the first 1000 steps (200s)
   time_interval: 1
   nx: 256
+  ny: 256
   nt: 1
   nc: 3 # forcing + vorticity
   sub: 1
