@@ -33,13 +33,13 @@ def verify_dataset(dataset, total_samples=5, interval=200,
                    state='train'):
     """plot the resolution and the spectrum of some samples in the dataset."""
     fig, axes = plt.subplots(2, total_samples, figsize=(10, 10))
-    for i in range(0, total_samples*interval, interval):
-        x, y = dataset[i]
+    for img_idx, sample_idx in enumerate(range(0, total_samples*interval, interval)):
+        x, y = dataset[sample_idx]
         print("x shape: ", x.shape, "y shape: ", y.shape)
-        ax = axes[0, i]
+        ax = axes[0, img_idx]
         im = ax.imshow(y[..., -1].cpu().numpy(), cmap='RdBu_r', origin='lower')
         plt.colorbar(im)
-        ax.set_title(f'Sample {i}')
+        ax.set_title(f'Sample {sample_idx}')
         
         ux_pred, uy_pred = velocity_from_vorticity(y[..., -1].cpu())
 
@@ -49,7 +49,7 @@ def verify_dataset(dataset, total_samples=5, interval=200,
         k_nyquist = int((np.pi * x.shape[1]) // Lx)
 
         start_truth = 1
-        ax_energy = axes[1, i]
+        ax_energy = axes[1, img_idx]
         ax_energy.loglog(k_bins[start_truth:k_nyquist], Ek_pred[start_truth:k_nyquist], 
                         'o-', markersize=1, label=f'Ground Truth', linewidth=1, color='blue')
         ax_energy.set_xlabel('Wavenumber', fontsize=14)
