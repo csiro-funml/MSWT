@@ -250,7 +250,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             if writer is not None:
                 writer.add_scalar('eval/test_l2', test_l2, ep + 1)
                 fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=3000, t_idx=0)
-                print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
+                # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 
                 save_checkpoint(config['train']['save_dir'],
                                 config['train']['save_name'],
