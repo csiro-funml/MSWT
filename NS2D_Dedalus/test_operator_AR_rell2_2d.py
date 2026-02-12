@@ -30,14 +30,15 @@ def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
     
     total_pred = []
     total_truth = []
-    x_prev = sequences[0][0][..., -1:] # frist zero is the batch index, [0] first sample,  the second zero is the initial condition,  [..., -1:] gives the vorticity at the last time step
+    x_prev, _ = sequences[0] # frist zero is the batch index, [0] first sample,  the second zero is the initial condition, 
+    x_prev =  x_prev[..., -1:] # gives the vorticity at the last time step
     
     with torch.no_grad():
         for t in range(max_time_steps):
             # autoregressive prediction:  
             # concatenate the ground truth forcing sequence[t][..., :2],  the prediction from the last step / initial condition x0,  grid  to form the input x_in
             x_forcing = sequences[t][0][..., :2]
-            
+            print("x_forcing shape: ", x_forcing.shape, "x_prev shape: ", x_prev.shape, "grid shape: ", grid.shape)
             x_in = torch.cat((x_forcing, x_prev, grid), dim=-1).to(device)
             pred = model(x_in)
             x_prev = pred
@@ -47,7 +48,7 @@ def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
             if pred.dim() == 4:
                 pred = pred.squeeze(-1)
             total_pred.append(pred)
-            total_truth.append(sequences[t][1][..., -1:])
+            total_truth.append(sequences[t][1]) # the second aurgument is ground truth vorticity
         
         total_pred = torch.stack(total_pred, dim=0)
         total_truth = torch.stack(total_truth, dim=0)
@@ -315,7 +316,7 @@ def main():
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
  
     
-    print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
+    print(f'Evaluating on {len(sequences)} samples at resolution {S_data}x{S_data} for {T_data} steps.')
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid, max_time_steps=300)
     
