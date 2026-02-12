@@ -107,6 +107,18 @@ def evaluate_rollout(rollout, true_clim, save_dir, seed):
     for channel_idx, channel in enumerate(channels_list):
         rollout_clim_channel = rollout_temporal_mean[channel_idx] # (H, W)
         true_clim_channel = true_clim[channel_idx] # (H, W)
+
+        # run the conversion from 
+        if channel == 'humidity':
+            rollout_clim_channel = rollout_clim_channel * 1000
+            true_clim_channel = true_clim_channel * 1000
+        elif channel == 'surface_pressure':
+            rollout_clim_channel = rollout_clim_channel / 100
+            true_clim_channel = true_clim_channel / 100
+        elif channel == 'precipitation':
+            rollout_clim_channel = rollout_clim_channel * 4 * 1000
+            true_clim_channel = true_clim_channel * 4 * 1000
+
         bias = rollout_clim_channel - true_clim_channel
         
         min_bias = bias.min().cpu().item()
