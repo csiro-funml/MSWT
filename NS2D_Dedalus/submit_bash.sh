@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=15:30:00           # Increased time for longer training with larger batches
+#SBATCH --time=00:04:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -39,11 +39,11 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path configs/WNO.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml --test_ratio 0.25
 # python3 train_operator_AR_rell2_2d.py --config_path configs/PDERefinerUNet.yaml --test_ratio 0.25
-python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml --test_ratio 0.25
+# python3 train_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml --test_ratio 0.25
 #################################################################################################################################
 
 # Testing
-# python3 test_operator_AR_rell2_2d.py --config_path configs/FNO.yaml --test_seed 42
+python3 test_operator_AR_rell2_2d.py --config_path configs/FNO.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/HFS.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/WNO.yaml
 # python3 test_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml
