@@ -53,6 +53,6 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 
 # Ablations
-python3 train_operator_AR_PINO_2d.py --config_path configs/ablations/rebutall/MSWT_no_attention.yaml --test_seed 42
-# python3 train_operator_AR_PINO_2d.py --config_path configs/ablations/rebutall/MSWT_no_tokenizer.yaml --test_seed 42
+# python3 train_operator_AR_PINO_2d.py --config_path configs/ablations/rebutall/MSWT_no_attention.yaml --test_seed 42
+python3 train_operator_AR_PINO_2d.py --config_path configs/ablations/rebutall/MSWT_no_tokenizer.yaml --test_seed 42
 # python3 train_operator_AR_PINO_2d.py --config_path configs/ablations/rebutall/MSWT_strided_up_downsampling.yaml --test_seed 42
