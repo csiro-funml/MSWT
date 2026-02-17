@@ -1,0 +1,58 @@
+data:
+  datapath: '/scratch3/wan410/operator_learning_data/pino_ns2d/NS_fft_Re500_T4000.npy'
+  name: NS2D
+  Re: 500
+  total_num: 4000
+  offset: 0
+  n_sample: 100
+  time_interval: 1
+  nx: 64
+  nt: 64
+  sub: 1
+  sub_t: 1
+  shuffle: True
+  S2: 64
+  T2: 65
+  grid_form: linear
+
+model:
+  name: MSWT_no_attention
+  wave: haar
+  dims: [64, 64, 128, 512]
+  in_chans: 3
+  out_chans: 1
+  use_efficient_attention: True
+  efficient_layers: [0, 1]
+  add_periodic_grid: false
+  local_attention_size: 8
+  external_grid: false
+  patch_size: 2
+
+
+train:
+  batchsize: 100
+  epochs: 100000
+  milestones: [20000, 40000, 60000, 80000]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 0.0
+  f_loss: 0.0
+  xy_loss: 1.0
+  save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/ablation/MSWT_no_attention/
+  save_name: MultiscaleWavelet2d_periodic_patching-dim64-nlayers4.pt
+  data_iter: 1
+  eqn_iter: 0
+
+
+test_data:
+  datapath: '/scratch3/wan410/operator_learning_data/pino_ns2d/NS_Re500_s256_T100_test.npy'
+  Re: 500
+  total_num: 100
+  offset: 0
+  n_sample: 100
+  time_interval: 0.5
+  nx: 256
+  nt: 128
+  sub: 4
+  sub_t: 1
+  shuffle: False

@@ -19,7 +19,7 @@ from models.mswt_ablation import MSWT_no_attention, MSWT_no_tokenizer, MSWT_stri
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
-from utils.criterion import LpLoss
+from utils.criterion import LpLoss, PINO_loss3d
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint, torch2dgrid_2d
 
 
@@ -121,7 +121,8 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     return pred, y.unsqueeze(0)
 
 
-def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True, writer=None, model_name='fno2d', start_ep=0):
+def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True, 
+writer=None, model_name='fno2d', start_ep=0, xy_weight=1.0, f_weight=0.0, ic_weight=0.0):
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
@@ -138,7 +139,10 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
     best_loss = torch.inf
     for ep in pbar:
         model.train()
-        running = 0.0
+        rel_l2_loss_total = 0.0
+        loss_ic_total = 0.0
+        loss_f_total = 0.0
+
         batches = 0
 
         # linear warm-up
@@ -162,23 +166,38 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                 else:
                     x_reg = None
                 data_loss = lploss(pred, y)
-                if x_reg is not None:
-                    loss = data_loss + lambda_amp * x_reg
+                
+                # TODO: add the PINO loss term here
+                if f_weight != 0.0:
+                    # pde loss
+                    a = next(a_loader)
+                    a = a.to(device)
+                    out = model(a)
+                    
+                    u0  = a[:, :, :, 0, -1]
+                    loss_ic, loss_f = PINO_loss3d(out, u0, forcing, v, t_duration)
                 else:
-                    loss = data_loss
+                    loss_ic = loss_f = 0.0
+                loss = data_loss * xy_weight + loss_f * f_weight + loss_ic * ic_weight
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            running += loss.item()
+            rel_l2_loss_total += loss.item()
+            loss_ic_total += loss_ic.item()
+            loss_f_total += loss_f.item()
             batches += 1
         scheduler.step()
-        avg = running / max(1, batches)
-        print(f'Epoch {ep + 1}/{epochs}, train L2: {avg:.6f}')
+        rel_l2_loss_avg = rel_l2_loss_total / max(1, batches)
+        loss_ic_avg = loss_ic_total / max(1, batches)
+        loss_f_avg = loss_f_total / max(1, batches)
+        print(f'Epoch {ep + 1}/{epochs}, train L2: {rel_l2_loss_avg:.6f}, train IC: {loss_ic_avg:.6f}, train PDE: {loss_f_avg:.6f}')
         if writer is not None:
-            writer.add_scalar('train/l2', avg, ep + 1)
+            writer.add_scalar('train/rel_l2', rel_l2_loss_avg, ep + 1)
+            writer.add_scalar('train/ic', loss_ic_avg, ep + 1)
+            writer.add_scalar('train/pde', loss_f_avg, ep + 1)
         if use_tqdm:
-            pbar.set_description((f'Train L2: {avg:.6f}'))
+            pbar.set_description((f'Train L2: {rel_l2_loss_avg:.6f}, train IC: {loss_ic_avg:.6f}, train PDE: {loss_f_avg:.6f}'))
 
         if ep % eval_step == 0 and test_loader is not None:
             test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)
