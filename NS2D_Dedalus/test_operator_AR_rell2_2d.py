@@ -37,7 +37,8 @@ def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
         for t in range(max_time_steps):
             # autoregressive prediction:  
             # concatenate the ground truth forcing sequence[t][..., :2],  the prediction from the last step / initial condition x0,  grid  to form the input x_in
-            x_forcing = sequences[t][0][..., :2]
+            x_forcing = sequences[t][0][..., :2].to(device)
+            x_prev = x_prev.to(device)
             print("x_forcing shape: ", x_forcing.shape, "x_prev shape: ", x_prev.shape, "grid shape: ", grid.shape)
             x_in = torch.cat((x_forcing, x_prev, grid), dim=-1).to(device)
             pred = model(x_in)
@@ -48,7 +49,7 @@ def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
             if pred.dim() == 4:
                 pred = pred.squeeze(-1)
             total_pred.append(pred)
-            total_truth.append(sequences[t][1]) # the second aurgument is ground truth vorticity
+            total_truth.append(sequences[t][1].to(device)) # the second aurgument is ground truth vorticity
         
         total_pred = torch.stack(total_pred, dim=0)
         total_truth = torch.stack(total_truth, dim=0)
