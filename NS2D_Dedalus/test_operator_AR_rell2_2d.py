@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import os
 import math
+from einops import rearrange
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from torch.utils.data import DataLoader, TensorDataset
@@ -20,6 +21,7 @@ from utils.criterion import LpLoss, MeanEnergyAbsolutePercentageError, MeanEnerg
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch, compute_enstropy_torch
 from utils.utilities import torch2dgrid_2d
 import pandas as pd
+from tqdm import tqdm
 
 def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
     """Run autoregressive rollout on full sequences.
@@ -34,7 +36,8 @@ def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
     x_prev =  x_prev[..., -1:] # gives the vorticity at the last time step
     
     with torch.no_grad():
-        for t in range(max_time_steps):
+        pbar = tqdm(range(max_time_steps), dynamic_ncols=True, smoothing=0.1)
+        for t in pbar:
             # autoregressive prediction:  
             # concatenate the ground truth forcing sequence[t][..., :2],  the prediction from the last step / initial condition x0,  grid  to form the input x_in
             x_forcing = sequences[t][0][..., :2].to(device)
@@ -47,8 +50,10 @@ def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
             total_pred.append(pred)
             total_truth.append(sequences[t][1].unsqueeze(0).to(device)) # the second aurgument is ground truth vorticity
         
-        total_pred = torch.cat(total_pred, dim=0).squeeze(-1) # (T, H, W, C) or (T, H, W)
+        total_pred = torch.cat(total_pred, dim=0).squeeze(-1) # (B, H, W, T) or (T, H, W)
+        total_pred = rearrange(total_pred, 't h w -> 1 h w t') # (1, H, W, T)
         total_truth = torch.cat(total_truth, dim=0).squeeze(-1) # (T, H, W, C) or (T, H, W)
+        total_truth = rearrange(total_truth, 't h w -> 1 h w t') # (1, H, W, T)
         print("total_pred shape: ", total_pred.shape, "total_truth shape: ", total_truth.shape)
         return total_pred, total_truth
 
@@ -66,7 +71,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=Fal
     # pderesidual = PDEResidualLoss()
 
 
-    time_idx = [0, 29, truth_seq.shape[-1] - 1]
+    time_idx =  np.arange(0, 1000, 100)
     metrics_name = ['l2', 'SMLR', 'EMLR', 'SMAE', 'EMAE']
     metrics_dict = {}
     
@@ -315,10 +320,10 @@ def main():
     
     print(f'Evaluating on {len(sequences)} samples at resolution {S_data}x{S_data} for {T_data} steps.')
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
-    pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid, max_time_steps=300)
+    pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid, max_time_steps=1000)
     
     # Function 1, evaluate the model and save the metrics
-    # evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
     
 
 
