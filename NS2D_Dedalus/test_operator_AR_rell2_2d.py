@@ -40,7 +40,7 @@ def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
             x_forcing = sequences[t][0][..., :2].to(device)
             x_prev = x_prev.to(device)
             print("x_forcing shape: ", x_forcing.shape, "x_prev shape: ", x_prev.shape, "grid shape: ", grid.shape)
-            x_in = torch.cat((x_forcing, x_prev, grid), dim=-1).to(device)
+            x_in = torch.cat((x_forcing, x_prev, grid), dim=-1).unsqueeze(0).to(device) # added the batch dimension 
             pred = model(x_in)
             x_prev = pred
             
