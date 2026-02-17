@@ -58,7 +58,7 @@ def autoregressive_predict(model, sequences, device, grid, max_time_steps=100):
         return total_pred, total_truth
 
 
-def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=False):
+def evaluate_model(truth_seq, pred_seq, model_name, save_dir, save_csv=False):
     """ 
     truth_seq: (B, H, W, T)
     pred_seq: (B, H, W, T)
@@ -80,7 +80,6 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=Fal
     for metric in metrics_name:
        for t in time_idx:
            metrics_dict[metric+f'_step{t+1}'] = 0
-    metrics_dict['seed'] = seed
     metrics_dict['model'] = model_name
     
     # Compute actual metric values
@@ -120,7 +119,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=Fal
         step_enstropy_meape = meape(Zk_pred_truncated, Zk_true_truncated).item()
         step_enstropy_melr = melr(Zk_pred_truncated, Zk_true_truncated).item()
         
-        print(f"{model_name} seed: {seed}, step: {t}, step l2: {step_l2:.4f}, \
+        print(f"{model_name} step: {t}, step l2: {step_l2:.4f}, \
             step SMLR: {step_spectral_melr:.4f},\
             step EMLR: {step_enstropy_melr:.4f},\
             step EMAE: {step_spectral_meape:.4f},\
@@ -138,7 +137,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=Fal
     save_folder = os.path.join(save_dir, 'evaluation_metrics')
     if save_csv:
         os.makedirs(save_folder, exist_ok=True)
-        df_metric.to_csv(os.path.join(save_folder, f'{model_name}_seed{seed}_metrics.csv'), index=False)
+        df_metric.to_csv(os.path.join(save_folder, f'{model_name}_metrics.csv'), index=False)
     return metrics_dict
 
 
@@ -318,12 +317,12 @@ def main():
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
  
     
-    print(f'Evaluating on {len(sequences)} samples at resolution {S_data}x{S_data} for {T_data} steps.')
+    print(f'Evaluating on {len(sequences)} samples at resolution {S_data}x{S_data} for steps.')
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid, max_time_steps=1000)
     
     # Function 1, evaluate the model and save the metrics
-    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
+    evaluate_model(truth_seq, pred_seq, model_name, save_dir=save_dir, save_csv=False)
     
 
 
