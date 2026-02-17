@@ -1,0 +1,51 @@
+data:
+  datapath: '/datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/benchmark/Dedalus_NS2D/dedalus_data_train.npy'
+  name: NS2D_Dedalus
+  total_num: 10000
+  offset: 1000 # skip the first 1000 steps (200s)
+  time_interval: 1
+  nx: 256
+  ny: 256
+  nt: 1
+  nc: 3 # forcing + vorticity
+  sub: 1
+  sub_t: 1
+  shuffle: True
+  S2: 256
+  T2: 1
+  grid_form: linear
+
+model:
+  layers: [64, 64, 64, 64, 64, 64]
+  modes1: [16, 16, 16, 16]
+  modes2: [16, 16, 16, 16]
+  fc_dim: 128
+  act: gelu
+  in_dim: 5
+  out_dim: 1
+
+train:
+  batchsize: 32
+  epochs: 1000
+  milestones: [200, 400, 600, 800]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 0.0
+  f_loss: 0.0
+  xy_loss: 1.0
+  save_dir: /datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/checkpoint/NS2D_Dedalus/FNO2d/
+  save_name: FNO2d-mode16-dim64-layer4.pt
+  data_iter: 1
+  eqn_iter: 0
+
+test_data:
+  datapath: '/datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/benchmark/Dedalus_NS2D/dedalus_data_test.npy'
+  total_num: 10000
+  offset: 1000 # skip the first 1000 steps (200s)
+  time_interval: 1
+  nx: 256
+  ny: 256
+  nt: 1
+  sub: 1
+  sub_t: 1
+  shuffle: False
