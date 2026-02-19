@@ -22,8 +22,7 @@ def verify_pde_loss(data, v, t_duration, forcing, device):
         x = data[i].to(device).unsqueeze(0) # one realization (1, S, S, T)
         u0 = x[..., 0] # initial condition (1, S, S)
         loss_ic, loss_f = PINO_loss3d(x, u0, forcing, v, t_duration)
-        print(f'Sample {i} PDE loss: {loss_f.item()}')
-        print(f'Sample {i} IC loss: {loss_ic.item()}')
+        print(f'Sample {i} PDE loss: {loss_f.item()}, IC loss: {loss_ic.item()}')
         total_loss_f += loss_f.item()
         total_loss_ic += loss_ic.item()
     print(f'average PDE loss: {total_loss_f / len(data)}')
@@ -57,6 +56,8 @@ if __name__ == '__main__':
     data = full_dataset.data
     v = 1.0 / config['data']['Re']
     t_duration = config['data'].get('t_duration', 0.125)
+    print("t_duration: ", t_duration)
+    print("v: ", v)
     S_forcing = data_config['nx']
     forcing = get_forcing(S_forcing).to(device)
     
