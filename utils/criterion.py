@@ -68,10 +68,10 @@ def PINO_loss3d(u, u0, forcing, v=1/40, t_interval=1.0):
 
     u = u.reshape(batchsize, nx, ny, nt)
     lploss = LpLoss(size_average=True)
-
+    # loss_ic should always be 0 because we give the initial condition as the input
     u_in = u[:, :, :, 0]
     loss_ic = lploss(u_in, u0)
-
+    # PDE loss
     Du = FDM_NS_vorticity(u, v, t_interval)
     f = forcing.repeat(batchsize, 1, 1, nt-2)
     loss_f = lploss(Du, f)

@@ -662,3 +662,18 @@ class NSLoader2D(Dataset):
         return sample[..., t], sample[..., t + 1]
 
 
+
+class InitialConditionDataset(Dataset):
+    """Dataset that returns only the initial condition (first time step) for PINO PDE loss."""
+
+    def __init__(self, data_tensor, indices=None):
+        # data_tensor: (N, S, S, T) from NSLoader2D.data
+        self.data = data_tensor
+        self.indices = list(indices) if indices is not None else list(range(len(data_tensor)))
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        # return the initial condition (first time step)
+        return self.data[self.indices[idx], :, :, 0]

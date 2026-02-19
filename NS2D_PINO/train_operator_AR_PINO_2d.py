@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import math
 from torch.utils.data import DataLoader, random_split, TensorDataset, Dataset, Subset
 from torch.utils.tensorboard import SummaryWriter
-from data_utils.datasets import NSLoader2D, sample_data
+from data_utils.datasets import NSLoader2D, InitialConditionDataset, sample_data
 from einops import rearrange
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -85,20 +85,6 @@ def _get_base_dataset(ds):
     return ds
 
 
-class InitialConditionDataset(Dataset):
-    """Dataset that returns only the initial condition (first time step) for PINO PDE loss."""
-
-    def __init__(self, data_tensor, indices=None):
-        # data_tensor: (N, S, S, T) from NSLoader2D.data
-        self.data = data_tensor
-        self.indices = list(indices) if indices is not None else list(range(len(data_tensor)))
-
-    def __len__(self):
-        return len(self.indices)
-
-    def __getitem__(self, idx):
-        return self.data[self.indices[idx], :, :, 0].clone()
-
 
 def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0):
     """
@@ -138,7 +124,7 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
 
 def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True,
 writer=None, model_name='fno2d', start_ep=0, xy_weight=1.0, f_weight=0.0, ic_weight=0.0,
-a_loader=None, forcing=None, v=1/40, t_duration=0.125, T_rollout=None):
+a_loader=None, forcing=None, v=1/40, t_duration=0.125):
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
@@ -186,23 +172,26 @@ a_loader=None, forcing=None, v=1/40, t_duration=0.125, T_rollout=None):
                 else:
                     x_reg = None
                 data_loss = lploss(pred, y)
+                
+                
                 # PINO loss: rollout 2D model from u0 to get trajectory, then PDE/IC loss
-                if f_weight != 0.0 and a_iter is not None and T_rollout is not None and T_rollout >= 3:
+                if f_weight != 0.0 and a_iter is not None:
                     u0 = next(a_iter).to(device)  # (B, S, S)
                     B = u0.shape[0]
                     traj = [u0]
                     u = u0
-                    for _ in range(1, T_rollout):
+                    for _ in range(2): # just rollout two steps for efficiency
                         x_in = torch.cat((u.unsqueeze(-1), grid.unsqueeze(0).expand(B, -1, -1, -1)), dim=-1)
                         u = model(x_in)
                         if u.dim() == 4:
                             u = u.squeeze(-1)
                         traj.append(u)
-                    out = torch.stack(traj, dim=-1)  # (B, S, S, T_rollout)
+                    out = torch.stack(traj, dim=-1)  # (B, S, S, 3)
                     loss_ic, loss_f = PINO_loss3d(out, u0, forcing, v, t_duration)
                 else:
                     loss_ic = torch.tensor(0.0, device=device)
                     loss_f = torch.tensor(0.0, device=device)
+
                 loss = data_loss * xy_weight + loss_f * f_weight + loss_ic * ic_weight
 
             optimizer.zero_grad()
@@ -262,30 +251,19 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
 
         class SyntheticStepDataset(Dataset):
             def __init__(self, arr):
-                self.arr = arr
+                self.data = arr
                 self.max_t = arr.shape[-1] - 1
+                self.T = int(nt * time_scale) // sub_t + 1
 
             def __len__(self):
-                return self.arr.shape[0]
+                return self.data.shape[0]
 
             def __getitem__(self, idx):
-                sample = self.arr[idx]
+                sample = self.data[idx]
                 t = torch.randint(0, self.max_t, ()).item()
                 return sample[..., t], sample[..., t + 1]
 
         return SyntheticStepDataset(data), S, 1
-
-    a0 = torch.rand(n_samples, S, S, 1, 1)
-    a_data = a0.repeat(1, 1, 1, T, 1)
-    gridx, gridy, gridt = get_grid3d(S, T, time_scale=time_scale)
-    a_data = torch.cat((
-        gridx.repeat([n_samples, 1, 1, 1, 1]),
-        gridy.repeat([n_samples, 1, 1, 1, 1]),
-        gridt.repeat([n_samples, 1, 1, 1, 1]),
-        a_data
-    ), dim=-1)
-    u_data = torch.rand(n_samples, S, S, T)
-    return TensorDataset(a_data, u_data), S, T
 
 
 def train_2d(args, config):
@@ -329,6 +307,29 @@ def train_2d(args, config):
     train_loader = DataLoader(train_set,
                               batch_size=config['train']['batchsize'],
                               shuffle=data_config['shuffle'])
+
+
+
+    # loader for initial condition and PDE loss computation
+    # PINO loss: parameters and IC dataloader (take the first time step of each realization) (see neuraloperator/physics_informed train_pino.py)
+    v = 1.0 / config['data']['Re']
+    t_duration = config['data'].get('t_duration', 0.125)
+    xy_weight = config['train'].get('xy_loss', 1.0)
+    f_weight = config['train'].get('f_loss', 0.0)
+    ic_weight = config['train'].get('ic_loss', 0.0)
+    # Forcing at same resolution as data; PDE loss uses rollout trajectory length T
+    S_forcing = S_data
+    forcing = get_forcing(S_forcing).to(device)
+    base_ds = _get_base_dataset(train_set)
+    if hasattr(base_ds, 'data') and hasattr(base_ds, 'T'):
+        indices = train_set.indices if isinstance(train_set, Subset) else list(range(len(base_ds)))
+        a_dataset = InitialConditionDataset(base_ds.data, indices=indices)
+        a_loader = DataLoader(a_dataset, batch_size=config['train']['batchsize'], shuffle=data_config['shuffle'])
+        T_rollout = base_ds.T
+    else:
+        a_loader = None
+        T_rollout = None
+    
     # create model
     print("device: ", device)
     model_cfg = config['model']
@@ -349,99 +350,8 @@ def train_2d(args, config):
                         out_c=model_cfg.get('out_c', 1),
                         target_params=model_cfg.get('target_params', 'medium'),
                         device=device).to(device)
-    elif model_name == 'pderefiner':
-        model = PDERefiner(
-                name=model_cfg.get('basemodel_name', 'Unetmod-64'),
-                time_history=model_cfg.get('time_history', 1), # T_in
-                time_future=model_cfg.get('time_future', 1), # T_ar
-                time_gap=0,
-                max_num_steps=model_cfg.get('max_num_steps', 1),  # T_ar, just one step ahead
-                n_spatial_dim=model_cfg.get('n_spatial_dim', 2),
-                in_channels=model_cfg.get('in_channels', 3), # input channels
-                out_channels=model_cfg.get('out_channels', 1)   , # output channels
-                trajlen=model_cfg.get('trajlen', 64), # T_max
-                activation=model_cfg.get('activation', 'gelu'),
-                criterion=model_cfg.get('criterion', 'mse'),
-                hidden_channels=model_cfg.get('hidden_channels', 16),
-                n_blocks=model_cfg.get('n_blocks', 3),
-    ).to(device)
-    elif model_name in ['refiner_unet']:
-        model = UNetRefiner(
-            input_channels=model_cfg.get('in_channels', 3),
-            output_channels=model_cfg.get('out_channels', 1),
-            time_history=model_cfg.get('time_history', 0),
-            time_future=model_cfg.get('time_future', 0),
-            hidden_channels=model_cfg.get('hidden_channels', 16),
-            activation=model_cfg.get('activation', 'gelu'),
-            n_blocks=model_cfg.get('n_blocks', 3),
-        ).to(device)
-    elif model_name in ['wno', 'wno2d']:
-        dummy = torch.zeros(1, 1, S_data, S_data, device=device)
-        model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
-                      out_channels=model_cfg.get('out_chans', 1),
-                      width=model_cfg.get('width', 64),
-                      level=model_cfg.get('level', 3),
-                      dummy_data=dummy).to(device)
-    elif model_name in ['saot', 'saot2d']:
-        model = SAOTModel(space_dim=model_cfg.get('space_dim', 2),
-                        n_layers=model_cfg.get('n_layers', 3),
-                        n_hidden=model_cfg.get('n_hidden', 64)  ,
-                        dropout=model_cfg.get('dropout', 0.0),
-                        n_head=model_cfg.get('n_head', 4),
-                        Time_Input=model_cfg.get('Time_Input', False),
-                        mlp_ratio=model_cfg.get('mlp_ratio', 1),
-                        fun_dim=model_cfg.get('fun_dim', 1),
-                        out_dim=model_cfg.get('out_dim', 1),
-                        H = S_data,
-                        W = S_data,
-                        slice_num=model_cfg.get('slice_num', 32),
-                        ref=model_cfg.get('ref', 8),
-                        unified_pos=model_cfg.get('unified_pos', 0),
-                        is_filter=model_cfg.get('is_filter', True)).to(device)
     elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
         model = PeriodicMSWT2D_Patching(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
-    elif model_name in ['mswt_strided_up_downsampling']:
-        model = MSWT_strided_up_downsampling(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
-    elif model_name in ['mswt_no_attention']:
-        model = MSWT_no_attention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
-    elif model_name in ['mswt_no_tokenizer']:
-        model = MSWT_no_tokenizer(
             wave=model_cfg.get('wave', 'haar'),
             input_dim=model_cfg.get('in_chans', 3),
             output_dim=model_cfg.get('out_chans', 1),
@@ -495,25 +405,6 @@ def train_2d(args, config):
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
     grid = torch2dgrid_2d(S_data, S_data, form=config['data']['grid_form'], device=device, dtype=torch.float32)
-    
-    # PINO loss: parameters and IC dataloader (take the first time step of each realization) (see neuraloperator/physics_informed train_pino.py)
-    v = 1.0 / config['data']['Re']
-    t_duration = config['data'].get('t_duration', 0.125)
-    xy_weight = config['train'].get('xy_weight', config['train'].get('xy_loss', 1.0))
-    f_weight = config['train'].get('f_weight', config['train'].get('f_loss', 0.0))
-    ic_weight = config['train'].get('ic_weight', config['train'].get('ic_loss', 0.0))
-    # Forcing at same resolution as data; PDE loss uses rollout trajectory length T
-    S_forcing = S_data
-    forcing = get_forcing(S_forcing).to(device)
-    base_ds = _get_base_dataset(train_set)
-    if hasattr(base_ds, 'data') and hasattr(base_ds, 'T'):
-        indices = train_set.indices if isinstance(train_set, Subset) else list(range(len(base_ds)))
-        a_dataset = InitialConditionDataset(base_ds.data, indices=indices)
-        a_loader = DataLoader(a_dataset, batch_size=config['train']['batchsize'], shuffle=data_config['shuffle'])
-        T_rollout = base_ds.T
-    else:
-        a_loader = None
-        T_rollout = None
 
     train_step_ahead(model,
                         train_loader,
@@ -525,8 +416,9 @@ def train_2d(args, config):
                         test_loader=test_loader,
                         writer=writer,
                         model_name=model_name,
-                        start_ep=start_ep, xy_weight=xy_weight, f_weight=f_weight, ic_weight=ic_weight,
-                        a_loader=a_loader, forcing=forcing, v=v, t_duration=t_duration, T_rollout=T_rollout)
+                        start_ep=start_ep, 
+                        xy_weight=xy_weight, f_weight=f_weight, ic_weight=ic_weight,
+                        a_loader=a_loader, forcing=forcing, v=v, t_duration=t_duration)
     
     if test_loader is not None:
         test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)

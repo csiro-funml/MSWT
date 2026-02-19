@@ -14,17 +14,7 @@ data:
   S2: 64
   T2: 65
   grid_form: linear
-  total_num: 300
-  raw_res: [256, 256, 513]
-  n_data_samples: 100
-  data_res: [64, 64, 257]  # resolution in 1 second
-  pde_res: [256, 256, 513]   # resolution in 1 second
-  a_offset: 0
-  n_a_samples: 275
-  testoffset: 275
-  n_test_samples: 25
   t_duration: 0.125
-  shuffle: True
 
 
 model:
