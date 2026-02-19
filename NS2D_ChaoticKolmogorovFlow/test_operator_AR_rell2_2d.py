@@ -13,6 +13,7 @@ from models.high_frequency_scaling import ResUNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.mswt import PeriodicMSWT2D_Patching
+from models.mswt_ablation import MSWT_no_attention, MSWT_no_tokenizer, MSWT_strided_up_downsampling
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
@@ -326,6 +327,48 @@ def main():
                         is_filter=model_cfg.get('is_filter', True)).to(device)
     elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
         model = PeriodicMSWT2D_Patching(
+            wave=model_cfg.get('wave', 'haar'),
+            input_dim=model_cfg.get('in_chans', 3),
+            output_dim=model_cfg.get('out_chans', 1),
+            dim=model_cfg.get('dim', None),
+            dims=model_cfg.get('dims', []),
+            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
+            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            add_grid=model_cfg.get('add_grid', False),
+            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
+            patch_size=model_cfg.get('patch_size', None),
+            local_attention_size=model_cfg.get('local_attention_size', None),
+        ).to(device)
+    elif model_name in ['mswt_strided_up_downsampling']:
+        model = MSWT_strided_up_downsampling(
+            wave=model_cfg.get('wave', 'haar'),
+            input_dim=model_cfg.get('in_chans', 3),
+            output_dim=model_cfg.get('out_chans', 1),
+            dim=model_cfg.get('dim', None),
+            dims=model_cfg.get('dims', []),
+            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
+            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            add_grid=model_cfg.get('add_grid', False),
+            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
+            patch_size=model_cfg.get('patch_size', None),
+            local_attention_size=model_cfg.get('local_attention_size', None),
+        ).to(device)
+    elif model_name in ['mswt_no_attention']:
+        model = MSWT_no_attention(
+            wave=model_cfg.get('wave', 'haar'),
+            input_dim=model_cfg.get('in_chans', 3),
+            output_dim=model_cfg.get('out_chans', 1),
+            dim=model_cfg.get('dim', None),
+            dims=model_cfg.get('dims', []),
+            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
+            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
+            add_grid=model_cfg.get('add_grid', False),
+            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
+            patch_size=model_cfg.get('patch_size', None),
+            local_attention_size=model_cfg.get('local_attention_size', None),
+        ).to(device)
+    elif model_name in ['mswt_no_tokenizer']:
+        model = MSWT_no_tokenizer(
             wave=model_cfg.get('wave', 'haar'),
             input_dim=model_cfg.get('in_chans', 3),
             output_dim=model_cfg.get('out_chans', 1),

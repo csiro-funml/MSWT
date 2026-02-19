@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import math
 from torch.utils.data import DataLoader, random_split, TensorDataset, Dataset, Subset
 from torch.utils.tensorboard import SummaryWriter
-from data_utils.datasets import NSLoader2D
+from data_utils.datasets import NSLoader2D, sample_data
 from einops import rearrange
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -19,7 +19,7 @@ from models.mswt_ablation import MSWT_no_attention, MSWT_no_tokenizer, MSWT_stri
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
-from utils.criterion import LpLoss, PINO_loss3d
+from utils.criterion import LpLoss, PINO_loss3d, get_forcing
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint, torch2dgrid_2d
 
 
@@ -85,6 +85,21 @@ def _get_base_dataset(ds):
     return ds
 
 
+class InitialConditionDataset(Dataset):
+    """Dataset that returns only the initial condition (first time step) for PINO PDE loss."""
+
+    def __init__(self, data_tensor, indices=None):
+        # data_tensor: (N, S, S, T) from NSLoader2D.data
+        self.data = data_tensor
+        self.indices = list(indices) if indices is not None else list(range(len(data_tensor)))
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        return self.data[self.indices[idx], :, :, 0].clone()
+
+
 def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0):
     """
     Grab a deterministic (x_t, x_{t+1}) pair from the test data without relying on
@@ -121,8 +136,9 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     return pred, y.unsqueeze(0)
 
 
-def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True, 
-writer=None, model_name='fno2d', start_ep=0, xy_weight=1.0, f_weight=0.0, ic_weight=0.0):
+def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True,
+writer=None, model_name='fno2d', start_ep=0, xy_weight=1.0, f_weight=0.0, ic_weight=0.0,
+a_loader=None, forcing=None, v=1/40, t_duration=0.125, T_rollout=None):
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
@@ -136,6 +152,8 @@ writer=None, model_name='fno2d', start_ep=0, xy_weight=1.0, f_weight=0.0, ic_wei
         pbar = tqdm(range(start_ep, epochs), dynamic_ncols=True, smoothing=0.1)
     else:
         pbar = range(start_ep, epochs)
+    # Infinite iterator for IC batches (used when f_weight != 0)
+    a_iter = sample_data(a_loader) if (a_loader is not None and f_weight != 0) else None
     best_loss = torch.inf
     for ep in pbar:
         model.train()
@@ -156,8 +174,10 @@ writer=None, model_name='fno2d', start_ep=0, xy_weight=1.0, f_weight=0.0, ic_wei
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             x_in = torch.cat((x.unsqueeze(-1), grid.unsqueeze(0).expand(batch, -1, -1, -1)), dim=-1)
-            if isinstance(model, PDERefiner): # for PDERefiner, the loss function is a denoising loss
+            if isinstance(model, PDERefiner):  # for PDERefiner, the loss function is a denoising loss
                 loss = model.training_step((x.unsqueeze(-1), y.unsqueeze(-1)))
+                loss_ic = torch.tensor(0.0, device=device)
+                loss_f = torch.tensor(0.0, device=device)
             else:
                 pred = model(x_in)
                 if isinstance(pred, tuple):
@@ -166,26 +186,31 @@ writer=None, model_name='fno2d', start_ep=0, xy_weight=1.0, f_weight=0.0, ic_wei
                 else:
                     x_reg = None
                 data_loss = lploss(pred, y)
-                
-                # TODO: add the PINO loss term here
-                if f_weight != 0.0:
-                    # pde loss
-                    a = next(a_loader)
-                    a = a.to(device)
-                    out = model(a)
-                    
-                    u0  = a[:, :, :, 0, -1]
+                # PINO loss: rollout 2D model from u0 to get trajectory, then PDE/IC loss
+                if f_weight != 0.0 and a_iter is not None and T_rollout is not None and T_rollout >= 3:
+                    u0 = next(a_iter).to(device)  # (B, S, S)
+                    B = u0.shape[0]
+                    traj = [u0]
+                    u = u0
+                    for _ in range(1, T_rollout):
+                        x_in = torch.cat((u.unsqueeze(-1), grid.unsqueeze(0).expand(B, -1, -1, -1)), dim=-1)
+                        u = model(x_in)
+                        if u.dim() == 4:
+                            u = u.squeeze(-1)
+                        traj.append(u)
+                    out = torch.stack(traj, dim=-1)  # (B, S, S, T_rollout)
                     loss_ic, loss_f = PINO_loss3d(out, u0, forcing, v, t_duration)
                 else:
-                    loss_ic = loss_f = 0.0
+                    loss_ic = torch.tensor(0.0, device=device)
+                    loss_f = torch.tensor(0.0, device=device)
                 loss = data_loss * xy_weight + loss_f * f_weight + loss_ic * ic_weight
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             rel_l2_loss_total += loss.item()
-            loss_ic_total += loss_ic.item()
-            loss_f_total += loss_f.item()
+            loss_ic_total += (loss_ic.item() if isinstance(loss_ic, torch.Tensor) else loss_ic)
+            loss_f_total += (loss_f.item() if isinstance(loss_f, torch.Tensor) else loss_f)
             batches += 1
         scheduler.step()
         rel_l2_loss_avg = rel_l2_loss_total / max(1, batches)
@@ -470,6 +495,26 @@ def train_2d(args, config):
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
     grid = torch2dgrid_2d(S_data, S_data, form=config['data']['grid_form'], device=device, dtype=torch.float32)
+    
+    # PINO loss: parameters and IC dataloader (see neuraloperator/physics_informed train_pino.py)
+    v = 1.0 / config['data']['Re']
+    t_duration = config['data'].get('t_duration', 0.125)
+    xy_weight = config['train'].get('xy_weight', config['train'].get('xy_loss', 1.0))
+    f_weight = config['train'].get('f_weight', config['train'].get('f_loss', 0.0))
+    ic_weight = config['train'].get('ic_weight', config['train'].get('ic_loss', 0.0))
+    # Forcing at same resolution as data; PDE loss uses rollout trajectory length T
+    S_forcing = S_data
+    forcing = get_forcing(S_forcing).to(device)
+    base_ds = _get_base_dataset(train_set)
+    if hasattr(base_ds, 'data') and hasattr(base_ds, 'T'):
+        indices = train_set.indices if isinstance(train_set, Subset) else list(range(len(base_ds)))
+        a_dataset = InitialConditionDataset(base_ds.data, indices=indices)
+        a_loader = DataLoader(a_dataset, batch_size=config['train']['batchsize'], shuffle=data_config['shuffle'])
+        T_rollout = base_ds.T
+    else:
+        a_loader = None
+        T_rollout = None
+
     train_step_ahead(model,
                         train_loader,
                         optimizer,
@@ -480,7 +525,8 @@ def train_2d(args, config):
                         test_loader=test_loader,
                         writer=writer,
                         model_name=model_name,
-                        start_ep=start_ep)
+                        start_ep=start_ep, xy_weight=xy_weight, f_weight=f_weight, ic_weight=ic_weight,
+                        a_loader=a_loader, forcing=forcing, v=v, t_duration=t_duration, T_rollout=T_rollout)
     
     if test_loader is not None:
         test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)
