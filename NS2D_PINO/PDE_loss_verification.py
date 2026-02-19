@@ -2,6 +2,9 @@
 # use the ground truth of the data to see if the boundary condition, and PDE loss is satisfied
 
 import yaml
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from data_utils.datasets import NSLoader2D
 from utils.criterion import LpLoss, PINO_loss3d, get_forcing
 from argparse import ArgumentParser
