@@ -112,9 +112,8 @@ def PINO_loss3d(u, u0, forcing, v=1/40, t_interval=1.0):
     Du = FDM_NS_vorticity(u, v, t_interval)
 
     # guess the ground truth dt based on the rest of the equations:
-    dt_guess = guess_dt(u, v, forcing)
-    print(f'dt_guess: {dt_guess}')
-    exit(-1)
+    # dt_guess = guess_dt(u, v, forcing)
+    # print(f'dt_guess: {dt_guess}')
     f = forcing.repeat(batchsize, 1, 1, nt-2)
     loss_f = lploss(Du, f)
 
