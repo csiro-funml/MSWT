@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#SBATCH --time=01:30:00           # Increased time for longer training with larger batches
+#SBATCH --time=04:30:00           # Increased time for longer training with larger batches
 
 #SBATCH --mem=256gb
 #SBATCH --nodes=1
@@ -54,8 +54,8 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Ablations
 # python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/rebutall/MSWT_no_attention.yaml --test_seed 42 --test_ratio 0.25
-# python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/rebutall/MSWT_no_tokenizer.yaml --test_seed 42 --test_ratio 0.25
-python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/rebutall/MSWT_strided_up_downsampling.yaml --test_seed 42 --test_ratio 0.25
+python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/rebutall/MSWT_no_tokenizer.yaml --test_seed 42 --test_ratio 0.25
+# python3 train_operator_AR_rell2_2d.py --config_path configs/ablations/rebutall/MSWT_strided_up_downsampling.yaml --test_seed 42 --test_ratio 0.25
 
 
 # python3 test_operator_AR_rell2_2d.py --config_path configs/ablations/rebutall/MSWT_no_attention.yaml --test_seed 42
