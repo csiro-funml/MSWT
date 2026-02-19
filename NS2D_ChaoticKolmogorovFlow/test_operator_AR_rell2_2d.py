@@ -401,7 +401,7 @@ def main():
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
     # Function 1, evaluate the model and save the metrics
-    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=True)
     # exit(-1)
     
      
