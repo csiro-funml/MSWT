@@ -8,15 +8,23 @@ from argparse import ArgumentParser
 import torch
 
 
-def verify_pde_loss(full_dataset, device):
-    for i in range(len(full_dataset)):
-        x, y = full_dataset[i]
-        x = x.to(device)
-        y = y.to(device)
-        x_in = torch.cat((x.unsqueeze(-1), grid.unsqueeze(0).expand(B, -1, -1, -1)), dim=-1)
-        out = model(x_in)
-        loss = lploss(out, y)
-        print(f'Sample {i} PDE loss: {loss.item()}')
+def verify_pde_loss(data, v, t_duration, forcing, device):
+    """ 
+    data: (N, S, S, T) from NSLoader2D.data, compute PINO_loss to test if the PDE loss is zero
+    """
+    total_loss_f = 0.0
+    total_loss_ic = 0.0
+    for i in range(len(data)):
+        x = data[i].to(device) # one realization (S, S, T)
+        u0 = x[:, :, 0] # initial condition (S, S)
+        loss_ic, loss_f = PINO_loss3d(x, u0, forcing, v, t_duration)
+        print(f'Sample {i} PDE loss: {loss_f.item()}')
+        print(f'Sample {i} IC loss: {loss_ic.item()}')
+        total_loss_f += loss_f.item()
+        total_loss_ic += loss_ic.item()
+    print(f'average PDE loss: {total_loss_f / len(data)}')
+    print(f'average IC loss: {total_loss_ic / len(data)}')
+    return total_loss_f / len(data), total_loss_ic / len(data)
 
 
 if __name__ == '__main__':
@@ -42,7 +50,12 @@ if __name__ == '__main__':
                                     n_samples=data_config.get('n_sample', data_config.get('n_samples', data_config['total_num'])),
                                     offset=data_config.get('offset', 0))
 
-
-    verify_pde_loss(full_dataset, device)
+    data = full_dataset.data
+    v = 1.0 / config['data']['Re']
+    t_duration = config['data'].get('t_duration', 0.125)
+    S_forcing = data_config['nx']
+    forcing = get_forcing(S_forcing).to(device)
+    
+    verify_pde_loss(data, v, t_duration, forcing, device)
 
 

@@ -325,10 +325,8 @@ def train_2d(args, config):
         indices = train_set.indices if isinstance(train_set, Subset) else list(range(len(base_ds)))
         a_dataset = InitialConditionDataset(base_ds.data, indices=indices)
         a_loader = DataLoader(a_dataset, batch_size=config['train']['batchsize'], shuffle=data_config['shuffle'])
-        T_rollout = base_ds.T
     else:
-        a_loader = None
-        T_rollout = None
+        a_loader = None  
     
     # create model
     print("device: ", device)
