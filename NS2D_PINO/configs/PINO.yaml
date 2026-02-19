@@ -5,7 +5,7 @@ data:
   total_num: 4000
   offset: 0
   n_sample: 100
-  time_interval: 1
+  t_duration: 1
   nx: 64
   nt: 64
   sub: 1
@@ -14,7 +14,6 @@ data:
   S2: 64
   T2: 65
   grid_form: linear
-  t_duration: 0.125
 
 
 model:
