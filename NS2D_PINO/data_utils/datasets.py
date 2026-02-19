@@ -623,10 +623,6 @@ class NSLoader2D(Dataset):
         if datapath2 is not None:
             data2 = np.load(datapath2)
             data2 = torch.tensor(data2, dtype=torch.float)[..., ::sub_t, ::sub, ::sub]
-        if t_interval == 0.5:
-            data1 = self.extract(data1)
-            if datapath2 is not None:
-                data2 = self.extract(data2)
         part1 = data1.permute(0, 2, 3, 1)
         if datapath2 is not None:
             part2 = data2.permute(0, 2, 3, 1)
