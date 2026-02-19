@@ -18,8 +18,9 @@ def verify_pde_loss(data, v, t_duration, forcing, device):
     total_loss_f = 0.0
     total_loss_ic = 0.0
     for i in range(len(data)):
-        x = data[i].to(device) # one realization (S, S, T)
-        u0 = x[:, :, 0] # initial condition (S, S)
+        print(f'Sample {i} shape: {data[i].shape}')
+        x = data[i].to(device).unsqueeze(0) # one realization (1, S, S, T)
+        u0 = x[..., 0] # initial condition (1, S, S)
         loss_ic, loss_f = PINO_loss3d(x, u0, forcing, v, t_duration)
         print(f'Sample {i} PDE loss: {loss_f.item()}')
         print(f'Sample {i} IC loss: {loss_ic.item()}')
