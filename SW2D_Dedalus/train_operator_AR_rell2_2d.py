@@ -1,4 +1,5 @@
 import os
+from matplotlib import scale
 import yaml
 from argparse import ArgumentParser
 import torch
@@ -12,10 +13,9 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
+from torch_harmonics.examples.models import SphericalFourierNeuralOperatorNet
 from models.wno import WNO2d
 from models.saot import SAOTModel
-from models.wavelet_transform import MultiscaleWaveletTransformer2D
-from models.periodic_mswt import PeriodicMSWT2D_Patching
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
@@ -332,66 +332,6 @@ def train_2d(args, config):
                         out_c=model_cfg.get('out_c', 1),
                         target_params=model_cfg.get('target_params', 'medium'),
                         device=device).to(device)
-    elif model_name == 'pderefiner':
-        model = PDERefiner(
-                name=model_cfg.get('basemodel_name', 'Unetmod-64'),
-                time_history=model_cfg.get('time_history', 1), # T_in
-                time_future=model_cfg.get('time_future', 1), # T_ar
-                time_gap=0,
-                max_num_steps=model_cfg.get('max_num_steps', 1),  # T_ar, just one step ahead
-                n_spatial_dim=model_cfg.get('n_spatial_dim', 2),
-                in_channels=model_cfg.get('in_channels', 3), # input channels
-                out_channels=model_cfg.get('out_channels', 1)   , # output channels
-                trajlen=model_cfg.get('trajlen', 64), # T_max
-                activation=model_cfg.get('activation', 'gelu'),
-                criterion=model_cfg.get('criterion', 'mse'),
-                hidden_channels=model_cfg.get('hidden_channels', 16),
-                n_blocks=model_cfg.get('n_blocks', 3),
-    ).to(device)
-    elif model_name in ['refiner_unet']:
-        model = UNetRefiner(
-            input_channels=model_cfg.get('in_channels', 3),
-            output_channels=model_cfg.get('out_channels', 1),
-            time_history=model_cfg.get('time_history', 0),
-            time_future=model_cfg.get('time_future', 0),
-            hidden_channels=model_cfg.get('hidden_channels', 16),
-            activation=model_cfg.get('activation', 'gelu'),
-            n_blocks=model_cfg.get('n_blocks', 3),
-        ).to(device)
-    elif model_name in ['wno', 'wno2d']:
-        dummy = torch.zeros(1, 1, S_data[0], S_data[1], device=device)
-        model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
-                      out_channels=model_cfg.get('out_chans', 1),
-                      width=model_cfg.get('width', 64),
-                      level=model_cfg.get('level', 3),
-                      dummy_data=dummy).to(device)
-    elif model_name in ['saot', 'saot2d']:
-        model = SAOTModel(space_dim=model_cfg.get('space_dim', 2),
-                        n_layers=model_cfg.get('n_layers', 3),
-                        n_hidden=model_cfg.get('n_hidden', 64)  ,
-                        dropout=model_cfg.get('dropout', 0.0),
-                        n_head=model_cfg.get('n_head', 4),
-                        Time_Input=model_cfg.get('Time_Input', False),
-                        mlp_ratio=model_cfg.get('mlp_ratio', 1),
-                        fun_dim=model_cfg.get('fun_dim', 1),
-                        out_dim=model_cfg.get('out_dim', 1),
-                        H = S_data[0],
-                        W = S_data[1],
-                        slice_num=model_cfg.get('slice_num', 32),
-                        ref=model_cfg.get('ref', 8),
-                        unified_pos=model_cfg.get('unified_pos', 0),
-                        is_filter=model_cfg.get('is_filter', True)).to(device)
-    elif model_name in ['multiscale_wavelet', 'multiscale_wavelet2d', 'multiscale_wavelet_transformer2d']:
-        model = MultiscaleWaveletTransformer2D(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
     elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
         model = PeriodicMSWT2D_Patching(
             wave=model_cfg.get('wave', 'haar'),
@@ -406,6 +346,18 @@ def train_2d(args, config):
             patch_size=model_cfg.get('patch_size', None),
             local_attention_size=model_cfg.get('local_attention_size', None),
         ).to(device)
+    elif model_name == 'sfno':
+        model = SphericalFourierNeuralOperatorNet(img_size=(S_data[0], S_data[1]), 
+                                                  in_chans=model_cfg.get('in_chans', 3),
+                                                  out_chans=model_cfg.get('out_chans', 1),
+                                                  num_layers=model_cfg.get('num_layers', 4),
+                                                  scale_factor=model_cfg.get('scale_factor', 3),
+                                                  embed_dim=model_cfg.get('embed_dim', 16),
+                                                  pos_embed=model_cfg.get('pos_embed', 'spectral'),
+                                                  use_mlp=model_cfg.get('use_mlp', True),
+                                                  normalization_layer=model_cfg.get('normalization_layer', 'instance_norm')
+        ).to(device)
+                                                  
     else:
         raise ValueError(f'Model {model_name} not supported')
     print('model structure: ', model)

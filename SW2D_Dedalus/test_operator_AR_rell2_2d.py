@@ -15,6 +15,7 @@ from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
+from models.mswt import PeriodicMSWT2D_Patching
 from einops import rearrange
 from utils.criterion import LpLoss, LogEnstropyEnergyLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
