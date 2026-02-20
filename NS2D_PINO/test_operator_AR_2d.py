@@ -10,16 +10,11 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
-from models.wno import WNO2d
-from models.saot import SAOTModel
-from models.mswt import PeriodicMSWT2D_Patching
-from models.mswt_ablation import MSWT_no_attention, MSWT_no_tokenizer, MSWT_strided_up_downsampling
-from models.pderefiner import PDERefiner
-from models.pderefiner_unet import UNetRefiner
 from einops import rearrange
-from utils.criterion import LpLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError
+from utils.criterion import LpLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, get_forcing, PINO_loss3d
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch, compute_enstropy_torch
 from utils.utilities import torch2dgrid_2d
+from data_utils.datasets import InitialConditionDataset
 import pandas as pd
 
 
@@ -42,13 +37,6 @@ def load_ns_sequences(data_config):
         data1 = np.load(datapath1)
     data1 = torch.tensor(data1, dtype=torch.float)[..., ::sub_t, ::sub, ::sub]
     # print("data1 shape: ", data1.shape)
-    if t_interval == 0.5:
-        # subselect time to 1s 
-        # data1 = NSLoader2D.extract(data1)
-        sub_t = int(1//t_interval)
-        data1 = data1[:, ::sub_t, ...]
-        # print("data1 shape: ", data1.shape)
-        
     part1 = data1.permute(0, 2, 3, 1)  # (N, X, Y, T)
     data = part1
     # print("data shape: ", data.shape)
@@ -81,13 +69,7 @@ def autoregressive_predict(model, sequences, device, grid):
             initial_condition.append(prev)
             for t in range(T - 1):
                 x_in = torch.cat((prev.unsqueeze(-1), grid.unsqueeze(0).expand(prev.shape[0], -1, -1, -1)), dim=-1)
-                if isinstance(model, PDERefiner):
-                    if len(prev.shape) == 3:
-                        prev = rearrange(prev, 'b h w -> b 1 1 h w')
-                    pred = model.validation_step(prev)
-                    pred = rearrange(pred, 'b 1 c h w -> b h w c')
-                else:
-                    pred = model(x_in)
+                pred = model(x_in)
                 if pred.dim() == 5:
                     pred = pred.squeeze(-2)
                 if pred.dim() == 4:
@@ -187,6 +169,22 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=Fal
     return metrics_dict
 
 
+def compute_PDE_loss(truth_seq, pred_seq, t_duration, v, forcing):
+    """
+    truth_seq: (B, H, W, T)
+    pred_seq: (B, H, W, T)
+    t_duration: float
+    v: float
+    forcing: (B, H, W)
+    """
+    # loss_ic, loss_f = PINO_loss3d(out, u0, forcing, v, t_duration)
+    
+    # compute the loss for the ground truth sequence
+
+    loss_ic, loss_f = PINO_loss3d(pred_seq, truth_seq, forcing, v, t_duration)
+    print(f"PDE loss: {loss_f.item()}, IC loss: {loss_ic.item()}")
+    return loss_f.item(), loss_ic.item()
+
 def save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed):
     """
     truth_seq: (B, H, W, T)
@@ -258,6 +256,23 @@ def main():
     data_config = config['test_data']
     model_cfg = config['model']
     sequences, S_data, T_data = load_ns_sequences(data_config)
+    
+    v = 1.0 / config['data']['Re']
+    t_duration = config['data'].get('t_duration', 0.125)
+    xy_weight = config['train'].get('xy_loss', 1.0)
+    f_weight = config['train'].get('f_loss', 0.0)
+    ic_weight = config['train'].get('ic_loss', 0.0)
+    # Forcing at same resolution as data; PDE loss uses rollout trajectory length T
+    S_forcing = S_data
+    forcing = get_forcing(S_forcing).to(device)
+    base_ds = sequences
+    if hasattr(base_ds, 'data') and hasattr(base_ds, 'T'):
+        indices = list(range(len(base_ds)))
+        a_dataset = InitialConditionDataset(base_ds, indices=indices)
+        a_loader = DataLoader(a_dataset, batch_size=config['train']['batchsize'], shuffle=data_config['shuffle'])
+    else:
+        a_loader = None  
+    
     grid = torch2dgrid_2d(S_data, S_data, form=config['data']['grid_form'], device=device, dtype=torch.float32)
     model_name = model_cfg.get('name', 'fno2d').lower()
     
@@ -276,111 +291,6 @@ def main():
                         out_c=model_cfg.get('out_c', 1),
                         target_params=model_cfg.get('target_params', 'medium'),
                         device=device).to(device)
-    elif model_name == 'pderefiner':
-        model = PDERefiner(
-                name=model_cfg.get('basemodel_name', 'Unetmod-64'),
-                time_history=model_cfg.get('time_history', 1), # T_in
-                time_future=model_cfg.get('time_future', 1), # T_ar
-                time_gap=0,
-                max_num_steps=model_cfg.get('max_num_steps', 1),  # T_ar, just one step ahead
-                n_spatial_dim=model_cfg.get('n_spatial_dim', 2),
-                in_channels=model_cfg.get('in_channels', 3), # input channels
-                out_channels=model_cfg.get('out_channels', 1)   , # output channels
-                trajlen=model_cfg.get('trajlen', 64), # T_max
-                activation=model_cfg.get('activation', 'gelu'),
-                criterion=model_cfg.get('criterion', 'mse'),
-                hidden_channels=model_cfg.get('hidden_channels', 16),
-                n_blocks=model_cfg.get('n_blocks', 3),
-    ).to(device)
-    elif model_name in ['refiner_unet']:
-        model = UNetRefiner(
-            input_channels=model_cfg.get('in_channels', 3),
-            output_channels=model_cfg.get('out_channels', 1),
-            time_history=model_cfg.get('time_history', 0),
-            time_future=model_cfg.get('time_future', 0),
-            hidden_channels=model_cfg.get('hidden_channels', 16),
-            activation=model_cfg.get('activation', 'gelu'),
-            n_blocks=model_cfg.get('n_blocks', 3),
-        ).to(device)
-    elif model_name in ['wno', 'wno2d']:
-        dummy = torch.zeros(1, 1, S_data, S_data, device=device)
-        model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
-                      out_channels=model_cfg.get('out_chans', 1),
-                      width=model_cfg.get('width', 64),
-                      level=model_cfg.get('level', 3),
-                      dummy_data=dummy).to(device)
-    elif model_name in ['saot', 'saot2d']:
-        model = SAOTModel(space_dim=model_cfg.get('space_dim', 2),
-                        n_layers=model_cfg.get('n_layers', 3),
-                        n_hidden=model_cfg.get('n_hidden', 64)  ,
-                        dropout=model_cfg.get('dropout', 0.0),
-                        n_head=model_cfg.get('n_head', 4),
-                        Time_Input=model_cfg.get('Time_Input', False),
-                        mlp_ratio=model_cfg.get('mlp_ratio', 1),
-                        fun_dim=model_cfg.get('fun_dim', 1),
-                        out_dim=model_cfg.get('out_dim', 1),
-                        H = S_data,
-                        W = S_data,
-                        slice_num=model_cfg.get('slice_num', 32),
-                        ref=model_cfg.get('ref', 8),
-                        unified_pos=model_cfg.get('unified_pos', 0),
-                        is_filter=model_cfg.get('is_filter', True)).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
-        model = PeriodicMSWT2D_Patching(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
-    elif model_name in ['mswt_strided_up_downsampling']:
-        model = MSWT_strided_up_downsampling(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
-    elif model_name in ['mswt_no_attention']:
-        model = MSWT_no_attention(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
-    elif model_name in ['mswt_no_tokenizer']:
-        model = MSWT_no_tokenizer(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
     else:
         raise ValueError(f'Model {model_name} not supported')
     # print('model structure: ', model)
@@ -401,9 +311,10 @@ def main():
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
     # Function 1, evaluate the model and save the metrics
-    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=True)
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
     # exit(-1)
     
+    compute_PDE_loss(truth_seq, pred_seq, t_duration, v, forcing)
      
     # Function 2, for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
     # time_indices = [0, 29, truth_seq.shape[-1] - 1]
