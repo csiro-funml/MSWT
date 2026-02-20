@@ -34,7 +34,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/FNO_spherical.yaml
 # python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/HFS_spherical.yaml
 # python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/MSWT_patching_spherical.yaml
-
+python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/SFNO.yaml --test_seed 42
 #################################################################################################################################
 
 
@@ -42,5 +42,5 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # python3 test_operator_AR_rell2_2d.py --config_path configs/spherical/FNO_spherical.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/spherical/HFS_spherical.yaml --test_seed 42
 # python3 test_operator_AR_rell2_2d.py --config_path configs/spherical/MSWT_patching_spherical.yaml --test_seed 42
-python3 test_operator_AR_rell2_2d.py --config_path configs/spherical/SFNO.yaml --test_seed 42
+# python3 test_operator_AR_rell2_2d.py --config_path configs/spherical/SFNO.yaml --test_seed 42
 #################################################################################################################################
