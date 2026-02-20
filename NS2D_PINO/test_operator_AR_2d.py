@@ -181,10 +181,10 @@ def compute_PDE_loss(initial_condition, truth_seq, pred_seq, t_duration, v, forc
     u0 = initial_condition.squeeze(1)
     # compute the loss for the ground truth sequence
     loss_ic_gt, loss_f_gt = PINO_loss3d(truth_seq, u0, forcing, v, t_duration)
-    print(f"PDE loss: {loss_f_gt.item()}, IC loss: {loss_ic_gt.item()}")
+    print(f"Ground truthPDE loss: {loss_f_gt.item()}, IC loss: {loss_ic_gt.item()}")
     # compute the loss for the predicted sequence
     loss_ic_pred, loss_f_pred = PINO_loss3d(pred_seq, u0, forcing, v, t_duration)
-    print(f"PDE loss: {loss_f_pred.item()}, IC loss: {loss_ic_pred.item()}")
+    print(f"Predicted sequence PDE loss: {loss_f_pred.item()}, IC loss: {loss_ic_pred.item()}")
     
     return loss_f_gt.item(), loss_ic_gt.item(), loss_f_pred.item(), loss_ic_pred.item()
 
