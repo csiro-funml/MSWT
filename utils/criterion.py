@@ -1029,14 +1029,15 @@ def legendre_gauss_weights(n, a=-1.0, b=1.0):
     return xlg, wlg
 
 class SphericalLpLoss(_WeightedLoss):
-    def __init__(self, size_average=True, reduction=True, nlon=96, nlat=48, radius=1, quad_weights=None, layout='lat-lon'):
+    def __init__(self, size_average=True, reduction=True, nlon=96, nlat=48, radius=1, quad_weights=None, layout='lat-lon', channel_last=False):
         super(SphericalLpLoss, self).__init__()
         self.size_average = size_average
         self.reduction = reduction
         self.nlon = nlon
         self.nlat = nlat
         self.radius = radius
-        self.layout = layout  # 'lat-lon': last two dims are (nlat, nlon); 'lon-lat': (nlon, nlat)
+        self.layout = layout  # 'lat-lon': spatial (nlat, nlon); 'lon-lat': (nlon, nlat)
+        self.channel_last = channel_last  # True if shape is (B, H, W, C); else (B, C, H, W)
         _, quad_weights = legendre_gauss_weights(nlat, -1, 1)
         w = torch.as_tensor(quad_weights)
         if layout == 'lat-lon':
@@ -1048,7 +1049,16 @@ class SphericalLpLoss(_WeightedLoss):
         ugrid = (pred - target)**2
         dlon = 2 * torch.pi / self.nlon
         radius = self.radius
-        out = torch.sum(ugrid * self.quad_weights.to(pred.device) * dlon * radius**2, dim=(-2, -1))
+        w = self.quad_weights.to(pred.device)
+        if self.channel_last:
+            # Spatial dims are (-3, -2); channel is (-1). Broadcast w to (1, nlat, 1, 1) or (1, 1, nlat, 1)
+            if self.layout == 'lat-lon':
+                w = w.reshape(1, -1, 1, 1)   # (1, nlat, 1, 1) for (B, nlat, nlon, C)
+            else:
+                w = w.reshape(1, 1, -1, 1)   # (1, 1, nlat, 1) for (B, nlon, nlat, C)
+            out = torch.sum(ugrid * w * dlon * radius**2, dim=(-3, -2))
+        else:
+            out = torch.sum(ugrid * w * dlon * radius**2, dim=(-2, -1))
         loss = torch.sqrt(out).mean()
         return loss
 

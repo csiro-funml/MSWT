@@ -149,8 +149,10 @@ def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
 def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True, writer=None, model_name='fno2d', start_ep=0):
     """Train on one-step pairs (u_t, u_{t+1})."""
     print("grid shape:", grid.shape)
-    # Use layout='lat-lon' if pred/y have shape (..., nlat, nlon); use 'lon-lat' if (..., nlon, nlat)
-    lploss = SphericalLpLoss(size_average=True, nlon=grid.shape[1], nlat=grid.shape[0], radius=1, layout='lon-lat')
+    # SFNO outputs (B, H, W, C); other models (B, C, H, W). Use layout='lat-lon' for (nlat, nlon), 'lon-lat' for (nlon, nlat).
+    channel_last = isinstance(model, SFNO)
+    layout = 'lat-lon' if channel_last else 'lon-lat'
+    lploss = SphericalLpLoss(size_average=True, nlon=grid.shape[1], nlat=grid.shape[0], radius=1, layout=layout, channel_last=channel_last)
     epochs = config['train']['epochs']
 
     lambda_amp_final = 1e-2    # good starting point
