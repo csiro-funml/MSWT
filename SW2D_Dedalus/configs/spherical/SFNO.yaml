@@ -16,7 +16,7 @@ model:
   scale_factor: 3
   embed_dim: 16
   # 'spectral' uses internal (h,w)=(43,85) and mismatches encoder output (128,256); use full-resolution pos_embed
-  pos_embed: 'learnable latlon'
+  pos_embed: 'none'
   use_mlp: True
   normalization_layer: 'instance_norm'            
 
