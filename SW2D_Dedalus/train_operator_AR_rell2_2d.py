@@ -80,7 +80,12 @@ def evaluate_step_ahead(model, test_loader, device, grid):
                 x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
             else:
                 x_in = x
-            if isinstance(model, PDERefiner):
+            
+            if isinstance(model, SFNO): # for PDERefiner, the loss function is a denoising loss
+                x_in = x_in.permute(0, 3, 1, 2) # (B, H, W, C) -> (B, C, H, W)
+                pred = model(x_in) 
+                pred = pred.permute(0, 2, 3, 1) # (B, C, H, W) -> (B, H, W, C)
+            elif isinstance(model, PDERefiner):
                 if len(x.shape) == 3:
                     x = rearrange(x, 'b h w -> b 1 1 h w')
                 pred = model.validation_step(x)
