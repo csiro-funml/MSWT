@@ -13,7 +13,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
-from torch_harmonics.examples.models import SphericalFourierNeuralOperatorNet as SFNO
+from torch_harmonics.examples.models import SphericalFourierNeuralOperator as SFNO
 from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.pderefiner import PDERefiner
