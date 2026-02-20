@@ -279,7 +279,7 @@ def train_2d(args, config):
                                     nx=data_config['nx'], nt=data_config['nt'],
                                     sub=data_config['sub'], sub_t=data_config['sub_t'],
                                     N=data_config['total_num'],
-                                    t_interval=data_config['time_interval'],
+                                    t_interval=data_config['t_duration'],
                                     n_samples=data_config.get('n_sample', data_config.get('n_samples', data_config['total_num'])),
                                     offset=data_config.get('offset', 0))
         S_data = full_dataset.S
