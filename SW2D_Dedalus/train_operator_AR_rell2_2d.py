@@ -13,14 +13,15 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
-from torch_harmonics.examples.models import SphericalFourierNeuralOperatorNet
+from torch_harmonics.examples.models import SphericalFourierNeuralOperatorNet as SFNO
 from models.wno import WNO2d
 from models.saot import SAOTModel
 from models.pderefiner import PDERefiner
 from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
-from utils.criterion import LpLoss
+from utils.criterion import LpLoss, SphericalLpLoss
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint, torch2dgrid_2d
+
 
 
 class SyntheticStepDataset(Dataset):
@@ -146,7 +147,9 @@ def torch2dgrid(num_x, num_y, bot=(0,0), top=(1,1)):
 
 def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True, writer=None, model_name='fno2d', start_ep=0):
     """Train on one-step pairs (u_t, u_{t+1})."""
-    lploss = LpLoss(size_average=True)
+    print("grid shape:", grid.shape)
+    # Use layout='lat-lon' if pred/y have shape (..., nlat, nlon); use 'lon-lat' if (..., nlon, nlat)
+    lploss = SphericalLpLoss(size_average=True, nlon=grid.shape[1], nlat=grid.shape[0], radius=1, layout='lon-lat')
     epochs = config['train']['epochs']
 
     lambda_amp_final = 1e-2    # good starting point
@@ -175,8 +178,11 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
-            if isinstance(model, PDERefiner): # for PDERefiner, the loss function is a denoising loss
-                loss = model.training_step((x, y))
+            
+            if isinstance(model, SFNO): # for PDERefiner, the loss function is a denoising loss
+                x_in = x_in.permute(0, 3, 1, 2) # (B, H, W, C) -> (B, C, H, W)
+                pred = model(x_in) 
+                pred = pred.permute(0, 2, 3, 1) # (B, C, H, W) -> (B, H, W, C)
             else:
                 pred = model(x_in)
                 if isinstance(pred, tuple):
@@ -184,12 +190,12 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                     # print("pred shape:", pred.shape, "x_reg shape:", x_reg.shape)
                 else:
                     x_reg = None
-                # print("pred shape:", pred.shape, "y shape:", y.shape)
-                data_loss = lploss(pred, y)
-                if x_reg is not None:
-                    loss = data_loss + lambda_amp * x_reg
-                else:
-                    loss = data_loss
+            # print("pred shape:", pred.shape, "y shape:", y.shape)
+            data_loss = lploss(pred, y)
+            if x_reg is not None:
+                loss = data_loss + lambda_amp * x_reg
+            else:
+                loss = data_loss
 
             optimizer.zero_grad()
             loss.backward()
@@ -347,7 +353,7 @@ def train_2d(args, config):
             local_attention_size=model_cfg.get('local_attention_size', None),
         ).to(device)
     elif model_name == 'sfno':
-        model = SphericalFourierNeuralOperatorNet(img_size=(S_data[0], S_data[1]), 
+        model = SFNO(img_size=(S_data[0], S_data[1]), 
                                                   in_chans=model_cfg.get('in_chans', 3),
                                                   out_chans=model_cfg.get('out_chans', 1),
                                                   num_layers=model_cfg.get('num_layers', 4),
@@ -355,7 +361,7 @@ def train_2d(args, config):
                                                   embed_dim=model_cfg.get('embed_dim', 16),
                                                   pos_embed=model_cfg.get('pos_embed', 'spectral'),
                                                   use_mlp=model_cfg.get('use_mlp', True),
-                                                  normalization_layer=model_cfg.get('normalization_layer', 'instance_norm')
+                                                  normalization_layer=model_cfg.get('normalization_layer', None)
         ).to(device)
                                                   
     else:

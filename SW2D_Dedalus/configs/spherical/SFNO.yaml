@@ -28,8 +28,8 @@ train:
   ic_loss: 0.0
   f_loss: 0.0
   xy_loss: 1.0
-  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/FNO2d_spherical/
-  save_name: FNO2d-mode16-dim64-layer4.pt
+  save_dir: /scratch3/wan410/operator_learning_model/SW2D_Dedalus/SFNO2d/
+  save_name: SFNO-nlayers4-embed16.pt
   data_iter: 1
   eqn_iter: 0
   eval_step: 10

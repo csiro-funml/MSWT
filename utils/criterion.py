@@ -1016,6 +1016,43 @@ class LpLoss(object):
         return self.rel(x, y)
 
 
+def legendre_gauss_weights(n, a=-1.0, b=1.0):
+    r"""
+    Helper routine which returns the Legendre-Gauss nodes and weights
+    on the interval [a, b]
+    """
+
+    xlg, wlg = np.polynomial.legendre.leggauss(n)
+    xlg = (b - a) * 0.5 * xlg + (b + a) * 0.5
+    wlg = wlg * (b - a) * 0.5
+
+    return xlg, wlg
+
+class SphericalLpLoss(_WeightedLoss):
+    def __init__(self, size_average=True, reduction=True, nlon=96, nlat=48, radius=1, quad_weights=None, layout='lat-lon'):
+        super(SphericalLpLoss, self).__init__()
+        self.size_average = size_average
+        self.reduction = reduction
+        self.nlon = nlon
+        self.nlat = nlat
+        self.radius = radius
+        self.layout = layout  # 'lat-lon': last two dims are (nlat, nlon); 'lon-lat': (nlon, nlat)
+        _, quad_weights = legendre_gauss_weights(nlat, -1, 1)
+        w = torch.as_tensor(quad_weights)
+        if layout == 'lat-lon':
+            self.quad_weights = w.reshape(-1, 1)   # (nlat, 1) broadcasts over (..., nlat, nlon)
+        else:
+            self.quad_weights = w.reshape(1, -1)  # (1, nlat) broadcasts over (..., nlon, nlat)
+    
+    def forward(self, pred, target):
+        ugrid = (pred - target)**2
+        dlon = 2 * torch.pi / self.nlon
+        radius = self.radius
+        out = torch.sum(ugrid * self.quad_weights.to(pred.device) * dlon * radius**2, dim=(-2, -1))
+        loss = torch.sqrt(out).mean()
+        return loss
+
+
 class RelLpLoss(_WeightedLoss):
     def __init__(self, d=2, p=2, component=0, regularizer=False, normalizer=None):
         super(RelLpLoss, self).__init__()
