@@ -169,7 +169,7 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=Fal
     return metrics_dict
 
 
-def compute_PDE_loss(truth_seq, pred_seq, t_duration, v, forcing):
+def compute_PDE_loss(initial_condition, truth_seq, pred_seq, t_duration, v, forcing):
     """
     truth_seq: (B, H, W, T)
     pred_seq: (B, H, W, T)
@@ -178,7 +178,7 @@ def compute_PDE_loss(truth_seq, pred_seq, t_duration, v, forcing):
     forcing: (B, H, W)
     """
     # loss_ic, loss_f = PINO_loss3d(out, u0, forcing, v, t_duration)
-    u0 = truth_seq[..., 0] 
+    u0 = initial_condition.squeeze(1)
     # compute the loss for the ground truth sequence
     loss_ic_gt, loss_f_gt = PINO_loss3d(truth_seq, u0, forcing, v, t_duration)
     print(f"PDE loss: {loss_f_gt.item()}, IC loss: {loss_ic_gt.item()}")
@@ -317,7 +317,7 @@ def main():
     # evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
     # exit(-1)
     
-    loss_f_gt, loss_ic_gt, loss_f_pred, loss_ic_pred = compute_PDE_loss(truth_seq, pred_seq, t_duration, v, forcing)
+    loss_f_gt, loss_ic_gt, loss_f_pred, loss_ic_pred = compute_PDE_loss(initial_condition, truth_seq, pred_seq, t_duration, v, forcing)
      
     # Function 2, for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
     # time_indices = [0, 29, truth_seq.shape[-1] - 1]
