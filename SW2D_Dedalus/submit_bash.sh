@@ -30,33 +30,14 @@ echo "=========================================="
 # Training
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python3 data_utils/datasets.py
+# python3 data_utils/datasets.py
 # python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/FNO_spherical.yaml
 # python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/HFS_spherical.yaml
 # python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/MSWT_patching_spherical.yaml
-# python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/MSWT_spherical.yaml
-# python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/PDERefiner_spherical.yaml
-# python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/PDERefinerUNet_spherical.yaml
-# python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/SAOT_spherical.yaml
-# python3 train_operator_AR_rell2_2d.py --config_path configs/spherical/WNO_spherical.yaml
-# python3 train_operator_AR_rell2_2d.py --config_path configs/linear/HFS.yaml
-# python3 train_operator_AR_rell2_2d.py --config_path configs/linear/MSWT_patching.yaml
 
 #################################################################################################################################
 
 
 # Testing
-# python3 test_operator_AR_rell2_2d.py --config_path configs/linear/FNO.yaml --test_seed 42
-# python3 test_operator_AR_rell2_2d.py --config_path configs/linear/MSWT_patching.yaml --test_seed 42
-# python3 test_operator_AR_rell2_2d.py --config_path configs/HFS.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/WNO.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/SAOT.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/PDERefiner.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/PDERefinerUNet.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_NodecoderAttn.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_double_attn.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_periodic_nlayers4.yaml
-# python3 test_operator_AR_rell2_2d.py --config_path configs/MSWT_patching_periodic.yaml
+python3 test_operator_AR_rell2_2d.py --config_path configs/spherical/FNO_spherical.yaml --test_seed 42
 #################################################################################################################################
