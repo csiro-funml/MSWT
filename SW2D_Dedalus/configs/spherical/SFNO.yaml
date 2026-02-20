@@ -14,7 +14,7 @@ model:
   out_chans: 2
   num_layers: 4
   scale_factor: 3
-  embed_dim: 16
+  embed_dim: 64
   # 'spectral' uses internal (h,w)=(43,85) and mismatches encoder output (128,256); use full-resolution pos_embed
   pos_embed: 'none'
   use_mlp: True

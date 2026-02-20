@@ -63,6 +63,8 @@ def evaluate_3d(model, test_loader, device):
 def evaluate_step_ahead(model, test_loader, device, grid, lploss=None):
     """Evaluate one-step prediction u_t -> u_{t+1}."""
     # lploss = LpLoss(size_average=True)
+    if lploss is None:
+        lploss = SphericalLpLoss(size_average=True, nlon=grid.shape[1], nlat=grid.shape[0], radius=1, layout='lon-lat', channel_last=False)
     model.eval()
     total = 0.0
     batches = 0
