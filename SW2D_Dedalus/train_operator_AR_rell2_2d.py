@@ -226,7 +226,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                 model, 
                                 ep,
                                 optimizer, scheduler)
-                break
+                continue
                 fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=550, t_idx=0)
                 # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 
