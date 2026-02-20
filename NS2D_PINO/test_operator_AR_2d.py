@@ -261,10 +261,8 @@ def main():
     sequences, S_data, T_data = load_ns_sequences(data_config)
     
     v = 1.0 / config['data']['Re']
-    t_duration = config['data'].get('t_duration', 0.125)
-    xy_weight = config['train'].get('xy_loss', 1.0)
-    f_weight = config['train'].get('f_loss', 0.0)
-    ic_weight = config['train'].get('ic_loss', 0.0)
+    t_duration = config['test_data'].get('time_interval', 0.125)
+    
     # Forcing at same resolution as data; PDE loss uses rollout trajectory length T
     S_forcing = S_data
     forcing = get_forcing(S_forcing).to(device)
