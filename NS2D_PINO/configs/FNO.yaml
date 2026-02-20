@@ -44,7 +44,7 @@ test_data:
   total_num: 100
   offset: 0
   n_sample: 100
-  time_interval: 0.5
+  time_interval: 1
   nx: 256
   nt: 128
   sub: 4
