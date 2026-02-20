@@ -60,10 +60,9 @@ def evaluate_3d(model, test_loader, device):
     return total / batches
 
 
-def evaluate_step_ahead(model, test_loader, device, grid):
+def evaluate_step_ahead(model, test_loader, device, grid, lploss=None):
     """Evaluate one-step prediction u_t -> u_{t+1}."""
-    lploss = LpLoss(size_average=True)
-
+    # lploss = LpLoss(size_average=True)
     model.eval()
     total = 0.0
     batches = 0
@@ -216,7 +215,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
             pbar.set_description((f'Train L2: {avg:.6f}'))
 
         if ep % eval_step == 0 and test_loader is not None:
-            test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)
+            test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid, lploss=lploss)
             print(f'Random test split relative L2: {test_l2:.6f}')
             if writer is not None:
                 writer.add_scalar('eval/test_l2', test_l2, ep + 1)
