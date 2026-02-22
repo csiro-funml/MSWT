@@ -119,14 +119,6 @@ def train_model(model, train_loader, val_loader, optimizer, scheduler=None, nepo
                                     epoch,
                                     optimizer, scheduler)
                     recall_count = 0
-                # else:
-                #     print(f"epoch {epoch} Loading model from {os.path.join(config['train']['save_dir'], config['train']['save_name'])}")
-                #     ckpt = torch.load(os.path.join(config['train']['save_dir'], config['train']['save_name']), map_location=device)
-                #     model.load_state_dict(ckpt['model'])
-                #     recall_count += 1
-                #     if recall_count > 3:
-                #         print(f"Breaking at epoch {epoch}")
-                #         break
                     
 
 
@@ -244,36 +236,7 @@ if __name__ == '__main__':
                         add_sphere_grid=model_cfg.get('add_sphere_grid', True),
                         target_params=model_cfg.get('target_params', 'small'),
                         ).to(device)
-    elif model_name == 'mswt_sphere':
-         model = PeriodicMSWT2D_Patching(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_sphere_grid=model_cfg.get('add_sphere_grid', True),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-        ).to(device)
     elif model_name == 'mswt_patch_sphere':
-        model = PeriodicMSWT2D_Patching(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_sphere_grid=model_cfg.get('add_sphere_grid', True),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
-            residual_connection=model_cfg.get('residual_connection', False),
-        ).to(device)
-    elif model_name == 'mswt_residual_sphere_efficient':
         model = PeriodicMSWT2D_Patching(
             wave=model_cfg.get('wave', 'haar'),
             input_dim=model_cfg.get('in_chans', 3),
