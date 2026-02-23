@@ -186,12 +186,12 @@ def verify_time_steps(folder_path, state='test'):
     print(data_dict.keys())
     X_data = data_dict[X_key]
     y_data = data_dict[y_key]
-    print("X_data shape: ", X_data.shape)
-    print("y_data shape: ", y_data.shape)
-    print("first 10 X_data: ", X_data[:10])
-    print("first 10 y_data: ", y_data[:10])
-    print("last 10 X_data: ", X_data[-10:])
-    print("last 10 y_data: ", y_data[-10:])
+    realisation_names = data_dict['test_realisations']
+    times = data_dict['times_test']
+    print("realisation_names shape: ", realisation_names.shape)
+    print("times shape: ", times.shape)
+    print("realisation_names: ", realisation_names)
+    print("times: ", times)
     return X_data, y_data
 
 if __name__ == '__main__':
