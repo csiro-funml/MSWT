@@ -775,7 +775,9 @@ if __name__ == "__main__":
     # model = MultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dims=[64, 128, 256, 512], use_efficient_attention=True,   efficient_layers=[0, 1, 2])
     # model = PeriodicMultiscaleWaveletTransformer2D(input_dim=3, output_dim=1, dims=[32, 64, 128, 256, 512], 
     # use_efficient_attention=True,   efficient_layers=[0, 1, 2, 3], add_periodic_grid=True, local_attention_size=6)
-    x = torch.rand(2, 7, 48, 96)
+    # x = torch.rand(2, 7, 48, 96)
+
+    x = torch.rand(1, 50, 512, 1024)
     # model = PeriodicMSWT2D_Patching(input_dim=7, output_dim=6, dims=[64, 128, 384], 
     # use_efficient_attention=True,   efficient_layers=[0, 1], add_sphere_grid=True, 
     # local_attention_size=8, 
@@ -784,9 +786,15 @@ if __name__ == "__main__":
     # model = PeriodicMSWT2D_Patching(input_dim=7, output_dim=6, dims=[64, 128, 256, 512], 
     # use_efficient_attention=True,   efficient_layers=[0, 1, 2], add_sphere_grid=True, 
     # local_attention_size=6, patch_size=2)
-    model = PeriodicMSWT2D_Patching(input_dim=7, output_dim=6, dims=[64, 128, 512], 
-    use_efficient_attention=True,   efficient_layers=[0, 1], add_sphere_grid=True, 
-    local_attention_size=8, patch_size=3)
+    
+    
+    model = PeriodicMSWT2D_Patching(input_dim=50, output_dim=50, dims=[64, 128, 256, 256, 512], 
+    use_efficient_attention=True,   efficient_layers=[0, 1, 2, 3], add_sphere_grid=True, 
+    local_attention_size=6, patch_size=[2, 2], residual_connection=True)
+
+
+
+
     # model = MultiscaleWaveletTransformer2DDecoderNoAttention(input_dim=3, output_dim=1, dim=96, use_efficient_attention=True)
     
     print("number of parameters:", model.count_parameters())

@@ -12,12 +12,12 @@ train:
 model:
   name: MSWT_patch_sphere
   wave: haar
-  dims: [64, 128, 256, 512]
-  in_chans: 7
-  out_chans: 6
-  patch_size: [3, 3]
+  dims: [64, 128, 256, 256, 512]
+  in_chans: 50
+  out_chans: 50
+  patch_size: [2, 2]
   use_efficient_attention: True
-  efficient_layers: [0, 1, 2]
+  efficient_layers: [0, 1, 2, 3]
   add_sphere_grid: true
   local_attention_size: 6
   external_grid: false
