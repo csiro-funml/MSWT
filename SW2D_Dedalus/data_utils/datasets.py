@@ -168,6 +168,32 @@ class SWLoader2D(Dataset):
         print(f"Reshaped data to (N, T, H, W, C) - final shape: {self.X_data.shape}")
         return self.X_data, self.y_data
 
+
+
+
+def verify_time_steps(folder_path, state='test'):
+    # Load data from npz file
+    npz_filename = f'sw2d_{state}_dataset.npz'
+    npz_path = os.path.join(folder_path, npz_filename)
+    
+    if not os.path.exists(npz_path):
+        raise FileNotFoundError(f"Dataset file not found: {npz_path}")
+    
+    data_dict = np.load(npz_path)
+    # Keys match the state: X_train/y_train for train, X_val/y_val for val, X_test/y_test for test
+    X_key = f'X_{state}'
+    y_key = f'y_{state}'
+    print(data_dict.keys())
+    X_data = data_dict[X_key]
+    y_data = data_dict[y_key]
+    print("X_data shape: ", X_data.shape)
+    print("y_data shape: ", y_data.shape)
+    print("first 10 X_data: ", X_data[:10])
+    print("first 10 y_data: ", y_data[:10])
+    print("last 10 X_data: ", X_data[-10:])
+    print("last 10 y_data: ", y_data[-10:])
+    return X_data, y_data
+
 if __name__ == '__main__':
     # if torch.cuda.is_available():
     #     # state = 'train'
@@ -184,11 +210,14 @@ if __name__ == '__main__':
     #                     n_samples=100, offset=0,
     #                     train=True)
     # print(data.shape)
-    load_sw_data_split_and_save(load_dir='/datasets/work/oa-tcch/work/forXuesong', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
+    # load_sw_data_split_and_save(load_dir='/datasets/work/oa-tcch/work/forXuesong', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
     # X_test = load_sw_data_split_and_save('/datasets/work/oa-tcch/work/forXuesong')
     # # X_test = np.load(os.path.join('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater', 'sw2d_test_dataset.npz'))['X_test']
     # print("X_test shape: ", X_test.shape)
     
+
+
+    verify_time_steps(folder_path='/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater', state='test')
     # # X_test (N*T, C, H, W) 
     # T = 359
     # C = 2
