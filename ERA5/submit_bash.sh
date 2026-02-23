@@ -17,7 +17,7 @@ source $HOME/.venvs/pytorch/bin/activate
 
 
 # python3 data_preprocessing.py
-# python3 2d_train_rel_l2.py --config_path config/new_dataset_direc/LUCIE.yaml
+python3 2d_train_rel_l2.py --config_path config/new_dataset_direc/LUCIE.yaml
 # python3 2d_train_rel_l2.py --config_path config/new_dataset_direc/HFS_sphere.yaml
 # python3 2d_train_rel_l2.py --config_path config/new_dataset_direc/MSWT_sphere.yaml --seed 42
 
