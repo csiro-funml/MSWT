@@ -28,6 +28,7 @@ if __name__ == '__main__':
     # X_test = load_sw_data_split_and_save('/datasets/work/oa-tcch/work/forXuesong')
     data_folder = '/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater'
     data = np.load(os.path.join(data_folder, 'sw2d_test_dataset.npz'))
+    print(data.keys())
     X_test = data['X_test']
     test_realisations = data['test_realisations']
     times_test = data['times_test']

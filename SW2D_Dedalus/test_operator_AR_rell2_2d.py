@@ -11,11 +11,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from data_utils.datasets import SWLoader2D
 from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
-from models.wno import WNO2d
-from models.saot import SAOTModel
-from models.pderefiner import PDERefiner
-from models.pderefiner_unet import UNetRefiner
-from models.mswt import PeriodicMSWT2D_Patching
+# from torch_harmonics.examples.models import SphericalFourierNeuralOperatorNet as SFNO
+from torch_harmonics.examples.models import SphericalFourierNeuralOperator as SFNO
 from einops import rearrange
 from utils.criterion import LpLoss, LogEnstropyEnergyLoss
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch
@@ -46,14 +43,10 @@ def autoregressive_predict(model, test_loader, device, grid):
                     x_in = torch.cat((prev, grid.expand(prev.shape[0], -1, -1, -1)), dim=-1)
                 else:
                     x_in = prev
-                if isinstance(model, PDERefiner):
-                    prev_in = prev
-                    if prev_in.dim() == 3:
-                        prev_in = rearrange(prev_in, 'b h w -> b 1 1 h w')
-                    elif prev_in.dim() == 4:
-                        prev_in = rearrange(prev_in, 'b h w c -> b 1 c h w')
-                    pred = model.validation_step(prev_in)
-                    pred = rearrange(pred, 'b 1 c h w -> b h w c')
+                if isinstance(model, SFNO):
+                    x_in = x_in.permute(0, 3, 1, 2) # (B, H, W, C) -> (B, C, H, W)
+                    pred = model(x_in) 
+                    pred = pred.permute(0, 2, 3, 1) # (B, C, H, W) -> (B, H, W, C)
                 else:
                     pred = model(x_in)
                     if isinstance(pred, tuple):
@@ -127,79 +120,16 @@ def main():
                         out_c=model_cfg.get('out_c', 1),
                         target_params=model_cfg.get('target_params', 'medium'),
                         device=device).to(device)
-    elif model_name == 'pderefiner':
-        model = PDERefiner(
-                name=model_cfg.get('basemodel_name', 'Unetmod-64'),
-                time_history=model_cfg.get('time_history', 1), # T_in
-                time_future=model_cfg.get('time_future', 1), # T_ar
-                time_gap=0,
-                max_num_steps=model_cfg.get('max_num_steps', 1),  # T_ar, just one step ahead
-                n_spatial_dim=model_cfg.get('n_spatial_dim', 2),
-                in_channels=model_cfg.get('in_channels', 3), # input channels
-                out_channels=model_cfg.get('out_channels', 1)   , # output channels
-                trajlen=model_cfg.get('trajlen', 64), # T_max
-                activation=model_cfg.get('activation', 'gelu'),
-                criterion=model_cfg.get('criterion', 'mse'),
-                hidden_channels=model_cfg.get('hidden_channels', 16),
-                n_blocks=model_cfg.get('n_blocks', 3),
-    ).to(device)
-    elif model_name in ['refiner_unet']:
-        model = UNetRefiner(
-            input_channels=model_cfg.get('in_channels', 3),
-            output_channels=model_cfg.get('out_channels', 1),
-            time_history=model_cfg.get('time_history', 0),
-            time_future=model_cfg.get('time_future', 0),
-            hidden_channels=model_cfg.get('hidden_channels', 16),
-            activation=model_cfg.get('activation', 'gelu'),
-            n_blocks=model_cfg.get('n_blocks', 3),
-        ).to(device)
-    elif model_name in ['wno', 'wno2d']:
-        dummy = torch.zeros(1, 1, S_data[0], S_data[1], device=device)
-        model = WNO2d(in_channels=model_cfg.get('in_chans', 3),
-                      out_channels=model_cfg.get('out_chans', 1),
-                      width=model_cfg.get('width', 64),
-                      level=model_cfg.get('level', 3),
-                      dummy_data=dummy).to(device)
-    elif model_name in ['saot', 'saot2d']:
-        model = SAOTModel(space_dim=model_cfg.get('space_dim', 2),
-                        n_layers=model_cfg.get('n_layers', 3),
-                        n_hidden=model_cfg.get('n_hidden', 64)  ,
-                        dropout=model_cfg.get('dropout', 0.0),
-                        n_head=model_cfg.get('n_head', 4),
-                        Time_Input=model_cfg.get('Time_Input', False),
-                        mlp_ratio=model_cfg.get('mlp_ratio', 1),
-                        fun_dim=model_cfg.get('fun_dim', 1),
-                        out_dim=model_cfg.get('out_dim', 1),
-                        H = S_data[0],
-                        W = S_data[1],
-                        slice_num=model_cfg.get('slice_num', 32),
-                        ref=model_cfg.get('ref', 8),
-                        unified_pos=model_cfg.get('unified_pos', 0),
-                        is_filter=model_cfg.get('is_filter', True)).to(device)
-    elif model_name in ['multiscale_wavelet', 'multiscale_wavelet2d', 'multiscale_wavelet_transformer2d']:
-        model = MultiscaleWaveletTransformer2D(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            patch_size= model_cfg.get('patch_size', None),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-        ).to(device)
-    elif model_name in ['multiscale_wavelet2d_periodic_patching', 'mswt_periodic_patching', 'periodic_mswt_patching']:
-        model = PeriodicMSWT2D_Patching(
-            wave=model_cfg.get('wave', 'haar'),
-            input_dim=model_cfg.get('in_chans', 3),
-            output_dim=model_cfg.get('out_chans', 1),
-            dim=model_cfg.get('dim', None),
-            dims=model_cfg.get('dims', []),
-            use_efficient_attention=model_cfg.get('use_efficient_attention', False),
-            efficient_layers=model_cfg.get('efficient_layers', [0, 1, 2]),
-            add_grid=model_cfg.get('add_grid', False),
-            add_periodic_grid=model_cfg.get('add_periodic_grid', False),
-            patch_size=model_cfg.get('patch_size', None),
-            local_attention_size=model_cfg.get('local_attention_size', None),
+    elif model_name == 'sfno':
+        model = SFNO(img_size=(S_data[0], S_data[1]), 
+                                                  in_chans=model_cfg.get('in_chans', 3),
+                                                  out_chans=model_cfg.get('out_chans', 1),
+                                                  num_layers=model_cfg.get('num_layers', 4),
+                                                  scale_factor=model_cfg.get('scale_factor', 3),
+                                                  embed_dim=model_cfg.get('embed_dim', 16),
+                                                  pos_embed=model_cfg.get('pos_embed', 'spectral'),
+                                                  use_mlp=model_cfg.get('use_mlp', True),
+                                                  normalization_layer=model_cfg.get('normalization_layer', None)
         ).to(device)
     else:
         raise ValueError(f'Model {model_name} not supported')
@@ -207,7 +137,7 @@ def main():
 
     print("total number of parameters: ", sum(p.numel() for p in model.parameters()))
 
-
+    save_dir = config['train']['save_dir'] if torch.cuda.is_available() else 'saved_models'
     ckpt_path = os.path.join(config.get('train', {}).get('save_dir'), config.get('train', {}).get('save_name'))
     if os.path.exists(ckpt_path):
         ckpt = torch.load(ckpt_path, map_location=device)
@@ -224,6 +154,15 @@ def main():
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
     initial_condition, pred_seq, truth_seq = autoregressive_predict(model, test_loader, device, grid)
     
+    # time_indices = range(0, truth_seq.shape[-2], 10)
+    time_indices = [0, 40, 80]
+    evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, time_indices=time_indices,save_csv=False)
+    # exit(-1)
+    # time_indices = [0, 40, truth_seq.shape[-2] - 1]
+    # time_indices = range(0, truth_seq.shape[-2], 10)
+    save_path = save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed=args.test_seed)
+    
+
     plot_dir = config.get('train', {}).get('save_dir')
     pred_dir = os.path.join(plot_dir, 'saved_plots', 'predictions')
     os.makedirs(pred_dir, exist_ok=True)

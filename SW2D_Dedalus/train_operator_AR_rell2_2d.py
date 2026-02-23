@@ -15,10 +15,6 @@ from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
 # from torch_harmonics.examples.models import SphericalFourierNeuralOperatorNet as SFNO
 from torch_harmonics.examples.models import SphericalFourierNeuralOperator as SFNO
-from models.wno import WNO2d
-from models.saot import SAOTModel
-from models.pderefiner import PDERefiner
-from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
 from utils.criterion import LpLoss, SphericalLpLoss
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint, torch2dgrid_2d
