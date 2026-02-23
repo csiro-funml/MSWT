@@ -43,10 +43,11 @@ Training and testing expect preprocessed `.npz` files in a data folder (path set
 
 ```
 ERA5/
-├── config/
-│   ├── LUCIE.yaml          # Spherical FNO (LUCIE)
-│   ├── HFS_sphere.yaml     # High-Frequency Scaling on sphere
-│   └── MSWT_sphere.yaml    # Multiscale wavelet on sphere
+├── configs/
+│   └── new_dataset_direc/
+│       ├── LUCIE.yaml          # Spherical FNO (LUCIE)
+│       ├── HFS_sphere.yaml     # High-Frequency Scaling on sphere
+│       └── MSWT_sphere.yaml    # Multiscale wavelet on sphere
 ├── data_utils/
 │   ├── data_utils.py       # load_data_era5, paths, normalizer arrays
 │   ├── data_preprocessing.py # Build preprocessed .npz from regridded data
@@ -69,13 +70,13 @@ ERA5/
 └── submit_multiseed.sh
 ```
 
-Run training and testing from the **ERA5** directory (or set `PYTHONPATH` so that `models` and `utils` resolve to `ERA5/models` and `ERA5/utils`).
+Run training and testing from the **ERA5** directory (or set `PYTHONPATH` so that `models` and `utils` resolve to `ERA5/models` and `ERA5/utils`). Config paths use `configs/new_dataset_direc/`.
 
 ---
 
 ## Configuration (YAML)
 
-Configs under `config/` have two main sections:
+Configs under `configs/new_dataset_direc/` have two main sections:
 
 | Section | Role |
 |--------|------|
@@ -94,7 +95,7 @@ One-step training: the model sees the current state (7 channels) and predicts th
 
 ```bash
 cd /path/to/multiscale_neural_operator/ERA5
-python 2d_train_rel_l2.py --config_path config/MSWT_sphere.yaml --seed 42
+python 2d_train_rel_l2.py --config_path configs/new_dataset_direc/MSWT_sphere.yaml --seed 42
 ```
 
 **Options:**
@@ -118,7 +119,7 @@ Evaluation loads a checkpoint and runs **out-of-sample autoregressive rollout** 
 **Command:**
 
 ```bash
-python 2d_test_rel_l2.py --config_path config/MSWT_sphere.yaml --seed 45
+python 2d_test_rel_l2.py --config_path configs/new_dataset_direc/MSWT_sphere.yaml --seed 45
 ```
 
 - **Checkpoint:** The script builds the path from `config['train']['save_dir']` and `config['train']['save_name']`, then **replaces `.pt` with `_seed{args.seed}_best.pt`**. So it expects the **best** checkpoint file named like `MSWT_earth_padding-dim512-layer3_seed45_best.pt` in the config’s `save_dir`. Ensure the training script has saved the best model with the same naming convention (e.g. `_best.pt` in the same directory; the test script applies the seed in the filename).
@@ -150,10 +151,10 @@ Set `save_dir` (and any paths) inside the script to your model output root (e.g.
 
 - **`submit_bash.sh`**  
   Single job: uncomment the line for the desired command (train or test) and config. Examples:
-  - `python 2d_train_rel_l2.py --config_path config/LUCIE.yaml`
-  - `python 2d_train_rel_l2.py --config_path config/HFS_sphere.yaml`
-  - `python 2d_train_rel_l2.py --config_path config/MSWT_sphere.yaml --seed 42`
-  - `python 2d_test_rel_l2.py --config_path config/MSWT_sphere.yaml --seed 45`
+  - `python 2d_train_rel_l2.py --config_path configs/new_dataset_direc/LUCIE.yaml`
+  - `python 2d_train_rel_l2.py --config_path configs/new_dataset_direc/HFS_sphere.yaml`
+  - `python 2d_train_rel_l2.py --config_path configs/new_dataset_direc/MSWT_sphere.yaml --seed 42`
+  - `python 2d_test_rel_l2.py --config_path configs/new_dataset_direc/MSWT_sphere.yaml --seed 45`
   Edit `#SBATCH` directives as needed for your cluster.
 
 - **`submit_multiseed.sh`**  
@@ -161,10 +162,10 @@ Set `save_dir` (and any paths) inside the script to your model output root (e.g.
   **Usage:**  
   `./submit_multiseed.sh [config_path]`  
   Example:  
-  `./submit_multiseed.sh config/MSWT_sphere.yaml`  
+  `./submit_multiseed.sh configs/new_dataset_direc/MSWT_sphere.yaml`  
   Each job runs the **test** script with the corresponding seed. Change the script to run training per seed if desired.
 
-Run from the **ERA5** directory so that `config/` and scripts are found. The default config in the script is `configs/MSWT_sphere.yaml`; the actual directory is **`config/`** (no “s”), so use `config/MSWT_sphere.yaml` when calling the script.
+Run from the **ERA5** directory so that `configs/new_dataset_direc/` and scripts are found.
 
 ---
 
@@ -176,7 +177,7 @@ Run from the **ERA5** directory so that `config/` and scripts are found. The def
 | **HFS** | `hfs` | High-Frequency Scaling (ResUNet) with spherical grid. |
 | **MSWT (sphere)** | `mswt_sphere`, `mswt_patch_sphere`, `mswt_residual_sphere_efficient` | Multiscale wavelet with spherical grid and optional patching/residual. |
 
-Configs: `config/LUCIE.yaml`, `config/HFS_sphere.yaml`, `config/MSWT_sphere.yaml`.
+Configs: `configs/new_dataset_direc/LUCIE.yaml`, `configs/new_dataset_direc/HFS_sphere.yaml`, `configs/new_dataset_direc/MSWT_sphere.yaml`.
 
 ---
 
@@ -184,11 +185,11 @@ Configs: `config/LUCIE.yaml`, `config/HFS_sphere.yaml`, `config/MSWT_sphere.yaml
 
 1. **Data:** Obtain ERA5 regridded to the chosen resolution (e.g. 48×96). Run `data_utils/data_preprocessing.py` to generate `era5_T30_preprocessed.npz` (and climatology if needed). Set the data folder in `data_utils/data_utils.py`.
 2. **Train:**  
-   `python 2d_train_rel_l2.py --config_path config/MSWT_sphere.yaml --seed 42`  
+   `python 2d_train_rel_l2.py --config_path configs/new_dataset_direc/MSWT_sphere.yaml --seed 42`  
    Training will save checkpoints and the best model (by rollout climatology bias) in `save_dir`.
 3. **Test:**  
-   `python 2d_test_rel_l2.py --config_path config/MSWT_sphere.yaml --seed 42`  
+   `python 2d_test_rel_l2.py --config_path configs/new_dataset_direc/MSWT_sphere.yaml --seed 42`  
    Loads the best checkpoint for that seed, runs out-of-sample rollout, and evaluates climatology metrics. Optionally save per-seed CSV for post-processing.
 4. **Post-process:** Run `table_metric()` and `plot_bias()` (and any other functions) in `post_processing_metric_table.py` after evaluating all models/seeds; set `save_dir` and ensure evaluation CSVs exist.
 
-For multi-seed evaluation via SLURM: `./submit_multiseed.sh config/MSWT_sphere.yaml`.
+For multi-seed evaluation via SLURM: `./submit_multiseed.sh configs/new_dataset_direc/MSWT_sphere.yaml`.
