@@ -21,7 +21,7 @@ source $HOME/.venvs/pytorch/bin/activate
 # python3 2d_train_rel_l2.py --config_path config/new_dataset_direc/HFS_sphere.yaml
 python3 2d_train_rel_l2.py --config_path config/new_dataset_direc/MSWT_sphere.yaml --seed 42
 
-python3 2d_test_rel_l2.py --config_path config/new_dataset_direc/MSWT_sphere.yaml --seed 45
+python3 2d_test_rel_l2.py --config_path config/new_dataset_direc/MSWT_sphere.yaml --seed 42
 # python3 2d_test_rel_l2.py --config_path config/new_dataset_direc/HFS_sphere.yaml --seed 43
 # python3 2d_test_rel_l2.py --config_path config/new_dataset_direc/LUCIE.yaml --seed 43
 # python3 load_era5_for_gadi.py
