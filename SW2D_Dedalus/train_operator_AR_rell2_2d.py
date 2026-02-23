@@ -133,6 +133,10 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
                 x = rearrange(x, 'h w -> 1 1 1 h w')
             pred = model.validation_step(x)
             pred = rearrange(pred, 'b 1 c h w -> b h w c')
+        elif isinstance(model, SFNO):
+            x_in = x_in.permute(0, 3, 1, 2) # (B, H, W, C) -> (B, C, H, W)
+            pred = model(x_in) 
+            pred = pred.permute(0, 2, 3, 1) # (B, C, H, W) -> (B, H, W, C)
         else:
             pred = model(x_in)
         if pred.dim() == 5:
@@ -226,7 +230,7 @@ def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, 
                                 model, 
                                 ep,
                                 optimizer, scheduler)
-                continue
+                
                 fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=550, t_idx=0)
                 # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 
