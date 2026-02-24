@@ -1,5 +1,6 @@
 data:
   datapath: '/scratch3/wan410/operator_learning_data/Dedalus'
+  normalizer_path: '/scratch3/wan410/operator_learning_data/Dedalus/ns2d_normstat.pt'
   name: NS2D
   Re: 500
   nx: 128
