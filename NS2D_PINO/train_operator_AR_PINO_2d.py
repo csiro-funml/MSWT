@@ -57,7 +57,7 @@ def evaluate_step_ahead(model, test_loader, device, grid, forcing):
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             grid = grid.to(x.device)
-            print("x shape:", x.shape, "y shape:", y.shape, "grid shape:", grid.shape)
+            # print("x shape:", x.shape, "y shape:", y.shape, "grid shape:", grid.shape)
             x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
             pred = model(x_in)
             total += lploss(pred, y).item()
