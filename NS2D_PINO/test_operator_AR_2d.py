@@ -36,7 +36,7 @@ def autoregressive_predict(model, test_loader, device, grid):
             truth = truth.to(device) # (B, T, S, S, C)
             T = seq.shape[1]
             preds = []  # predicted rollout
-            prev = seq[..., 0]  # initial condition (B, S, S, C)
+            prev = seq[:, 0]  # initial condition (B, S, S, C)
             initial_condition.append(prev)
             total_ground_truth.append(truth) # (B, S, S, C)
             preds.append(prev) # append the initial condition
