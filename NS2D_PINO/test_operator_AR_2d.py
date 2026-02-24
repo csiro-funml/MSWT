@@ -58,7 +58,7 @@ def autoregressive_predict(model, test_loader, device, grid):
             total_pred.append(pred_seq)
         total_pred = torch.stack(total_pred, dim=0) # (N, S, S, C, T+1)
         initial_condition = torch.stack(initial_condition, dim=0) # (N, S, S, C)
-        total_ground_truth = torch.stack(total_ground_truth, dim=0) # (N, S, S, C, T)
+        total_ground_truth = torch.stack(total_ground_truth, dim=0).permute(0, 1, 2, 4, 3) # (N, S, S, C, T)
     print("total_pred shape: ", total_pred.shape, "total_ground_truth shape: ", total_ground_truth.shape, "initial_condition shape: ", initial_condition.shape)
     return initial_condition, total_pred, total_ground_truth
 
