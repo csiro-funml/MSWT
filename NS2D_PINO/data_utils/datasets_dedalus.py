@@ -28,7 +28,7 @@ def load_ns2d_data_split_and_save(load_dir, save_dir, nt=63):
     
     # X train shape (N*T, C, X, Y), reshape it and use the only 100 realizations
     nc, nx, ny = X_train.shape[1:]
-    cutoff_n = 100
+    cutoff_n = 50
     X_train = X_train.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
     X_val = X_val.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
     X_test = X_test.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
