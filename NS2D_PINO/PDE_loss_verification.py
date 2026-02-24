@@ -31,20 +31,26 @@ def verify_pde_loss(data, forcing, device):
     # Channels: ux, uy, p.
     # u0: Initial condition, shape (batchsize, 3, nx, ny) or broadcastable.
     """
-    total_loss_f = 0.0
+    total_loss_cont = 0.0
     total_loss_ic = 0.0
+    total_loss_momx = 0.0
+    total_loss_momy = 0.0
     data = data.permute(0, 2, 3, 4, 1) # (N, nt+1, 3, nx, ny) -> (N, 3, nx, ny, nt+1)
     for i in range(len(data)):
         print(f'Sample {i} shape: {data[i].shape}')
         u = data[i].unsqueeze(0) # one realization (1, 3, nx, ny, nt+1)
         u0 = u[..., 0] # initial condition (1, 3, nx, ny)
-        loss_ic, loss_f = PINO_loss3d_vel(u, u0, forcing)
-        print(f'Sample {i} PDE loss: {loss_f.item()}, IC loss: {loss_ic.item()}')
-        total_loss_f += loss_f.item()
+        loss_ic, loss_cont, loss_momx, loss_momy= PINO_loss3d_vel(u, u0, forcing)
+        print(f'Sample {i} PDE loss: {loss_cont.item()}, IC loss: {loss_ic.item()}, momx loss: {loss_momx.item()}, momy loss: {loss_momy.item()}')
+        total_loss_cont += loss_cont.item()
         total_loss_ic += loss_ic.item()
-    print(f'average PDE loss: {total_loss_f / len(data)}')
+        total_loss_momx += loss_momx.item()
+        total_loss_momy += loss_momy.item()
+    print(f'average PDE loss: {total_loss_cont / len(data)}')
     print(f'average IC loss: {total_loss_ic / len(data)}')
-    return total_loss_f / len(data), total_loss_ic / len(data)
+    print(f'average momx loss: {total_loss_momx / len(data)}')
+    print(f'average momy loss: {total_loss_momy / len(data)}')
+    return total_loss_cont / len(data), total_loss_ic / len(data), total_loss_momx / len(data), total_loss_momy / len(data)
 
 
 if __name__ == '__main__':
