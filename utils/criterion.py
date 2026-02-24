@@ -20,7 +20,7 @@ import math
 
 
 
-def FDM_NS_vorticity(w, v=1/40, t_interval=1.0):
+def FDM_NS_vorticity(w, v=1/500, t_interval=0.015625):
     batchsize = w.size(0)
     nx = w.size(1)
     ny = w.size(2)
@@ -97,7 +97,7 @@ def guess_dt(w, v, f):
     return residual
 
 
-def PINO_loss3d(u, u0, forcing, v=1/40, t_interval=1.0):
+def PINO_loss3d(u, u0, forcing, v=1/500, t_interval=0.015625):
     batchsize = u.size(0)
     nx = u.size(1)
     ny = u.size(2)
@@ -126,7 +126,7 @@ def get_forcing(S):
     return -4 * (torch.cos(4*(x2))).reshape(1,S,S,1)
 
 
-def FDM_NS_velocity(w, v=1/40, alpha=1e-8, t_interval=0.015625):
+def FDM_NS_velocity(w, v=1/500, alpha=1e-8, t_interval=0.015625):
     """Compute PDE residuals for the 2D incompressible Navier-Stokes equations
     in velocity-pressure (primitive variable) form using spectral derivatives.
 
@@ -217,7 +217,88 @@ def FDM_NS_velocity(w, v=1/40, alpha=1e-8, t_interval=0.015625):
     return R_cont, R_momx, R_momy
 
 
-def PINO_loss3d_vel(u, u0, forcing, v=1.0/500, alpha=1e-8, t_interval=0.015625):
+def INT_NS_velocity(w, v=1/500, alpha=1e-8, t_interval=0.015625):
+    """Compute PDE residuals using the integral (trapezoidal) form in time.
+
+    Same equations as FDM_NS_velocity, but instead of approximating du/dt
+    with central differences, enforces the integrated form between consecutive
+    time steps: u(t_{n+1}) - u(t_n) = dt/2 * (RHS_n + RHS_{n+1}).
+
+    This avoids O(dt^2) truncation error from time derivatives and is better
+    suited to coarse output time spacing.
+
+    Args:
+        w: Input tensor of shape (batchsize, 3, nx, ny, nt).
+        v, alpha, t_interval: Same as FDM_NS_velocity.
+
+    Returns:
+        tuple: (R_cont, R_momx, R_momy)
+            R_cont: continuity residual, shape (batchsize, nx, ny, nt)
+            R_momx: integral residual (delta_ux - dt*avg_RHS_x), (batchsize, nx, ny, nt-1)
+            R_momy: integral residual (delta_uy - dt*avg_RHS_y), (batchsize, nx, ny, nt-1)
+    """
+    batchsize = w.size(0)
+    nx = w.size(2)
+    ny = w.size(3)
+    nt = w.size(4)
+    device = w.device
+    w = w.reshape(batchsize, 3, nx, ny, nt)
+
+    ux = w[:, 0]
+    uy = w[:, 1]
+    p  = w[:, 2]
+
+    k_max = nx // 2
+    N = nx
+    k_x = torch.cat((torch.arange(start=0, end=k_max, step=1, device=device),
+                     torch.arange(start=-k_max, end=0, step=1, device=device)), 0
+                     ).reshape(N, 1).repeat(1, N).reshape(1, N, N, 1)
+    k_y = torch.cat((torch.arange(start=0, end=k_max, step=1, device=device),
+                     torch.arange(start=-k_max, end=0, step=1, device=device)), 0
+                     ).reshape(1, N).repeat(N, 1).reshape(1, N, N, 1)
+
+    lap = k_x ** 2 + k_y ** 2
+
+    ux_h = torch.fft.fft2(ux, dim=[1, 2])
+    uy_h = torch.fft.fft2(uy, dim=[1, 2])
+    p_h  = torch.fft.fft2(p,  dim=[1, 2])
+
+    dux_dx_h = 1j * k_x * ux_h
+    dux_dy_h = 1j * k_y * ux_h
+    duy_dx_h = 1j * k_x * uy_h
+    duy_dy_h = 1j * k_y * uy_h
+    dp_dx_h  = 1j * k_x * p_h
+    dp_dy_h  = 1j * k_y * p_h
+    lap_ux_h = -lap * ux_h
+    lap_uy_h = -lap * uy_h
+
+    dux_dx = torch.fft.ifft2(dux_dx_h, dim=[1, 2]).real
+    dux_dy = torch.fft.ifft2(dux_dy_h, dim=[1, 2]).real
+    duy_dx = torch.fft.ifft2(duy_dx_h, dim=[1, 2]).real
+    duy_dy = torch.fft.ifft2(duy_dy_h, dim=[1, 2]).real
+    dp_dx  = torch.fft.ifft2(dp_dx_h,  dim=[1, 2]).real
+    dp_dy  = torch.fft.ifft2(dp_dy_h,  dim=[1, 2]).real
+    lap_ux = torch.fft.ifft2(lap_ux_h, dim=[1, 2]).real
+    lap_uy = torch.fft.ifft2(lap_uy_h, dim=[1, 2]).real
+
+    R_cont = dux_dx + duy_dy
+
+    # RHS without forcing (forcing added in loss)
+    RHS_x = -ux * dux_dx - uy * dux_dy - dp_dx + v * lap_ux - alpha * ux
+    RHS_y = -ux * duy_dx - uy * duy_dy - dp_dy + v * lap_uy - alpha * uy
+
+    dt = t_interval / (nt - 1)
+    delta_ux = ux[..., 1:] - ux[..., :-1]
+    delta_uy = uy[..., 1:] - uy[..., :-1]
+    avg_RHS_x = 0.5 * (RHS_x[..., :-1] + RHS_x[..., 1:])
+    avg_RHS_y = 0.5 * (RHS_y[..., :-1] + RHS_y[..., 1:])
+    R_momx = delta_ux - dt * avg_RHS_x
+    R_momy = delta_uy - dt * avg_RHS_y
+
+    return R_cont, R_momx, R_momy
+
+
+def PINO_loss3d_vel(u, u0, forcing, v=1/500, alpha=1e-8, t_interval=0.015625, time_method="integral"):
     """Physics-informed loss for the velocity-pressure NS formulation.
 
     Computes initial-condition loss plus PDE residual losses for the
@@ -232,13 +313,15 @@ def PINO_loss3d_vel(u, u0, forcing, v=1.0/500, alpha=1e-8, t_interval=0.015625):
         v: Kinematic viscosity.
         alpha: Linear friction coefficient.
         t_interval: Total time spanned by the nt snapshots.
+        time_method: "integral" (default) or "fdm". Integral uses trapezoidal
+            form in time (no du/dt); fdm uses central-difference time derivatives.
 
     Returns:
         tuple: (loss_ic, loss_cont, loss_momx, loss_momy)
             loss_ic:   relative L2 error on initial condition
             loss_cont: MSE of continuity residual
-            loss_momx: MSE of x-momentum residual minus forcing
-            loss_momy: MSE of y-momentum residual minus forcing
+            loss_momx: MSE of x-momentum residual vs forcing
+            loss_momy: MSE of y-momentum residual vs forcing
     """
     batchsize = u.size(0)
     nx = u.size(2)
@@ -248,21 +331,28 @@ def PINO_loss3d_vel(u, u0, forcing, v=1.0/500, alpha=1e-8, t_interval=0.015625):
     u = u.reshape(batchsize, 3, nx, ny, nt)
     lploss = LpLoss(size_average=True)
 
-    # Initial-condition loss
     u_in = u[:, :, :, :, 0]
     loss_ic = lploss(u_in, u0)
 
-    # PDE residuals
-    R_cont, R_momx, R_momy = FDM_NS_velocity(u, v, alpha, t_interval)
+    if time_method == "fdm":
+        R_cont, R_momx, R_momy = FDM_NS_velocity(u, v, alpha, t_interval)
+        n_mom = nt - 2
+        fx = forcing[:, 0].repeat(batchsize, 1, 1, n_mom)
+        fy = forcing[:, 1].repeat(batchsize, 1, 1, n_mom)
+        loss_momx = torch.mean((R_momx - fx) ** 2)
+        loss_momy = torch.mean((R_momy - fy) ** 2)
+    else:
+        if time_method != "integral":
+            raise ValueError('time_method must be "integral" or "fdm"')
+        R_cont, R_momx, R_momy = INT_NS_velocity(u, v, alpha, t_interval)
+        dt = t_interval / (nt - 1)
+        n_mom = nt - 1
+        fx = forcing[:, 0].repeat(batchsize, 1, 1, n_mom)
+        fy = forcing[:, 1].repeat(batchsize, 1, 1, n_mom)
+        loss_momx = torch.mean((R_momx - dt * fx) ** 2)
+        loss_momy = torch.mean((R_momy - dt * fy) ** 2)
 
-    # Expand forcing to match momentum residual time dimension
-    fx = forcing[:, 0].repeat(batchsize, 1, 1, nt - 2)
-    fy = forcing[:, 1].repeat(batchsize, 1, 1, nt - 2)
-
-    # Continuity: target is zero so use MSE (relative norm is undefined)
     loss_cont = torch.mean(R_cont ** 2)
-    loss_momx = torch.mean((R_momx - fx) ** 2)
-    loss_momy = torch.mean((R_momy - fy) ** 2)
 
     return loss_ic, loss_cont, loss_momx, loss_momy
 
