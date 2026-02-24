@@ -11,7 +11,10 @@ from einops import rearrange
 import matplotlib.pyplot as plt
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
-def load_ns2d_data_split_and_save(load_dir, save_dir):
+def load_ns2d_data_split_and_save(load_dir, save_dir, nt=63):
+    """
+    each realization has nt time steps
+    """
     data = np.load(os.path.join(load_dir, 'kolmogorov_dataset.npz'))
     print(data)
     for key in data.keys():
@@ -23,39 +26,27 @@ def load_ns2d_data_split_and_save(load_dir, save_dir):
     print("times_train shape: ", times_train.shape)
     print("realisation_ids_train shape: ", realisation_ids_train.shape)
     
-    # X train shape (T, C, X, Y)
-    # X_train = X_train[: :100, :, :]
-    # X_val = X_val[:, :100, :, :]
-    # X_test = X_test[:, :100, :, :]
-    # y_train = y_train[:, :100, :, :]
-    # y_val = y_val[:, :100, :, :]
-    # y_test = y_test[:, :100, :, :]
-    # times_train = times_train[:100]
-    # times_val = times_val[:100]
-    # times_test = times_test[:100]
-    print("X_train shape: ", X_train.shape) # (N, C, H, W)  (28720, 2, 256, 128)  # 80 realizations of 360 steps
-    print("X_val shape: ", X_val.shape) # (N, C, H, W)  # 10 realizations of 360 steps
-    print("X_test shape: ", X_test.shape) # (N, C, H, W)  # 10 realizations of 360 steps
-    print("y_train shape: ", y_train.shape)
-    print("y_val shape: ", y_val.shape)
-    print("y_test shape: ", y_test.shape)
+    # X train shape (N*T, C, X, Y), reshape it and use the only 100 realizations
+    nc, nx, ny = X_train.shape[1:]
+    cutoff_n = 100
+    X_train = X_train.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
+    X_val = X_val.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
+    X_test = X_test.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
+    y_train = y_train.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
+    y_val = y_val.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
+    y_test = y_test.reshape(-1, nt, nc, nx, ny)[:cutoff_n]
     
-    # load realization name 
-    train_realisation = data['train_realisations']
-    times_train = data['times_train']
-    val_realisation = data['val_realisations']
-    times_val = data['times_val']
-    test_realisation = data['test_realisations']
-    times_test = data['times_test']
+    X_train = X_train.reshape(cutoff_n*nt, nc, nx, ny)   # (100*63, nc, nx, ny)
+    X_val = X_val.reshape(cutoff_n*nt, nc, nx, ny)   # (100*63, nc, nx, ny)
+    X_test = X_test.reshape(cutoff_n*nt, nc, nx, ny)   # (100*63, nc, nx, ny)
+    y_train = y_train.reshape(cutoff_n*nt, nc, nx, ny)   # (100*63, nc, nx, ny)
+    y_val = y_val.reshape(cutoff_n*nt, nc, nx, ny)   # (100*63, nc, nx, ny)
+    y_test = y_test.reshape(cutoff_n*nt, nc, nx, ny)   # (100*63, nc, nx, ny)
+    
 
-    # save the small prototype training/ val /test set in one npz file
-    
-    
-    # np.savez(os.path.join(save_dir, 'sw2d_train_dataset.npz'), X_train=X_train, y_train=y_train, train_realisations=train_realisation, times_train=times_train)
-    # np.savez(os.path.join(save_dir, 'sw2d_val_dataset.npz'), X_val=X_val, y_val=y_val, val_realisations=val_realisation, times_val=times_val)
-    # np.savez(os.path.join(save_dir, 'sw2d_test_dataset.npz'), X_test=X_test, y_test=y_test, test_realisations=test_realisation, times_test=times_test)
-    # print("Training/ val /test set saved to: ", os.path.join(save_dir, 'sw2d_train_dataset.npz'), os.path.join(save_dir, 'sw2d_val_dataset.npz'), os.path.join(save_dir, 'sw2d_test_dataset.npz'))
-    # print("data shape: ", data.shape)
+    # save this small prototype training/ val /test set in one npz file
+    np.savez(os.path.join(save_dir, 'kolmogorov_dataset.npz'), X_train=X_train, y_train=y_train, 
+    times_train=times_train, X_val=X_val, y_val=y_val, times_val=times_val, X_test=X_test, y_test=y_test, times_test=times_test)
     return data
 
 
