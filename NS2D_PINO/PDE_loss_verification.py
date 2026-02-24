@@ -25,8 +25,8 @@ def load_ns_ground_truth(datapath, nt=63, device=None):
     y_train = y_train.reshape(-1, nt, nc, nx, ny)
     
     u = np.concatenate([X_train[:, :1], y_train], axis=1) # (N, nt+1, nc, nx, ny) concatenate the initial condition and the trajectory
-    u = u.permute(0, 2, 3, 4, 1) # (N, nt+1, 3, nx, ny) -> (N, 3, nx, ny, nt+1)
     u = torch.from_numpy(u).to(device)
+    u = u.permute(0, 2, 3, 4, 1) # (N, nt+1, 3, nx, ny) -> (N, 3, nx, ny, nt+1)
     S_forcing = nx
     return u, S_forcing
 
