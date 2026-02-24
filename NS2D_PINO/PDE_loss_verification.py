@@ -50,7 +50,7 @@ def verify_pde_loss(data, forcing, device):
 if __name__ == '__main__':
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     
-    data, S_forcing = load_ns_ground_truth(datapath='/scratch3/wan410/operator_learning_data/Dedalus/kolmogorov_dataset.npz', device=device)
+    data, S_forcing = load_ns_ground_truth(datapath='/scratch3/wan410/operator_learning_data/Dedalus', device=device)
     # parse options
     forcing = get_forcing_vel(S_forcing).to(device)
     
