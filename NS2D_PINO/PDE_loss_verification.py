@@ -37,7 +37,7 @@ def verify_pde_loss(data, forcing, device):
     total_loss_momy = 0.0
     data = data.permute(0, 2, 3, 4, 1) # (N, nt+1, 3, nx, ny) -> (N, 3, nx, ny, nt+1)
     for i in range(len(data)):
-        print(f'Sample {i} shape: {data[i].shape}')
+        # print(f'Sample {i} shape: {data[i].shape}')
         u = data[i].unsqueeze(0) # one realization (1, 3, nx, ny, nt+1)
         u0 = u[..., 0] # initial condition (1, 3, nx, ny)
         loss_ic, loss_cont, loss_momx, loss_momy= PINO_loss3d_vel(u, u0, forcing)
