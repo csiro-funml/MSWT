@@ -39,13 +39,17 @@ def evaluate_3d(model, test_loader, device):
     return total / batches
 
 
-def evaluate_step_ahead(model, test_loader, device, grid):
+def evaluate_step_ahead(model, test_loader, device, grid, forcing):
     """Evaluate one-step prediction u_t -> u_{t+1}."""
     lploss = LpLoss(size_average=True)
 
     model.eval()
     total = 0.0
     batches = 0
+    loss_ic_total = 0.0
+    loss_cont_total = 0.0
+    loss_momx_total = 0.0
+    loss_momy_total = 0.0
     pred_plot = None
     target_plot = None
     with torch.no_grad():
@@ -53,22 +57,24 @@ def evaluate_step_ahead(model, test_loader, device, grid):
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
             grid = grid.to(x.device).unsqueeze(0)
-            x_in = torch.cat((x.unsqueeze(-1), grid.expand(batch, -1, -1, -1)), dim=-1)
-            if isinstance(model, PDERefiner):
-                if len(x.shape) == 3:
-                    x = rearrange(x, 'b h w -> b 1 1 h w')
-                pred = model.validation_step(x)
-                pred = rearrange(pred, 'b 1 c h w -> b h w c')
-            else:
-                pred = model(x_in)
+            x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
+            pred = model(x_in)
             total += lploss(pred, y).item()
             if pred_plot is None:
                 pred_plot = pred.clone()
                 target_plot = y.clone()
+            
+            u = torch.stack([x, pred], dim=-1).permute(0, 3, 1, 2, 4) # (B, nx, ny, 3, 2) ->(B, 3, nx, ny, 2)
+            u0 = u[..., :1] # the first step
+            loss_ic, loss_cont, loss_momx, loss_momy = PINO_loss3d_vel(u, u0, forcing)
+            loss_ic_total += loss_ic.item()
+            loss_cont_total += loss_cont.item()
+            loss_momx_total += loss_momx.item()
+            loss_momy_total += loss_momy.item()
             batches += 1
     if batches == 0:
         return None
-    return total / batches, pred_plot, target_plot
+    return total / batches, loss_ic_total / batches, loss_cont_total / batches, loss_momx_total / batches, loss_momy_total / batches, pred_plot, target_plot
 
 
 def _get_base_dataset(ds):
@@ -101,15 +107,9 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     x = sample[..., t_idx].to(device)
     y = sample[..., t_idx + 1].to(device)
     grid_b = grid.unsqueeze(0).to(device)
-    x_in = torch.cat((x.unsqueeze(0).unsqueeze(-1), grid_b), dim=-1)
+    x_in = torch.cat((x.unsqueeze(0), grid_b), dim=-1)
     with torch.no_grad():
-        if isinstance(model, PDERefiner):
-            if len(x.shape) == 2:
-                x = rearrange(x, 'h w -> 1 1 1 h w')
-            pred = model.validation_step(x)
-            pred = rearrange(pred, 'b 1 c h w -> b h w c')
-        else:
-            pred = model(x_in)
+        pred = model(x_in)
         if pred.dim() == 5:
             pred = pred.squeeze(-2)
         if pred.dim() == 4:
@@ -212,10 +212,14 @@ writer=None, model_name='fno2d', start_ep=0, weight_dict=None, forcing=None):
             pbar.set_description((f'Train L2: {rel_l2_loss_avg:.6f}, train IC: {loss_ic_avg:.6f}, train PDE: {loss_cont_avg:.6f}, train momx: {loss_momx_avg:.6f}, train momy: {loss_momy_avg:.6f}'))
 
         if ep % eval_step == 0 and test_loader is not None:
-            test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)
+            test_l2, loss_ic_avg, loss_cont_avg, loss_momx_avg, loss_momy_avg, pred_plot, target_plot = evaluate_step_ahead(model, test_loader, device, grid, forcing)
             print(f'Random test split relative L2: {test_l2:.6f}')
             if writer is not None:
                 writer.add_scalar('eval/test_l2', test_l2, ep + 1)
+                writer.add_scalar('eval/test_ic', loss_ic_avg, ep + 1)
+                writer.add_scalar('eval/test_pde', loss_cont_avg, ep + 1)
+                writer.add_scalar('eval/test_momx', loss_momx_avg, ep + 1)
+                writer.add_scalar('eval/test_momy', loss_momy_avg, ep + 1)
                 fixed_pred, fixed_target = get_fixed_test_pair(model, test_loader, grid, device, sample_idx=0, t_idx=0)
                 # print("fixed_pred shape:", fixed_pred.shape, "fixed_target shape:", fixed_target.shape)
                 
@@ -224,14 +228,14 @@ writer=None, model_name='fno2d', start_ep=0, weight_dict=None, forcing=None):
                                 model, 
                                 ep,
                                 optimizer, scheduler)
-                if fixed_pred is not None:
-                    log_tensorboard_images_and_spectra(writer,
-                                                       fixed_pred[..., None, None],
-                                                       fixed_target[..., None, None],
-                                                       ep + 1,
-                                                       'vorticity',
-                                                       model_name,
-                                                       ) 
+                # if fixed_pred is not None:
+                #     log_tensorboard_images_and_spectra(writer,
+                #                                        fixed_pred[..., None, None],
+                #                                        fixed_target[..., None, None],
+                #                                        ep + 1,
+                #                                        'vorticity',
+                #                                        model_name,
+                #                                        ) 
 
 
 def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
