@@ -50,10 +50,10 @@ def load_ns2d_data_split_and_save(load_dir, save_dir, nt=63):
     return data
 
 
-class NS2DLoader2D(Dataset):
+class NSLoader2D(Dataset):
     def __init__(self, datapath, state='train', train=True, normalizer_path=None, save_normalizer_path=None):
         '''
-        Load data from npz files (sw2d_train_dataset.npz, sw2d_val_dataset.npz, sw2d_test_dataset.npz)
+        Load data from npz files (kolmogorov_dataset.npz)
         Args:
             datapath: path to directory containing the npz files
             state: 'train', 'val', or 'test'
@@ -65,7 +65,7 @@ class NS2DLoader2D(Dataset):
         self.state = state
         
         # Load data from npz file
-        npz_filename = f'sw2d_{state}_dataset.npz'
+        npz_filename = f'kolmogorov_dataset.npz'
         npz_path = os.path.join(datapath, npz_filename)
         
         if not os.path.exists(npz_path):
@@ -87,17 +87,12 @@ class NS2DLoader2D(Dataset):
         X_data = data_dict[X_key]
         y_data = data_dict[y_key]
         
-        # X_data and y_data are (N, C, H, W) = (N, 2, 256, 128)
+        # X_data and y_data are (N, C, H, W) = (N, 3, 128, 128)
         # Stack X and y: (N, C, H, W) -> (N*2, C, H, W) if we want pairs, or just use X and y separately
         # For now, we'll use X as input and y as target
         self.X_data = torch.tensor(X_data, dtype=torch.float32)  # (N, C, H, W)
         self.y_data = torch.tensor(y_data, dtype=torch.float32)  # (N, C, H, W)
-        print("before rotation: ", self.X_data.shape, self.y_data.shape)
-        # Rotate data counter-clockwise by 90 degrees: (N, 2, 256, 128) -> (N, 2, 128, 256)
-        self.X_data = torch.rot90(self.X_data, k=1, dims=[-2, -1])  # Rotate last two dimensions
-        self.y_data = torch.rot90(self.y_data, k=1, dims=[-2, -1])  # Rotate last two dimensions
-        print("after rotation: ", self.X_data.shape, self.y_data.shape)
-
+        
         self.S = (self.X_data.shape[-2], self.X_data.shape[-1]) # (H, W) = (128, 256)
         
         self.num_samples = self.X_data.shape[0]
@@ -145,9 +140,6 @@ class NS2DLoader2D(Dataset):
         self.X_data = self.X_data.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
         self.y_data = self.y_data.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
 
-         # swap the first and second channel (I want the fitst channel to be the vorticity)
-        self.X_data = self.X_data[..., [1, 0]]
-        self.y_data = self.y_data[..., [1, 0]]
         print(f"Permuted data to (N, H, W, C) - final shape: {self.X_data.shape}")
         
     def __len__(self):
@@ -161,7 +153,7 @@ class NS2DLoader2D(Dataset):
         return self.X_data[idx], self.y_data[idx]  # (H, W, C), (H, W, C)
 
     
-    def transform_rollout(self, T=359) :
+    def transform_rollout(self, T=63) :
         """
         reshape self.X_data and self.y_data from (N, H, W, C) to (N, T, H, W, C)
         """

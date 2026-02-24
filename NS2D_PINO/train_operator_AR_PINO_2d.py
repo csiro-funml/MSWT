@@ -6,20 +6,15 @@ import torch.nn.functional as F
 import math
 from torch.utils.data import DataLoader, random_split, TensorDataset, Dataset, Subset
 from torch.utils.tensorboard import SummaryWriter
-from data_utils.datasets import NSLoader2D, InitialConditionDataset, sample_data
+from data_utils.datasets_dedalus import NSLoader2D
 from einops import rearrange
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
-from models.wno import WNO2d
-from models.saot import SAOTModel
 from models.mswt import PeriodicMSWT2D_Patching
-from models.mswt_ablation import MSWT_no_attention, MSWT_no_tokenizer, MSWT_strided_up_downsampling
-from models.pderefiner import PDERefiner
-from models.pderefiner_unet import UNetRefiner
 from tqdm import tqdm
-from utils.criterion import LpLoss, PINO_loss3d, get_forcing
+from utils.criterion import LpLoss, PINO_loss3d_vel, get_forcing_vel
 from utils.utilities import log_tensorboard_images_and_spectra, count_parameters, save_checkpoint, torch2dgrid_2d
 
 
@@ -123,8 +118,7 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
 
 
 def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True,
-writer=None, model_name='fno2d', start_ep=0, xy_weight=1.0, f_weight=0.0, ic_weight=0.0,
-a_loader=None, forcing=None, v=1/40, t_duration=0.125):
+writer=None, model_name='fno2d', start_ep=0, weight_dict=None, forcing=None):
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
     epochs = config['train']['epochs']
@@ -139,13 +133,20 @@ a_loader=None, forcing=None, v=1/40, t_duration=0.125):
     else:
         pbar = range(start_ep, epochs)
     # Infinite iterator for IC batches (used when f_weight != 0)
-    a_iter = sample_data(a_loader) if (a_loader is not None and f_weight != 0) else None
+    data_weight = weight_dict['data_weight']
+    cont_weight = weight_dict['cont_weight']
+    ic_weight = weight_dict['ic_weight']
+    momx_weight = weight_dict['momx_weight']
+    momy_weight = weight_dict['momy_weight']
+    
     best_loss = torch.inf
     for ep in pbar:
         model.train()
         rel_l2_loss_total = 0.0
         loss_ic_total = 0.0
-        loss_f_total = 0.0
+        loss_cont_total = 0.0
+        loss_momx_total = 0.0
+        loss_momy_total = 0.0
 
         batches = 0
 
@@ -159,59 +160,56 @@ a_loader=None, forcing=None, v=1/40, t_duration=0.125):
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            x_in = torch.cat((x.unsqueeze(-1), grid.unsqueeze(0).expand(batch, -1, -1, -1)), dim=-1)
-            if isinstance(model, PDERefiner):  # for PDERefiner, the loss function is a denoising loss
-                loss = model.training_step((x.unsqueeze(-1), y.unsqueeze(-1)))
-                loss_ic = torch.tensor(0.0, device=device)
-                loss_f = torch.tensor(0.0, device=device)
+            x_in = torch.cat((x, grid.unsqueeze(0).expand(batch, -1, -1, -1)), dim=-1)
+            
+            pred = model(x_in)
+            if isinstance(pred, tuple):
+                pred, x_reg = pred
+                # print("pred shape:", pred.shape, "x_reg shape:", x_reg.shape)
             else:
-                pred = model(x_in)
-                if isinstance(pred, tuple):
-                    pred, x_reg = pred
-                    # print("pred shape:", pred.shape, "x_reg shape:", x_reg.shape)
-                else:
-                    x_reg = None
-                data_loss = lploss(pred, y)
-                
-                
-                # PINO loss: rollout 2D model from u0 to get trajectory, then PDE/IC loss
-                if f_weight != 0.0 and a_iter is not None:
-                    u0 = next(a_iter).to(device)  # (B, S, S)
-                    B = u0.shape[0]
-                    traj = [u0]
-                    u = u0
-                    for _ in range(2): # just rollout two steps for efficiency
-                        x_in = torch.cat((u.unsqueeze(-1), grid.unsqueeze(0).expand(B, -1, -1, -1)), dim=-1)
-                        u = model(x_in)
-                        if u.dim() == 4:
-                            u = u.squeeze(-1)
-                        traj.append(u)
-                    out = torch.stack(traj, dim=-1)  # (B, S, S, 3)
-                    loss_ic, loss_f = PINO_loss3d(out, u0, forcing, v, t_duration)
-                else:
-                    loss_ic = torch.tensor(0.0, device=device)
-                    loss_f = torch.tensor(0.0, device=device)
+                x_reg = None
+            data_loss = lploss(pred, y)
+            
+            
+            # PINO loss: rollout 2D model from u0 to get trajectory, then PDE/IC loss
+            if cont_weight != 0.0:
+                # u # batch of realizations (B, 3, nx, ny, nt+1)
+                # u0 # initial conditions (B, 3, nx, ny)
+                u = torch.stack([x, pred], dim=-1).permute(0, 3, 1, 2, 4) # (B, nx, ny, 3, 2) ->(B, 3, nx, ny, 2)
+                u0 = u[..., :1] # the first step
+                loss_ic, loss_cont, loss_momx, loss_momy = PINO_loss3d_vel(u, u0, forcing)
+            else:
+                loss_ic = torch.tensor(0.0, device=device)
+                loss_cont = torch.tensor(0.0, device=device)
+                loss_momx = torch.tensor(0.0, device=device)
+                loss_momy = torch.tensor(0.0, device=device)
 
-                loss = data_loss * xy_weight + loss_f * f_weight + loss_ic * ic_weight
+            loss = data_loss * data_weight + loss_cont * cont_weight + loss_ic * ic_weight + loss_momx * momx_weight + loss_momy * momy_weight
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             rel_l2_loss_total += loss.item()
             loss_ic_total += (loss_ic.item() if isinstance(loss_ic, torch.Tensor) else loss_ic)
-            loss_f_total += (loss_f.item() if isinstance(loss_f, torch.Tensor) else loss_f)
+            loss_cont_total += (loss_cont.item() if isinstance(loss_cont, torch.Tensor) else loss_cont)
+            loss_momx_total += (loss_momx.item() if isinstance(loss_momx, torch.Tensor) else loss_momx)
+            loss_momy_total += (loss_momy.item() if isinstance(loss_momy, torch.Tensor) else loss_momy)
             batches += 1
         scheduler.step()
         rel_l2_loss_avg = rel_l2_loss_total / max(1, batches)
         loss_ic_avg = loss_ic_total / max(1, batches)
-        loss_f_avg = loss_f_total / max(1, batches)
-        print(f'Epoch {ep + 1}/{epochs}, train L2: {rel_l2_loss_avg:.6f}, train IC: {loss_ic_avg:.6f}, train PDE: {loss_f_avg:.6f}')
+        loss_cont_avg = loss_cont_total / max(1, batches)
+        loss_momx_avg = loss_momx_total / max(1, batches)
+        loss_momy_avg = loss_momy_total / max(1, batches)
+        print(f'Epoch {ep + 1}/{epochs}, train L2: {rel_l2_loss_avg:.6f}, train IC: {loss_ic_avg:.6f}, train PDE: {loss_cont_avg:.6f}, train momx: {loss_momx_avg:.6f}, train momy: {loss_momy_avg:.6f}')
         if writer is not None:
             writer.add_scalar('train/rel_l2', rel_l2_loss_avg, ep + 1)
             writer.add_scalar('train/ic', loss_ic_avg, ep + 1)
-            writer.add_scalar('train/pde', loss_f_avg, ep + 1)
+            writer.add_scalar('train/pde', loss_cont_avg, ep + 1)
+            writer.add_scalar('train/momx', loss_momx_avg, ep + 1)
+            writer.add_scalar('train/momy', loss_momy_avg, ep + 1)
         if use_tqdm:
-            pbar.set_description((f'Train L2: {rel_l2_loss_avg:.6f}, train IC: {loss_ic_avg:.6f}, train PDE: {loss_f_avg:.6f}'))
+            pbar.set_description((f'Train L2: {rel_l2_loss_avg:.6f}, train IC: {loss_ic_avg:.6f}, train PDE: {loss_cont_avg:.6f}, train momx: {loss_momx_avg:.6f}, train momy: {loss_momy_avg:.6f}'))
 
         if ep % eval_step == 0 and test_loader is not None:
             test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)
@@ -240,14 +238,15 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
     """Create a random dataset that mimics NSLoader/NSLoader2D output."""
     sub = data_config.get('sub', 1)
     sub_t = data_config.get('sub_t', 1)
-    nx = data_config.get('nx', 64)
+    nx = data_config.get('nx',128)
     nt = data_config.get('nt', 64)
     time_scale = data_config.get('time_interval', 1.0)
     S = nx // sub
-    T = int(nt * time_scale) // sub_t + 1
+    T = 64 # channel size
+    C = 3 # time steps
 
     if step_ahead:
-        data = torch.rand(n_samples, S, S, T)
+        data = torch.rand(n_samples, S, S, C, T)
 
         class SyntheticStepDataset(Dataset):
             def __init__(self, arr):
@@ -263,7 +262,7 @@ def build_synthetic_dataset(data_config, n_samples, step_ahead=False):
                 t = torch.randint(0, self.max_t, ()).item()
                 return sample[..., t], sample[..., t + 1]
 
-        return SyntheticStepDataset(data), S, 1
+        return SyntheticStepDataset(data), (S, S), 1
 
 
 def train_2d(args, config):
@@ -275,13 +274,7 @@ def train_2d(args, config):
         full_dataset, S_data, _ = build_synthetic_dataset(
             data_config, args.synthetic_samples, step_ahead=True)
     else:
-        full_dataset = NSLoader2D(datapath1=data_config['datapath'],
-                                    nx=data_config['nx'], nt=data_config['nt'],
-                                    sub=data_config['sub'], sub_t=data_config['sub_t'],
-                                    N=data_config['total_num'],
-                                    t_interval=data_config['t_duration'],
-                                    n_samples=data_config.get('n_sample', data_config.get('n_samples', data_config['total_num'])),
-                                    offset=data_config.get('offset', 0))
+        full_dataset = NSLoader2D(datapath=data_config['datapath'], state='train', train=True, save_normalizer_path=data_config.get('normalizer_path')) 
         S_data = full_dataset.S
     
     
@@ -302,31 +295,33 @@ def train_2d(args, config):
                                  shuffle=False)
     else:
         train_set = full_dataset
-        test_loader = None
+        test_set = NSLoader2D(datapath=data_config['datapath'],
+                                state='val',
+                                train=False,
+                                normalizer_path=data_config.get('normalizer_path', None))
+        test_loader = DataLoader(test_set, batch_size=config['train']['batchsize'], shuffle=False)
 
     train_loader = DataLoader(train_set,
                               batch_size=config['train']['batchsize'],
                               shuffle=data_config['shuffle'])
 
-
-
     # loader for initial condition and PDE loss computation
     # PINO loss: parameters and IC dataloader (take the first time step of each realization) (see neuraloperator/physics_informed train_pino.py)
-    v = 1.0 / config['data']['Re']
-    t_duration = config['data'].get('t_duration', 0.125)
-    xy_weight = config['train'].get('xy_loss', 1.0)
-    f_weight = config['train'].get('f_loss', 0.0)
+    data_weight = config['train'].get('xy_loss', 1.0)
+    cont_weight = config['train'].get('f_loss', 0.0)
     ic_weight = config['train'].get('ic_loss', 0.0)
+    momx_weight = config['train'].get('momx_loss', 0.0)
+    momy_weight = config['train'].get('momy_loss', 0.0)
+    weight_dict = {
+        'data_weight': data_weight,
+        'cont_weight': cont_weight,
+        'ic_weight': ic_weight,
+        'momx_weight': momx_weight,
+        'momy_weight': momy_weight
+    }
     # Forcing at same resolution as data; PDE loss uses rollout trajectory length T
-    S_forcing = S_data
-    forcing = get_forcing(S_forcing).to(device)
-    base_ds = _get_base_dataset(train_set)
-    if hasattr(base_ds, 'data') and hasattr(base_ds, 'T'):
-        indices = train_set.indices if isinstance(train_set, Subset) else list(range(len(base_ds)))
-        a_dataset = InitialConditionDataset(base_ds.data, indices=indices)
-        a_loader = DataLoader(a_dataset, batch_size=config['train']['batchsize'], shuffle=data_config['shuffle'])
-    else:
-        a_loader = None  
+    S_forcing = S_data[0] # need to change this if rectangular grid
+    forcing = get_forcing_vel(S_forcing).to(device)
     
     # create model
     print("device: ", device)
@@ -402,7 +397,7 @@ def train_2d(args, config):
     os.makedirs(tensorboard_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=tensorboard_dir)
 
-    grid = torch2dgrid_2d(S_data, S_data, form=config['data']['grid_form'], device=device, dtype=torch.float32)
+    grid = torch2dgrid_2d(S_data[0], S_data[1], form=config['data']['grid_form'], device=device, dtype=torch.float32)
 
     train_step_ahead(model,
                         train_loader,
@@ -415,8 +410,8 @@ def train_2d(args, config):
                         writer=writer,
                         model_name=model_name,
                         start_ep=start_ep, 
-                        xy_weight=xy_weight, f_weight=f_weight, ic_weight=ic_weight,
-                        a_loader=a_loader, forcing=forcing, v=v, t_duration=t_duration)
+                        weight_dict=weight_dict,
+                        forcing=forcing)
     
     if test_loader is not None:
         test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)
