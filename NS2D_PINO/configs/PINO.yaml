@@ -29,7 +29,7 @@ train:
   f_loss: 0.1
   momx_loss: 0.1
   momy_loss: 0.1
-  eval_step: 10
+  eval_step: 50
   save_dir: /scratch3/wan410/operator_learning_model/NS2D_ChaoticKolmogorovFlow/PINO2d_linear/
   save_name: PINO2d-mode16-dim64-layer4.pt
   data_iter: 1
