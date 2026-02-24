@@ -160,9 +160,9 @@ def autoregressive_predict(model, test_loader, device, grid):
             total_truth.append(truth_seq)
             print("pred_seq shape:", pred_seq.shape, "truth_seq shape:", truth_seq.shape)
 
-    total_pred = torch.cat(total_pred, dim=0)[..., 0] # (N, H, W, T)
-    total_truth = torch.cat(total_truth, dim=0)[..., 0] # (N, H, W, T)
-    initial_condition = torch.cat(initial_condition, dim=0)[..., 0] # (N, H, W)
+    total_pred = torch.cat(total_pred, dim=0)[..., :1] # (N, H, W, T, C)
+    total_truth = torch.cat(total_truth, dim=0)[..., :1] # (N, H, W, T, C)
+    initial_condition = torch.cat(initial_condition, dim=0)[..., :1] # (N, H, W, C)
     # total_pred = torch.rot90(total_pred, k=1, dims=[-2, -1])
     # total_truth = torch.rot90(total_truth, k=1, dims=[-2, -1])
     # initial_condition = torch.rot90(initial_condition, k=1, dims=[-2, -1])
@@ -241,7 +241,7 @@ def main():
 
     print(f'Evaluating on {len(test_set)} samples at resolution {S_data[0]}x{S_data[1]} for {T_data} steps.')
     use_external_grid = model_cfg.get('external_grid', True)
-    grid = torch2dgrid_2d(S_data[0], S_data[1], form=config['data']['grid_form'], device=device, dtype=torch.float32)
+    grid = torch2dgrid_2d(S_data[0], S_data[1],  form=config['data']['grid_form'], device=device, dtype=torch.float32)
     
     
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
