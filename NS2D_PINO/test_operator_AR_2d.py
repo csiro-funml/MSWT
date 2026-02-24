@@ -11,64 +11,37 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from models.fno import FNO2d
 from models.high_frequency_scaling import ResUNet
 from einops import rearrange
-from utils.criterion import LpLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, get_forcing, PINO_loss3d
+from utils.criterion import LpLoss, MeanEnergyAbsolutePercentageError, MeanEnergyLogRatioError, get_forcing_vel, PINO_loss3d_vel
 from utils.compute_diagnostics import velocity_from_vorticity, compute_spectra_torch, compute_enstropy_torch
 from utils.utilities import torch2dgrid_2d
-from data_utils.datasets import InitialConditionDataset
+from data_utils.datasets_dedalus import NSLoader2D
 import pandas as pd
 
 
-def load_ns_sequences(data_config):
-    """Load full (N, X, Y, T) sequences for evaluation."""
-    sub = data_config.get('sub', 1)
-    sub_t = data_config.get('sub_t', 1)
-    nx = data_config['nx']
-    nt = data_config['nt']
-    t_interval = data_config.get('time_interval', 1.0)
-    datapath1 = data_config['datapath']
-
-    S = nx // sub
-    T = int(nt * t_interval) // sub_t + 1
-    # create a random dataset in case the data is not available
-    if not os.path.exists(datapath1):
-        print(f"Data not found at {datapath1}, creating random dataset with shape (N, T, X, Y) = (100, {T}, {S}, {S})")
-        data1 = torch.rand(100, T, S, S) # (100, 65, 64, 64)
-    else:
-        data1 = np.load(datapath1)
-    data1 = torch.tensor(data1, dtype=torch.float)[..., ::sub_t, ::sub, ::sub]
-    # print("data1 shape: ", data1.shape)
-    part1 = data1.permute(0, 2, 3, 1)  # (N, X, Y, T)
-    data = part1
-    # print("data shape: ", data.shape)
-
-    offset = data_config.get('offset', 0)
-    n_sample = data_config.get('n_sample', data_config.get('n_samples', data_config.get('total_num', data.shape[0])))
-    end = min(data.shape[0], offset + n_sample)
-    data = data[offset:end]
-    print("final data shape: ", data.shape) # (N, X, Y, T)
-    # exit(-1)
-    return data, S, T
 
 
-def autoregressive_predict(model, sequences, device, grid):
+
+def autoregressive_predict(model, test_loader, device, grid):
     """Run autoregressive rollout on full sequences.
     
-    sequences: (B, H, W, T)
+    test_loader: DataLoader
     """
     model.eval()
-    S = sequences.shape[1]
-    T = sequences.shape[-1]
     total_pred = []
     initial_condition = []
-    loader = DataLoader(TensorDataset(sequences), batch_size=1, shuffle=False)
+    total_ground_truth = []
     with torch.no_grad():
-        for (seq,) in loader:
-            seq = seq.to(device)  # (1, S, S, T)
+        for (seq, truth) in test_loader:
+            seq = seq.to(device)  # (B, T, S, S, C)
+            truth = truth.to(device) # (B, T, S, S, C)
+            T = seq.shape[1]
             preds = []  # predicted rollout
-            prev = seq[..., 0]  # initial condition
+            prev = seq[..., 0]  # initial condition (B, S, S, C)
             initial_condition.append(prev)
-            for t in range(T - 1):
-                x_in = torch.cat((prev.unsqueeze(-1), grid.unsqueeze(0).expand(prev.shape[0], -1, -1, -1)), dim=-1)
+            total_ground_truth.append(truth) # (B, S, S, C)
+            preds.append(prev) # append the initial condition
+            for t in range(T):
+                x_in = torch.cat((prev, grid.unsqueeze(0).expand(prev.shape[0], -1, -1, -1)), dim=-1)
                 pred = model(x_in)
                 if pred.dim() == 5:
                     pred = pred.squeeze(-2)
@@ -77,12 +50,13 @@ def autoregressive_predict(model, sequences, device, grid):
                 preds.append(pred)
                 prev = pred
         
-            pred_seq = torch.stack(preds, dim=-1)       # (1, S, S, T-1)
+            pred_seq = torch.stack(preds, dim=-1)       # (B, S, S, C, T+1)
             total_pred.append(pred_seq)
-        total_pred = torch.stack(total_pred, dim=0)
-        initial_condition = torch.stack(initial_condition, dim=0)
-    print("total_pred shape: ", total_pred.shape, "sequences.shape: ", sequences.shape, "initial_condition shape: ", initial_condition.shape)
-    return initial_condition, total_pred.squeeze(1), sequences[..., 1:].to(device)
+        total_pred = torch.stack(total_pred, dim=0) # (N, S, S, C, T+1)
+        initial_condition = torch.stack(initial_condition, dim=0) # (N, S, S, C)
+        total_ground_truth = torch.stack(total_ground_truth, dim=0) # (N, S, S, C, T)
+    print("total_pred shape: ", total_pred.shape, "total_ground_truth shape: ", total_ground_truth.shape, "initial_condition shape: ", initial_condition.shape)
+    return initial_condition, total_pred, total_ground_truth
 
 
 def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=False):
@@ -169,24 +143,21 @@ def evaluate_model(truth_seq, pred_seq, model_name, seed, save_dir, save_csv=Fal
     return metrics_dict
 
 
-def compute_PDE_loss(initial_condition, truth_seq, pred_seq, t_duration, v, forcing):
+def compute_PDE_loss(initial_condition, truth_seq, pred_seq, forcing):
     """
-    truth_seq: (B, H, W, T)
-    pred_seq: (B, H, W, T)
-    t_duration: float
-    v: float
-    forcing: (B, H, W)
+    truth_seq:  (N, S, S, C, T)
+    pred_seq:  (N, S, S, C, T+1)
+    initial_condition: (N, S, S, C)
     """
-    # loss_ic, loss_f = PINO_loss3d(out, u0, forcing, v, t_duration)
-    u0 = initial_condition.squeeze(1)
-    # compute the loss for the ground truth sequence
-    loss_ic_gt, loss_f_gt = PINO_loss3d(truth_seq, u0.clone(), forcing.clone(), v, t_duration)
-    print(f"Ground truthPDE loss: {loss_f_gt.item()}, IC loss: {loss_ic_gt.item()}")
-    # compute the loss for the predicted sequence
-    loss_ic_pred, loss_f_pred = PINO_loss3d(pred_seq, u0.clone(), forcing.clone(), v, t_duration)
-    print(f"Predicted sequence PDE loss: {loss_f_pred.item()}, IC loss: {loss_ic_pred.item()}")
-    
-    return loss_f_gt.item(), loss_ic_gt.item(), loss_f_pred.item(), loss_ic_pred.item()
+    rel_l2 = LpLoss(size_average=True)
+    test_rel_l2 = rel_l2(pred_seq[..., 1:], truth_seq)
+    print(f"Test relative L2 loss: {test_rel_l2.item()}")
+
+    u = pred_seq.permute(0, 3, 1, 2, 4) # (N, S, S, C, T+1) -> (N, C, S, S, T+1)
+    u0 = initial_condition.permute(0, 3, 1, 2) # (N, S, S, C) -> (N, C, S, S)
+    loss_ic, loss_cont, loss_momx, loss_momy = PINO_loss3d_vel(u, u0, forcing.clone())
+    print(f"Predicted sequence PDE loss: {loss_cont.item()}, IC loss: {loss_ic.item()}, momx loss: {loss_momx.item()}, momy loss: {loss_momy.item()}")    
+
 
 def save_ground_truth_and_predictions(initial_condition, truth_seq, pred_seq, time_indices, save_dir, model_name, seed):
     """
@@ -256,25 +227,23 @@ def main():
         config = yaml.load(stream, yaml.FullLoader)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    data_config = config['test_data']
+    data_config = config['data']
     model_cfg = config['model']
-    sequences, S_data, T_data = load_ns_sequences(data_config)
     
-    v = 1.0 / config['data']['Re']
-    t_duration = config['test_data'].get('time_interval', 0.125)
-    
-    # Forcing at same resolution as data; PDE loss uses rollout trajectory length T
-    S_forcing = S_data
-    forcing = get_forcing(S_forcing).to(device)
-    base_ds = sequences
-    if hasattr(base_ds, 'data') and hasattr(base_ds, 'T'):
-        indices = list(range(len(base_ds)))
-        a_dataset = InitialConditionDataset(base_ds, indices=indices)
-        a_loader = DataLoader(a_dataset, batch_size=config['train']['batchsize'], shuffle=data_config['shuffle'])
-    else:
-        a_loader = None  
-    
-    grid = torch2dgrid_2d(S_data, S_data, form=config['data']['grid_form'], device=device, dtype=torch.float32)
+    test_set = NSLoader2D(datapath=data_config['datapath'],
+                                state='test',
+                                train=False,
+                                normalizer_path=data_config.get('normalizer_path', None))
+                                
+    test_set.transform_rollout(T=data_config['nt']) # convert  10 realizations of (N*T, H, W, C) to (N, T, H, W, C) for autoregressive rollout
+    test_loader = DataLoader(test_set,
+                                 batch_size=config['train']['batchsize'],
+                                 shuffle=False,
+                                 num_workers=config['train'].get('num_workers', 1))
+    S_data = test_set.S # (H, W)
+    T_data = test_set.T # T
+    grid = torch2dgrid_2d(S_data[0], S_data[1], form=config['data']['grid_form'], device=device, dtype=torch.float32)
+    forcing = get_forcing_vel(S_data[0]).to(device)
     model_name = model_cfg.get('name', 'fno2d').lower()
     
     if model_name == 'fno2d':
@@ -308,14 +277,14 @@ def main():
     else:
         print(f'Checkpoint not found at {ckpt_path}; evaluating with randomly initialized weights.')
 
-    print(f'Evaluating on {sequences.shape[0]} samples at resolution {S_data}x{S_data} for {T_data} steps.')
+    print(f'Evaluating on {len(test_set)} samples at resolution {S_data[0]}x{S_data[1]} for {T_data} steps.')
     # total_l2, step_l2, total_log_en_err, step_log_en_err, example = autoregressive_eval(model, sequences, device, grid)
-    initial_condition, pred_seq, truth_seq = autoregressive_predict(model, sequences, device, grid)
+    initial_condition, pred_seq, truth_seq = autoregressive_predict(model, test_loader, device, grid)
     # Function 1, evaluate the model and save the metrics
     # evaluate_model(truth_seq, pred_seq, model_name, seed=args.test_seed, save_dir=save_dir, save_csv=False)
     # exit(-1)
     
-    loss_f_gt, loss_ic_gt, loss_f_pred, loss_ic_pred = compute_PDE_loss(initial_condition, truth_seq, pred_seq, t_duration, v, forcing)
+    compute_PDE_loss(initial_condition, truth_seq, pred_seq, forcing=forcing)
      
     # Function 2, for time_indecs = [0, 29, truth_seq.shape[-1] - 1], save the ground truth and predictions as npz file,
     # time_indices = [0, 29, truth_seq.shape[-1] - 1]

@@ -4,7 +4,7 @@ data:
   name: NS2D
   Re: 500
   nx: 128
-  nt: 1
+  nt: 63
   shuffle: True
   grid_form: linear
 
@@ -35,7 +35,6 @@ train:
   eqn_iter: 0
 
 test_data:
-  datapath: '/scratch3/wan410/operator_learning_data/pino_ns2d/NS_Re500_s256_T100_test.npy'
   Re: 500
   total_num: 100
   offset: 0
