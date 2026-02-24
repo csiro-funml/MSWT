@@ -32,9 +32,8 @@ echo "=========================================="
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # python3 data_utils/datasets_dedalus.py
-
-python3 train_operator_AR_PINO_2d.py --config_path configs/PINO.yaml --test_seed 42
-# python3 train_operator_AR_rell2_2d.py --config_path configs/FNO.yaml --test_ratio 0.25 --test_seed 42
+python3 train_operator_AR_PINO_2d.py --config_path configs/FNO.yaml --test_seed 42
+# python3 train_operator_AR_PINO_2d.py --config_path configs/PINO.yaml --test_seed 42
 #################################################################################################################################
 
 
