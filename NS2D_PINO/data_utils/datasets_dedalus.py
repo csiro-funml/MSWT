@@ -11,12 +11,15 @@ from einops import rearrange
 import matplotlib.pyplot as plt
 # todo: load all the data from the mat file in the folder:
 # /data/large/pdearena/sw2d_pda/train, stack the needed variables and save it as a numpy array
-def load_sw_data_split_and_save(load_dir, save_dir):
-    data = np.load(os.path.join(load_dir, 'sw2d_dataset_v3.npz'))
+def load_ns2d_data_split_and_save(load_dir, save_dir):
+    data = np.load(os.path.join(load_dir, 'kolmogorov_dataset.npz'))
     print(data)
     for key in data.keys():
         print(key)
     X_train, X_val, X_test, y_train, y_val, y_test = data['X_train'], data['X_val'], data['X_test'], data['Y_train'], data['Y_val'], data['Y_test']
+    
+    # only save the first 100 steps for prototyping
+    
     print("X_train shape: ", X_train.shape) # (N, C, H, W)  (28720, 2, 256, 128)  # 80 realizations of 360 steps
     print("X_val shape: ", X_val.shape) # (N, C, H, W)  # 10 realizations of 360 steps
     print("X_test shape: ", X_test.shape) # (N, C, H, W)  # 10 realizations of 360 steps
@@ -31,16 +34,19 @@ def load_sw_data_split_and_save(load_dir, save_dir):
     times_val = data['times_val']
     test_realisation = data['test_realisations']
     times_test = data['times_test']
-    # save the training/ val /test set in separate npz files
-    np.savez(os.path.join(save_dir, 'sw2d_train_dataset.npz'), X_train=X_train, y_train=y_train, train_realisations=train_realisation, times_train=times_train)
-    np.savez(os.path.join(save_dir, 'sw2d_val_dataset.npz'), X_val=X_val, y_val=y_val, val_realisations=val_realisation, times_val=times_val)
-    np.savez(os.path.join(save_dir, 'sw2d_test_dataset.npz'), X_test=X_test, y_test=y_test, test_realisations=test_realisation, times_test=times_test)
-    print("Training/ val /test set saved to: ", os.path.join(save_dir, 'sw2d_train_dataset.npz'), os.path.join(save_dir, 'sw2d_val_dataset.npz'), os.path.join(save_dir, 'sw2d_test_dataset.npz'))
-    print("data shape: ", data.shape)
+
+    # save the small prototype training/ val /test set in one npz file
+    
+    
+    # np.savez(os.path.join(save_dir, 'sw2d_train_dataset.npz'), X_train=X_train, y_train=y_train, train_realisations=train_realisation, times_train=times_train)
+    # np.savez(os.path.join(save_dir, 'sw2d_val_dataset.npz'), X_val=X_val, y_val=y_val, val_realisations=val_realisation, times_val=times_val)
+    # np.savez(os.path.join(save_dir, 'sw2d_test_dataset.npz'), X_test=X_test, y_test=y_test, test_realisations=test_realisation, times_test=times_test)
+    # print("Training/ val /test set saved to: ", os.path.join(save_dir, 'sw2d_train_dataset.npz'), os.path.join(save_dir, 'sw2d_val_dataset.npz'), os.path.join(save_dir, 'sw2d_test_dataset.npz'))
+    # print("data shape: ", data.shape)
     return data
 
 
-class SWLoader2D(Dataset):
+class NS2DLoader2D(Dataset):
     def __init__(self, datapath, state='train', train=True, normalizer_path=None, save_normalizer_path=None):
         '''
         Load data from npz files (sw2d_train_dataset.npz, sw2d_val_dataset.npz, sw2d_test_dataset.npz)
@@ -194,77 +200,8 @@ def verify_time_steps(folder_path, state='test'):
     print("times: ", times)
     return X_data, y_data
 
+
+
 if __name__ == '__main__':
-    # if torch.cuda.is_available():
-    #     # state = 'train'
-    #     state = 'val'
-    #     folder = '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/' + state
-    # else:
-    #     folder = 'pdearena/sw2d_pda/train'
-    # data = load_save_sw_data(folder,max_files=4000, state=state)
-
-    # loader = SWLoader2D(datapath1='pdearena/sw2d_pda/train/sw2d_pda_data_train.npy',
-    #                     nx=96, ny=192, nt=87, nc=2,
-    #                     sub=1, sub_t=1,
-    #                     N=4000, t_interval=1.0,
-    #                     n_samples=100, offset=0,
-    #                     train=True)
-    # print(data.shape)
-    load_sw_data_split_and_save(load_dir='/datasets/work/oa-tcch/work/forXuesong', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater')
-    # X_test = load_sw_data_split_and_save('/datasets/work/oa-tcch/work/forXuesong')
-    # # X_test = np.load(os.path.join('/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater', 'sw2d_test_dataset.npz'))['X_test']
-    # print("X_test shape: ", X_test.shape)
-    
-
-
-    verify_time_steps(folder_path='/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater', state='test')
-    # # X_test (N*T, C, H, W) 
-    # T = 359
-    # C = 2
-    # H = 256
-    # W = 128
-    
-    # # Reshape from (N*T, C, H, W) to (N, T, C, H, W)
-    # N = X_test.shape[0] // T
-    # assert X_test.shape[0] % T == 0, f"X_test.shape[0] ({X_test.shape[0]}) must be divisible by T ({T})"
-    # X_new = X_test.reshape(N, T, C, H, W)
-    # print(f"Reshaped X_test from {X_test.shape} to X_new shape: {X_new.shape}")
-    
-    # # Plot x_new[0, t, 0, h, w] at every 10 time intervals
-    # save_folder = '/datasets/work/oa-tcch/work/forXuesong/sanity_plot'
-    # os.makedirs(save_folder, exist_ok=True)
-    # print(f"Saving plots to: {save_folder}")
-    
-    # # Get the first trajectory, first channel
-    # trajectory_0_channel_0 = X_new[0, :, 0, :, :]  # (T, H, W)
-    
-    # # Plot at every 10 time steps
-    # time_steps = list(range(0, T, 10))  # [0, 10, 20, 30, ...]
-    # print(f"Plotting at time steps: {time_steps}")
-    
-    # for t in time_steps:
-    #     fig, ax = plt.subplots(figsize=(10, 8))
-    #     im = ax.imshow(trajectory_0_channel_0[t], cmap='RdBu_r', origin='lower')
-    #     ax.set_title(f'Trajectory 0, Channel 0, Time Step {t}', fontsize=14, fontweight='bold')
-    #     ax.set_xlabel('Width (W)', fontsize=12, fontweight='bold')
-    #     ax.set_ylabel('Height (H)', fontsize=12, fontweight='bold')
-    #     plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    #     plt.tight_layout()
-        
-    #     # Save plot
-    #     save_path = os.path.join(save_folder, f'trajectory0_channel0_t{t:03d}.png')
-    #     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    #     print(f"Saved plot to: {save_path}")
-    #     plt.close()
-    
-    # print(f"Successfully saved {len(time_steps)} plots to {save_folder}")
-
-
-    # data = SWLoader2D(datapath1='pdearena/sw2d_pda/train/sw2d_pda_data_train.npy',
-    #                     nx=96, ny=192, nt=87, nc=2,
-    #                     sub=1, sub_t=1,
-    #                     N=4000, t_interval=1.0,
-    #                     n_samples=100, offset=0,
-    #                     train=True,
-    #                     normalizer_path='pdearena/sw2d_pda/normstats.pt')
-    # print(data.shape)
+    load_ns2d_data_split_and_save(load_dir='/datasets/work/oa-tcch/work/forXuesong', save_dir='/scratch3/wan410/operator_learning_data/Dedalus/')
+    # verify_time_steps(folder_path='/scratch3/wan410/operator_learning_data/Dedalus/ShallowWater', state='test')
