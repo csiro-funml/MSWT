@@ -56,7 +56,8 @@ def evaluate_step_ahead(model, test_loader, device, grid, forcing):
         for x, y in test_loader:
             x, y = x.to(device), y.to(device)
             batch = x.shape[0]
-            grid = grid.to(x.device).unsqueeze(0)
+            grid = grid.to(x.device)
+            print("x shape:", x.shape, "y shape:", y.shape, "grid shape:", grid.shape)
             x_in = torch.cat((x, grid.expand(batch, -1, -1, -1)), dim=-1)
             pred = model(x_in)
             total += lploss(pred, y).item()
@@ -117,7 +118,7 @@ def get_fixed_test_pair(model, test_source, grid, device, sample_idx=0, t_idx=0)
     return pred, y.unsqueeze(0)
 
 
-def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=100,save_step=1000, use_tqdm=True,
+def train_step_ahead(model, train_loader, optimizer, scheduler, config, device, grid, test_loader=None, eval_step=10, save_step=1000, use_tqdm=True,
 writer=None, model_name='fno2d', start_ep=0, weight_dict=None, forcing=None):
     """Train on one-step pairs (u_t, u_{t+1})."""
     lploss = LpLoss(size_average=True)
@@ -374,6 +375,7 @@ def train_2d(args, config):
                                                      gamma=config['train']['scheduler_gamma'])
 
     start_ep = 0
+    eval_step = config['train'].get('eval_step', 10)
     
     
     if args.resume_training:
@@ -415,7 +417,9 @@ def train_2d(args, config):
                         model_name=model_name,
                         start_ep=start_ep, 
                         weight_dict=weight_dict,
-                        forcing=forcing)
+                        forcing=forcing,
+                        eval_step=eval_step,
+                        )
     
     if test_loader is not None:
         test_l2, _, _ = evaluate_step_ahead(model, test_loader, device, grid)
