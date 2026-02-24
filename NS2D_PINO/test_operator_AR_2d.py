@@ -42,11 +42,11 @@ def autoregressive_predict(model, test_loader, device, grid):
             total_ground_truth.append(truth) # (B, S, S, C)
             preds.append(prev) # append the initial condition
             for t in range(T):
-                print("prev shape: ", prev.shape, "grid shape: ", grid.shape)
+                # print("prev shape: ", prev.shape, "grid shape: ", grid.shape)
                 x_in = torch.cat((prev, grid.unsqueeze(0).expand(prev.shape[0], -1, -1, -1)), dim=-1)
                 
                 pred = model(x_in)
-                print("pred shape: ", pred.shape)
+                # print("pred shape: ", pred.shape)
                 if pred.dim() == 5:
                     pred = pred.squeeze(-2)
                 if pred.dim() == 4:
