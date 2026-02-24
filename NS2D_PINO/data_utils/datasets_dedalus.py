@@ -16,10 +16,23 @@ def load_ns2d_data_split_and_save(load_dir, save_dir):
     print(data)
     for key in data.keys():
         print(key)
+    # field, train_realisations, val_realisations, test_realisations, x_coords, y_coords, t_start, t_end, X_train, Y_train, times_train, realisation_ids_train, X_val, Y_val, times_val, realisation_ids_val, X_test, Y_test, times_test, realisation_ids_test
+    
     X_train, X_val, X_test, y_train, y_val, y_test = data['X_train'], data['X_val'], data['X_test'], data['Y_train'], data['Y_val'], data['Y_test']
+    times_train, realisation_ids_train, times_val, realisation_ids_val, times_test, realisation_ids_test = data['times_train'], data['realisation_ids_train'], data['times_val'], data['realisation_ids_val'], data['times_test'], data['realisation_ids_test']
+    print("times_train shape: ", times_train.shape)
+    print("realisation_ids_train shape: ", realisation_ids_train.shape)
     
-    # only save the first 100 steps for prototyping
-    
+    # X train shape (T, C, X, Y)
+    # X_train = X_train[: :100, :, :]
+    # X_val = X_val[:, :100, :, :]
+    # X_test = X_test[:, :100, :, :]
+    # y_train = y_train[:, :100, :, :]
+    # y_val = y_val[:, :100, :, :]
+    # y_test = y_test[:, :100, :, :]
+    # times_train = times_train[:100]
+    # times_val = times_val[:100]
+    # times_test = times_test[:100]
     print("X_train shape: ", X_train.shape) # (N, C, H, W)  (28720, 2, 256, 128)  # 80 realizations of 360 steps
     print("X_val shape: ", X_val.shape) # (N, C, H, W)  # 10 realizations of 360 steps
     print("X_test shape: ", X_test.shape) # (N, C, H, W)  # 10 realizations of 360 steps

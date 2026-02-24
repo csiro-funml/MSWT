@@ -125,6 +125,192 @@ def get_forcing(S):
     x2 = torch.tensor(np.linspace(0, 2*np.pi, S, endpoint=False), dtype=torch.float).reshape(1, S).repeat(S, 1)
     return -4 * (torch.cos(4*(x2))).reshape(1,S,S,1)
 
+
+def FDM_NS_velocity(w, v=1/40, alpha=1e-8, t_interval=0.015625):
+    """Compute PDE residuals for the 2D incompressible Navier-Stokes equations
+    in velocity-pressure (primitive variable) form using spectral derivatives.
+
+    Equations (matching ns2d/solver.py):
+        Continuity:   div(u) = dux/dx + duy/dy = 0
+        x-momentum:   dux/dt + ux*dux/dx + uy*dux/dy + dp/dx - v*lap(ux) + alpha*ux = fx
+        y-momentum:   duy/dt + ux*duy/dx + uy*duy/dy + dp/dy - v*lap(uy) + alpha*uy = fy
+
+    Spatial derivatives are computed spectrally (FFT) on a [0, 2pi]^2 periodic
+    domain. Time derivatives use second-order central differences.
+
+    Args:
+        w: Input tensor of shape (batchsize, 3, nx, ny, nt).
+            Channel 0: ux (x-velocity), channel 1: uy (y-velocity),
+            channel 2: p (pressure).
+        v: Kinematic viscosity.
+        alpha: Linear friction coefficient.
+        t_interval: Total time spanned by the nt snapshots.
+
+    Returns:
+        tuple: (R_cont, R_momx, R_momy)
+            R_cont: continuity residual, shape (batchsize, nx, ny, nt)
+            R_momx: x-momentum LHS residual (without forcing), (batchsize, nx, ny, nt-2)
+            R_momy: y-momentum LHS residual (without forcing), (batchsize, nx, ny, nt-2)
+    """
+    batchsize = w.size(0)
+    nx = w.size(2)
+    ny = w.size(3)
+    nt = w.size(4)
+    device = w.device
+    w = w.reshape(batchsize, 3, nx, ny, nt)
+
+    ux = w[:, 0]  # (B, nx, ny, nt)
+    uy = w[:, 1]
+    p  = w[:, 2]
+
+    # Wavenumber grids for [0, 2pi] periodic domain (integer wavenumbers = physical wavenumbers)
+    k_max = nx // 2
+    N = nx
+    k_x = torch.cat((torch.arange(start=0, end=k_max, step=1, device=device),
+                     torch.arange(start=-k_max, end=0, step=1, device=device)), 0
+                     ).reshape(N, 1).repeat(1, N).reshape(1, N, N, 1)
+    k_y = torch.cat((torch.arange(start=0, end=k_max, step=1, device=device),
+                     torch.arange(start=-k_max, end=0, step=1, device=device)), 0
+                     ).reshape(1, N).repeat(N, 1).reshape(1, N, N, 1)
+
+    lap = k_x ** 2 + k_y ** 2
+
+    # Forward FFT of all fields (spatial dims 1, 2)
+    ux_h = torch.fft.fft2(ux, dim=[1, 2])
+    uy_h = torch.fft.fft2(uy, dim=[1, 2])
+    p_h  = torch.fft.fft2(p,  dim=[1, 2])
+
+    # Spatial derivatives in Fourier space
+    dux_dx_h = 1j * k_x * ux_h
+    dux_dy_h = 1j * k_y * ux_h
+    duy_dx_h = 1j * k_x * uy_h
+    duy_dy_h = 1j * k_y * uy_h
+    dp_dx_h  = 1j * k_x * p_h
+    dp_dy_h  = 1j * k_y * p_h
+    lap_ux_h = -lap * ux_h
+    lap_uy_h = -lap * uy_h
+
+    # Inverse FFT to physical space
+    dux_dx = torch.fft.ifft2(dux_dx_h, dim=[1, 2]).real
+    dux_dy = torch.fft.ifft2(dux_dy_h, dim=[1, 2]).real
+    duy_dx = torch.fft.ifft2(duy_dx_h, dim=[1, 2]).real
+    duy_dy = torch.fft.ifft2(duy_dy_h, dim=[1, 2]).real
+    dp_dx  = torch.fft.ifft2(dp_dx_h,  dim=[1, 2]).real
+    dp_dy  = torch.fft.ifft2(dp_dy_h,  dim=[1, 2]).real
+    lap_ux = torch.fft.ifft2(lap_ux_h, dim=[1, 2]).real
+    lap_uy = torch.fft.ifft2(lap_uy_h, dim=[1, 2]).real
+
+    # Continuity residual (all time steps)
+    R_cont = dux_dx + duy_dy  # (B, nx, ny, nt)
+
+    # Time derivatives via central differences (interior time steps only)
+    dt = t_interval / (nt - 1)
+    dux_dt = (ux[:, :, :, 2:] - ux[:, :, :, :-2]) / (2 * dt)
+    duy_dt = (uy[:, :, :, 2:] - uy[:, :, :, :-2]) / (2 * dt)
+
+    # Momentum residuals (LHS; compare against forcing to close the equations)
+    R_momx = dux_dt + (ux * dux_dx + uy * dux_dy + dp_dx
+                       - v * lap_ux + alpha * ux)[..., 1:-1]
+    R_momy = duy_dt + (ux * duy_dx + uy * duy_dy + dp_dy
+                       - v * lap_uy + alpha * uy)[..., 1:-1]
+
+    return R_cont, R_momx, R_momy
+
+
+def PINO_loss3d_vel(u, u0, forcing, v=1.0/500, alpha=1e-8, t_interval=0.015625):
+    """Physics-informed loss for the velocity-pressure NS formulation.
+
+    Computes initial-condition loss plus PDE residual losses for the
+    continuity and momentum equations.
+
+    Args:
+        u: Predicted fields, shape (batchsize, 3, nx, ny, nt).
+            Channels: ux, uy, p.
+        u0: Initial condition, shape (batchsize, 3, nx, ny) or broadcastable.
+        forcing: Velocity forcing, shape (1, 2, nx, ny, 1).
+            Channel 0: fx, channel 1: fy.
+        v: Kinematic viscosity.
+        alpha: Linear friction coefficient.
+        t_interval: Total time spanned by the nt snapshots.
+
+    Returns:
+        tuple: (loss_ic, loss_cont, loss_momx, loss_momy)
+            loss_ic:   relative L2 error on initial condition
+            loss_cont: MSE of continuity residual
+            loss_momx: MSE of x-momentum residual minus forcing
+            loss_momy: MSE of y-momentum residual minus forcing
+    """
+    batchsize = u.size(0)
+    nx = u.size(2)
+    ny = u.size(3)
+    nt = u.size(4)
+
+    u = u.reshape(batchsize, 3, nx, ny, nt)
+    lploss = LpLoss(size_average=True)
+
+    # Initial-condition loss
+    u_in = u[:, :, :, :, 0]
+    loss_ic = lploss(u_in, u0)
+
+    # PDE residuals
+    R_cont, R_momx, R_momy = FDM_NS_velocity(u, v, alpha, t_interval)
+
+    # Expand forcing to match momentum residual time dimension
+    fx = forcing[:, 0].repeat(batchsize, 1, 1, nt - 2)
+    fy = forcing[:, 1].repeat(batchsize, 1, 1, nt - 2)
+
+    # Continuity: target is zero so use MSE (relative norm is undefined)
+    loss_cont = torch.mean(R_cont ** 2)
+    loss_momx = torch.mean((R_momx - fx) ** 2)
+    loss_momy = torch.mean((R_momy - fy) ** 2)
+
+    return loss_ic, loss_cont, loss_momx, loss_momy
+
+
+def get_forcing_vel(S):
+    """Return the Kolmogorov velocity forcing on an S x S grid.
+
+    Hard-coded parameters from examples/run_kolmogorov.sh:
+        amplitude (f0) = 2*sqrt(2)
+        k_drive         = 4
+        phase           = 5*pi/4
+        Lx = Ly         = 2*pi
+
+    The vector forcing (fx, fy) is constructed via the streamfunction
+    approach used in ns2d/forcing.py::distributed_kolmogorov_forcing,
+    guaranteeing divergence-free forcing.
+
+    Args:
+        S: Spatial grid resolution (number of points per side).
+
+    Returns:
+        torch.Tensor: Shape (1, 2, S, S, 1) with fx and fy components.
+    """
+    Lx = 2.0 * np.pi
+    Ly = 2.0 * np.pi
+    amplitude = 2.8284271247461903   # 2*sqrt(2)
+    k_drive   = 4.0
+    phase     = 3.9269908169872414   # 5*pi/4
+
+    x = torch.tensor(np.linspace(0, Lx, S, endpoint=False), dtype=torch.float).reshape(S, 1).repeat(1, S)
+    y = torch.tensor(np.linspace(0, Ly, S, endpoint=False), dtype=torch.float).reshape(1, S).repeat(S, 1)
+
+    # Physical wavenumbers of the diagonal forcing mode
+    kx = 2.0 * np.pi * k_drive / Lx   # = k_drive when Lx = 2*pi
+    ky = 2.0 * np.pi * k_drive / Ly   # = k_drive when Ly = 2*pi
+    k2 = kx ** 2 + ky ** 2
+
+    # theta directly in physical coordinates
+    theta = kx * x + ky * y + phase
+
+    # F = grad_perp(psi) where -lap(psi) = amplitude*(sin(theta)+cos(theta))
+    dpsi_dtheta = (amplitude / k2) * (torch.cos(theta) - torch.sin(theta))
+    fx = dpsi_dtheta * ky       # d(psi)/dy
+    fy = -dpsi_dtheta * kx      # -d(psi)/dx
+
+    return torch.stack([fx, fy], dim=0).reshape(1, 2, S, S, 1)
+
+
 def get_loss_func(name, component, normalizer):
     if name == 'rel2':
         return RelLpLoss(p=2,component=component, normalizer=normalizer)
