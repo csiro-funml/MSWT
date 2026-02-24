@@ -32,11 +32,12 @@ def autoregressive_predict(model, test_loader, device, grid):
     total_ground_truth = []
     with torch.no_grad():
         for (seq, truth) in test_loader:
+            print("seq shape: ", seq.shape, "truth shape: ", truth.shape)
             seq = seq.to(device)  # (B, T, S, S, C)
             truth = truth.to(device) # (B, T, S, S, C)
             T = seq.shape[1]
             preds = []  # predicted rollout
-            prev = seq[:, 0]  # initial condition (B, S, S, C)
+            prev = seq  # initial condition (B, S, S, C)
             initial_condition.append(prev)
             total_ground_truth.append(truth) # (B, S, S, C)
             preds.append(prev) # append the initial condition
