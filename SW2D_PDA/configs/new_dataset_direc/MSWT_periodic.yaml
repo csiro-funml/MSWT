@@ -1,6 +1,6 @@
 data:
   datapath: '/datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/benchmark/pdearena/sw2d_pda_data_train.npy'
-  normalizer_path: '/scratch3/wan410/operator_learning_data/pdearena/sw2d_pda/normstats.pt'
+  normalizer_path: '/datasets/work/oa-turb-arc/work/multiscale_wavelet_transformers_Xuesong_ICML2026/benchmark/pdearena/normstats.pt'
   name: SW2D
   total_num: 4000
   offset: 0
