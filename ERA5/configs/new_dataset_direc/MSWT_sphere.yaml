@@ -15,7 +15,7 @@ model:
   dims: [64, 128, 256, 512]
   in_chans: 7
   out_chans: 6
-  patch_size: [1, 1]
+  patch_size: 
   use_efficient_attention: True
   efficient_layers: [0, 1, 2]
   add_sphere_grid: true
