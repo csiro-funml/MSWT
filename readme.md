@@ -50,8 +50,6 @@ If dependencies and paths are correct, this prints the model parameter count, ou
 | Folder | Description |
 |--------|-------------|
 | **NS2D_ChaoticKolmogorovFlow** | 2D incompressible Navier–Stokes (chaotic Kolmogorov flow). Vorticity one-step prediction and autoregressive rollout; metrics include relative L², spectra, enstrophy. |
-| **NS2D_Dedalus** | 2D Navier–Stokes data from Dedalus; same operator-learning setup as above with different data source. |
-| **SW2D_Dedalus** | 2D Shallow Water from Dedalus (linear and spherical configs). |
 | **SW2D_PDA** | 2D Shallow Water from PDE Arena (vorticity + pressure); periodic and linear configs. |
 | **ERA5** | Global atmospheric prediction from ERA5 on the sphere (LUCIE-style); one-step tendencies and long autoregressive rollout with climatology bias. |
 | **data_generation/** | Scripts for generating or preprocessing PDE datasets. |
