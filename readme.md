@@ -1,13 +1,15 @@
-# Multi-Scale Wavelet Transformers
-
+# Multi-Scale Wavelet Transformers (MSWT)
 
 This project includes the implementation of our work: 
 <u>["Multi-Scale Wavelet Transformers for Operator Learning of Dynamical Systems"](https://arxiv.org/abs/2602.01486)
 </u>
 
-Xuesong Wang, Michael Groom, Rafael Oliveira, He Zhao, Terence O'Kane, Edwin V. Bonilla
+Xuesong Wang, Michael Groom, Rafael Oliveira, He Zhao, Terence O'Kane, Edwin V. Bonilla (ICML 2026)
 
 Neural operator benchmarks and models for PDEs: 2D Navier–Stokes, Shallow Water, and ERA5 climate prediction. Supports FNO, Unet, WNO, SAOT,  HFS, MSWT (multiscale wavelet transformers).
+
+![Reproducible](https://img.shields.io/badge/reproducibility-one_command-brightgreen)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 
 ---
 
