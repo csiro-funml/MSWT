@@ -7,7 +7,7 @@ This project includes the implementation of our work:
 Xuesong Wang, Michael Groom, Rafael Oliveira, He Zhao, Terence O'Kane, Edwin V. Bonilla (ICML 2026)
 
 <p align="center">
-  <img src="NS2D_PINO/rollout.gif" alt="Autoregressive rollout: ground truth, prediction, and error" width="400"/>
+  <img src="NS2D_ChaoticKolmogorovFlow/rollout.gif" alt="Autoregressive rollout: ground truth, prediction, and error" width="400"/>
 </p>
 
 Neural operator benchmarks and models for PDEs: 2D Navier–Stokes, Shallow Water, and ERA5 climate prediction. Supports FNO, Unet, WNO, SAOT,  HFS, MSWT (multiscale wavelet transformers).
